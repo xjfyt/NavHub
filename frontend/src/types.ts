@@ -58,6 +58,8 @@ export interface IconView {
   isFolder: boolean;
   iframePreview: boolean;
   sortOrder: number;
+  gridX: number | null;
+  gridY: number | null;
   folderItems: FolderItemView[];
   readOnly: boolean;
 }
@@ -70,6 +72,8 @@ export interface WidgetView {
   wRow: number | null;
   config: Record<string, unknown>;
   sortOrder: number;
+  gridX: number | null;
+  gridY: number | null;
   readOnly: boolean;
 }
 

@@ -353,10 +353,10 @@ html[data-mode="light"] .sidebar-bottom::before {
 
 /* ===== MAIN ===== */
 .main {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  padding: 20px 32px 12px;
+  padding: 12px 32px 12px;
 }
 
 .topbar-spacer { height: 56px; }
@@ -616,12 +616,11 @@ html[data-mode="light"] .sidebar-bottom::before {
 .content {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  position: relative;
   padding: 16px 8px 40px 8px;
   margin-top: -16px;
-  scrollbar-width: none;
 }
-.content::-webkit-scrollbar { display: none; }
 
 .grid {
   display: grid;
@@ -631,6 +630,10 @@ html[data-mode="light"] .sidebar-bottom::before {
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.react-grid-layout.layout {
+  min-height: 100% !important;
 }
 
 /* ===== ICON TILES (Cherry-Studio inspired: bare icon + label, no glass wrapper) ===== */
@@ -645,6 +648,12 @@ html[data-mode="light"] .sidebar-bottom::before {
   padding: 6px 4px;
   border-radius: 14px;
 }
+/* When placed in grid dashboard, fill the mathematical block */
+.react-grid-item > .tile {
+  width: 100%;
+  height: 100%;
+}
+
 .tile:hover { transform: translateY(-2px); }
 .tile:hover .tile-icon { box-shadow: 0 10px 24px rgba(0,0,0,0.22), 0 0 0 0.5px rgba(255,255,255,0.18) inset; }
 .tile:hover .tile-icon.has-plain-image { box-shadow: none; }
@@ -727,7 +736,22 @@ html[data-mode="light"] .sidebar-bottom::before {
 }
 
 /* Square — bare 56px icon */
-.tile.sq .tile-icon { width: 56px; height: 56px; font-size: 24px; border-radius: 14px; }
+.tile.sq {
+  justify-content: flex-start;
+  padding-top: 4px;
+  width: 64px;
+  height: 104px;
+}
+.tile.sq .tile-icon { 
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1; 
+  font-size: 32px; 
+  border-radius: 20%; 
+}
+.tile.sq .tile-label {
+  margin-top: 8px;
+}
 
 /* Pill size (rectangle wide) — still uses a glass container because it has a subtitle */
 .tile.pill-size {
@@ -749,7 +773,22 @@ html[data-mode="light"] .sidebar-bottom::before {
 .tile.pill-size .tile-text .sub { font-size: 11px; color: var(--text-soft); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
 
 /* Circle — bare 56px round icon */
-.tile.circle-size .tile-icon { width: 56px; height: 56px; font-size: 22px; border-radius: 50%; }
+.tile.circle-size {
+  justify-content: flex-start;
+  padding-top: 4px;
+  width: 64px;
+  height: 104px;
+}
+.tile.circle-size .tile-icon { 
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1; 
+  font-size: 22px; 
+  border-radius: 50%; 
+}
+.tile.circle-size .tile-label {
+  margin-top: 8px;
+}
 
 /* Large Square — bare 128px icon */
 .tile.lg .tile-icon { width: 128px; height: 128px; font-size: 64px; border-radius: 28px; }
@@ -3269,4 +3308,11 @@ html[data-mode="light"] .icon-search-empty-sub {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ===== REACT GRID LAYOUT OVERRIDES ===== */
+.react-grid-item.react-grid-placeholder {
+  background: transparent !important;
+  box-shadow: none !important;
+  opacity: 0 !important;
 }

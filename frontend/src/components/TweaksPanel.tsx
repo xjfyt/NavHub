@@ -216,9 +216,10 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const renderGeneral = () => {
     if (sub === "iconWidth") {
       return <SliderPopover title="图标区域宽度" onClose={() => setSub(null)} items={[
-        { label: "宽度", value: s.iconAreaWidth || 1200, min: 800, max: 1800, step: 20, format: (v: number) => v + "px", onChange: (v: number) => set("iconAreaWidth", v) },
+        { label: "宽度", value: s.iconAreaWidth === undefined ? 0 : s.iconAreaWidth, min: 0, max: 2400, step: 20, format: (v: number) => v === 0 ? "全宽 (100%)" : v + "px", onChange: (v: number) => set("iconAreaWidth", v) },
       ]} />;
     }
+
     if (sub === "sidebarStyle") {
       return <SliderPopover title="侧边栏样式" onClose={() => setSub(null)} items={[
         { label: "宽度", value: s.sidebarWidth || 56, min: 48, max: 84, step: 2, format: (v: number) => v + "px", onChange: (v: number) => set("sidebarWidth", v) },
@@ -251,7 +252,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
           <div className="tw-section-card">
             <Row label="打开方式"><Dropdown value={(s.iconOpen as string) || "newtab"} options={openOpts} onChange={(v) => set("iconOpen", v)} /></Row>
             <Row label="图标尺寸"><Dropdown value={(s.iconSize as string) || "auto"} options={iconSizeOpts} onChange={(v) => set("iconSize", v)} /></Row>
-            <Row label="图标区域宽度" onClick={() => setSub("iconWidth")}><Chevron /></Row>
+            <Row label="图标区域宽度" onClick={() => setSub("iconWidth")}><Chevron value={(s.iconAreaWidth === undefined || s.iconAreaWidth === 0) ? "全宽" : s.iconAreaWidth + "px"} /></Row>
             <Row label="隐藏添加图标"><Toggle on={!!s.hideAddIcon} onChange={(v) => set("hideAddIcon", v)} /></Row>
             <Row label="隐藏图标名称"><Toggle on={!!s.hideIconName} onChange={(v) => set("hideIconName", v)} /></Row>
             <Row label="滚动触发翻页"><Toggle on={s.wheelPage !== false} onChange={(v) => set("wheelPage", v)} /></Row>

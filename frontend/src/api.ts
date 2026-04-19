@@ -199,7 +199,7 @@ export const api = {
       body: JSON.stringify({ order }),
     });
   },
-  async reorderGroupItems(id: string, order: { id: string; type: "icon" | "widget" }[]): Promise<void> {
+  async reorderGroupItems(id: string, order: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]): Promise<void> {
     await request(`/api/groups/${id}/reorder-items`, {
       method: "POST",
       body: JSON.stringify({ order }),

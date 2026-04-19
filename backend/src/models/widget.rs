@@ -12,6 +12,8 @@ pub struct Widget {
     pub w_row: Option<i32>,
     pub config: serde_json::Value,
     pub sort_order: i32,
+    pub grid_x: Option<i32>,
+    pub grid_y: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -26,6 +28,8 @@ pub struct WidgetView {
     pub w_row: Option<i32>,
     pub config: serde_json::Value,
     pub sort_order: i32,
+    pub grid_x: Option<i32>,
+    pub grid_y: Option<i32>,
     pub read_only: bool,
 }
 

@@ -235,14 +235,14 @@ export const Shell = ({
     openCtx(x, y, items);
   };
 
-  const widgetSizeToSpan = (sz: "sq" | "pill-size" | "lg"): number => {
-    if (sz === "lg") return 3;
-    if (sz === "pill-size") return 2;
-    return 1;
+  const widgetSizeToConfig = (sz: "sq" | "pill-size" | "lg") => {
+    if (sz === "lg") return { wSpan: 4, wRow: 4 };
+    if (sz === "pill-size") return { wSpan: 4, wRow: 2 };
+    return { wSpan: 2, wRow: 2 };
   };
-  const widgetSpanToSize = (span: number): "sq" | "pill-size" | "lg" => {
-    if (span >= 3) return "lg";
-    if (span === 2) return "pill-size";
+  const widgetConfigToSize = (span?: number | null, row?: number | null): "sq" | "pill-size" | "lg" => {
+    if (span === 4 && row === 4) return "lg";
+    if (span === 4 && row === 2) return "pill-size";
     return "sq";
   };
 
@@ -274,11 +274,9 @@ export const Shell = ({
         }
         items.push({
           kind: "size",
-          current: widgetSpanToSize(w.wSpan),
+          current: widgetConfigToSize(w.wSpan, w.wRow),
           onPick: (sz) =>
-            void updateWidget(w.id, {
-              wSpan: widgetSizeToSpan(sz as "sq" | "pill-size" | "lg"),
-            }),
+            void updateWidget(w.id, widgetSizeToConfig(sz as "sq" | "pill-size" | "lg")),
         });
         items.push({ divider: true });
         items.push({
@@ -441,11 +439,6 @@ export const Shell = ({
         />
 
         <main className="main">
-          <div className="topbar-spacer" />
-          <div className="search-wrap">
-            <SearchBar />
-          </div>
-
           <NavView
             activeGroup={activeGroup}
             groups={workspace.groups}
@@ -484,13 +477,13 @@ export const Shell = ({
               const currentWidgets = workspace.widgets.filter(w => w.groupId === targetGroupId && w.id !== itemId);
               const currentIcons = workspace.icons.filter(i => i.groupId === targetGroupId && i.id !== itemId);
               const combinedItems = [
-                ...currentWidgets.map(w => ({ type: 'widget' as const, id: w.id, sortOrder: w.sortOrder })),
-                ...currentIcons.map(i => ({ type: 'icon' as const, id: i.id, sortOrder: i.sortOrder })),
+                ...currentWidgets.map(w => ({ type: 'widget' as const, id: w.id, sortOrder: w.sortOrder, gridX: w.gridX, gridY: w.gridY })),
+                ...currentIcons.map(i => ({ type: 'icon' as const, id: i.id, sortOrder: i.sortOrder, gridX: i.gridX, gridY: i.gridY })),
               ].sort((a, b) => a.sortOrder - b.sortOrder);
               
-              combinedItems.splice(targetIndex, 0, { type: itemType as any, id: itemId, sortOrder: 0 });
+              combinedItems.splice(targetIndex, 0, { type: itemType as any, id: itemId, sortOrder: 0, gridX: null, gridY: null });
               
-              reorderGroupItems(targetGroupId, combinedItems.map(x => ({ id: x.id, type: x.type })));
+              reorderGroupItems(targetGroupId, combinedItems.map(x => ({ id: x.id, type: x.type, x: x.gridX, y: x.gridY })));
             }}
             onExpandWidget={(w) => setDetailWidgetId(w.id)}
             onExtractFolderItem={extractFolderItem}

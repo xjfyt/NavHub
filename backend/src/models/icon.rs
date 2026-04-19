@@ -21,6 +21,8 @@ pub struct Icon {
     pub is_folder: bool,
     pub iframe_preview: bool,
     pub sort_order: i32,
+    pub grid_x: Option<i32>,
+    pub grid_y: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -58,6 +60,8 @@ pub struct IconView {
     pub is_folder: bool,
     pub iframe_preview: bool,
     pub sort_order: i32,
+    pub grid_x: Option<i32>,
+    pub grid_y: Option<i32>,
     pub folder_items: Vec<FolderItemView>,
     pub read_only: bool,
 }

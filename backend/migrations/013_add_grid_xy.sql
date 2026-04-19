@@ -1,0 +1,5 @@
+ALTER TABLE icons ADD COLUMN grid_x INT;
+ALTER TABLE icons ADD COLUMN grid_y INT;
+
+ALTER TABLE widgets ADD COLUMN grid_x INT;
+ALTER TABLE widgets ADD COLUMN grid_y INT;

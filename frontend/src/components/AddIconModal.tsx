@@ -185,6 +185,8 @@ export function AddIconModal({
     isFolder: false,
     iframePreview,
     sortOrder: 0,
+    gridX: null,
+    gridY: null,
     folderItems: [],
     readOnly: false,
   };

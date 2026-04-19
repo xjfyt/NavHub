@@ -171,6 +171,8 @@ pub async fn get_workspace(
                 is_folder: i.is_folder,
                 iframe_preview: i.iframe_preview,
                 sort_order: i.sort_order,
+                grid_x: i.grid_x,
+                grid_y: i.grid_y,
                 folder_items: items,
             }
         })
@@ -187,6 +189,8 @@ pub async fn get_workspace(
             w_row: w.w_row,
             config: w.config,
             sort_order: w.sort_order,
+            grid_x: w.grid_x,
+            grid_y: w.grid_y,
         })
         .collect();
 

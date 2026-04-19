@@ -65,6 +65,8 @@ pub struct ReorderRequest {
 pub struct GroupItem {
     pub id: Uuid,
     pub r#type: String,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]

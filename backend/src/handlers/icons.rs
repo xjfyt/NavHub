@@ -76,6 +76,8 @@ pub async fn create(
         is_folder: icon.is_folder,
         iframe_preview: icon.iframe_preview,
         sort_order: icon.sort_order,
+        grid_x: icon.grid_x,
+        grid_y: icon.grid_y,
         folder_items: vec![],
         read_only: false,
     };
@@ -185,6 +187,8 @@ pub async fn load_icon_view(state: Arc<AppState>, icon: &Icon) -> AppResult<Icon
         is_folder: icon.is_folder,
         iframe_preview: icon.iframe_preview,
         sort_order: icon.sort_order,
+        grid_x: icon.grid_x,
+        grid_y: icon.grid_y,
         folder_items: items,
         read_only: false,
     })

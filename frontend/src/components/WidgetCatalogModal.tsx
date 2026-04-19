@@ -36,6 +36,8 @@ export const WidgetCatalogModal = ({
       wRow: null,
       config: DEMO_CONFIG[selectedWidget.id] ?? {},
       sortOrder: 0,
+      gridX: null,
+      gridY: null,
       readOnly: true,
     };
   }, [selectedWidget]);

@@ -220,16 +220,20 @@ pub async fn reorder_items(
     let mut updated_rows: u64 = 0;
     for (i, item) in body.order.iter().enumerate() {
         if item.r#type == "icon" {
-            let res = sqlx::query("UPDATE icons SET sort_order = $1 WHERE id = $2 AND group_id = $3")
+            let res = sqlx::query("UPDATE icons SET sort_order = $1, grid_x = $2, grid_y = $3 WHERE id = $4 AND group_id = $5")
                 .bind(i as i32)
+                .bind(item.x)
+                .bind(item.y)
                 .bind(item.id)
                 .bind(id)
                 .execute(&mut *tx)
                 .await?;
             updated_rows += res.rows_affected();
         } else if item.r#type == "widget" {
-            let res = sqlx::query("UPDATE widgets SET sort_order = $1 WHERE id = $2 AND group_id = $3")
+            let res = sqlx::query("UPDATE widgets SET sort_order = $1, grid_x = $2, grid_y = $3 WHERE id = $4 AND group_id = $5")
                 .bind(i as i32)
+                .bind(item.x)
+                .bind(item.y)
                 .bind(item.id)
                 .bind(id)
                 .execute(&mut *tx)

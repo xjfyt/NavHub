@@ -26,7 +26,7 @@ interface WorkspaceContextProps {
   updateTweaks: (t: Partial<Tweaks>) => void;
   reorderGroup: (oldId: string, newId: string) => void;
   reorderIcon: (dragId: string, dropId: string) => void;
-  reorderGroupItems: (groupId: string, items: { id: string; type: "icon" | "widget" }[]) => void;
+  reorderGroupItems: (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => void;
   mergeIcon: (sourceId: string, targetId: string) => Promise<void>;
   extractFolderItem: (folderId: string, itemId: string) => Promise<void>;
   /** 图标/组件 的本地状态更新 + API 调用 */
@@ -168,7 +168,7 @@ export function WorkspaceProvider({
   );
 
   const reorderGroupItems = useCallback(
-    (groupId: string, items: { id: string; type: "icon" | "widget" }[]) => {
+    (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => {
       if (isGuest) return;
       setWorkspace((s) => {
         let icons = [...s.icons];
@@ -176,10 +176,10 @@ export function WorkspaceProvider({
         items.forEach((it, idx) => {
           if (it.type === "icon") {
             const idxIcon = icons.findIndex((i) => i.id === it.id);
-            if (idxIcon >= 0) icons[idxIcon] = { ...icons[idxIcon], sortOrder: idx };
+            if (idxIcon >= 0) icons[idxIcon] = { ...icons[idxIcon], sortOrder: idx, gridX: it.x, gridY: it.y };
           } else {
             const idxWidget = widgets.findIndex((w) => w.id === it.id);
-            if (idxWidget >= 0) widgets[idxWidget] = { ...widgets[idxWidget], sortOrder: idx };
+            if (idxWidget >= 0) widgets[idxWidget] = { ...widgets[idxWidget], sortOrder: idx, gridX: it.x, gridY: it.y };
           }
         });
         return { ...s, icons, widgets };

@@ -59,6 +59,8 @@ pub async fn create(
         w_row: w.w_row,
         config: w.config,
         sort_order: w.sort_order,
+        grid_x: w.grid_x,
+        grid_y: w.grid_y,
         read_only: false,
     };
     Ok((StatusCode::CREATED, Json(wv)))
@@ -114,6 +116,8 @@ pub async fn update(
         w_row: w.w_row,
         config: w.config,
         sort_order: w.sort_order,
+        grid_x: w.grid_x,
+        grid_y: w.grid_y,
         read_only: false,
     };
     Ok(Json(wv))
