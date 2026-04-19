@@ -1,0 +1,69 @@
+# NavHub 主配置文件
+# 首次启动会读取本文件；运行时超级管理员可在后台覆盖部分项（SSO、system）
+# 覆盖值存入 app_settings 表，优先级高于本文件
+
+[server]
+host = "0.0.0.0"
+port = 8088
+# 生产环境反代域名，用于 Cookie domain 与 OIDC redirect 推导
+public_url = "https://navigation.home.xjfyt.top"
+
+[database]
+host = "10.12.31.129"
+port = 5433
+user = "xjfyt"
+password = "w20010129"
+database = "navigation"
+max_connections = 10
+
+[redis]
+host = "10.12.31.129"
+port = 6379
+password = "w20010129"
+db = 3
+
+[superadmin]
+# 首次启动（DB 中无 superadmin 角色用户）时自动创建
+username = "superadmin"
+password = "superadmin"
+email = "superadmin@admin.com"
+display_name = "Super Admin"
+
+[sso]
+# 默认值；超管可在后台修改，修改后以 app_settings.sso 为准
+enabled = true
+issuer = "https://auth.home.xjfyt.top"
+client_id = "f3832b950cff564a42d3"
+client_secret = "f05b894b7196fb2230434fc47d48132e54614148"
+redirect_uri = "https://navigation.home.xjfyt.top/auth/callback"
+scopes = ["openid", "profile", "email"]
+
+[app]
+audit_retention_days = 90
+uploads_dir = "./uploads"
+session_ttl_days = 7
+upload_max_mb = 2
+log_level = "info"
+
+[storage]
+# local: 写入本地 uploads_dir
+# s3: 写入兼容 S3 协议的对象存储，通过后端签发临时访问链接
+backend = "local"
+
+[storage.s3]
+endpoint = "https://minio.example.com"
+region = "us-east-1"
+bucket = "navigation"
+access_key = "replace-me"
+secret_key = "replace-me"
+path_style = true
+key_prefix = "assets"
+presign_ttl_secs = 3600
+
+# 可选：和风天气 API（留空则组件返回静态样例）
+[weather]
+key = ""
+
+[frontend]
+# 生产模式下 Rust 托管的前端静态目录
+dist_dir = "./frontend/dist"

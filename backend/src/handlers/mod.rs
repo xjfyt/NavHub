@@ -1,0 +1,13 @@
+pub mod admin;
+pub mod auth;
+pub mod favicon;
+pub mod groups;
+pub mod icons;
+pub mod me;
+pub mod messages;
+pub mod music;
+pub mod prefs;
+pub mod upload;
+pub mod util;
+pub mod widgets;
+pub mod workspace;

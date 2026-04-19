@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NavHub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Background SVG registry (inline gradients, no hand-drawn artwork) -->
+    <svg width="0" height="0" style="position: absolute">
+      <defs>
+        <linearGradient id="bg-dawn" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f8c48b" />
+          <stop offset="0.35" stop-color="#d89a7a" />
+          <stop offset="0.65" stop-color="#6e7f7a" />
+          <stop offset="1" stop-color="#384a4a" />
+        </linearGradient>
+        <linearGradient id="bg-ocean" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1a2a4a" />
+          <stop offset="0.5" stop-color="#2d5a7a" />
+          <stop offset="1" stop-color="#0f1a2e" />
+        </linearGradient>
+        <linearGradient id="bg-mist" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#e8dcc8" />
+          <stop offset="0.5" stop-color="#c8b8a0" />
+          <stop offset="1" stop-color="#5a5248" />
+        </linearGradient>
+        <linearGradient id="bg-night" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1e1b3a" />
+          <stop offset="0.5" stop-color="#4a2c5e" />
+          <stop offset="1" stop-color="#0a0818" />
+        </linearGradient>
+      </defs>
+    </svg>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
