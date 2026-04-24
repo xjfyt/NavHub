@@ -26,8 +26,12 @@ export function App() {
 
   const boot = useCallback(async () => {
     try {
-      const [status, workspace, meResult] = await Promise.all([
-        api.status(),
+      const status = await api.status();
+      if (status.mustChangePassword) {
+        setState({ stage: "must_change_password" });
+        return;
+      }
+      const [workspace, meResult] = await Promise.all([
         api.workspace(),
         api.me().catch((e) => {
           if (e instanceof ApiError && e.status === 401) return null;
@@ -89,7 +93,14 @@ export function App() {
   }
 
   if (state.stage === "must_change_password") {
-    return <ChangePasswordScreen onDone={() => void boot()} />;
+    return (
+      <ChangePasswordScreen
+        onDone={() => {
+          setWantLogin(true);
+          void boot();
+        }}
+      />
+    );
   }
 
   const showLogin = wantLogin && !state.me;

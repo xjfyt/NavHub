@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { api } from "./api";
 
 export function ChangePasswordScreen(props: { onDone: () => void }) {
@@ -12,10 +13,15 @@ export function ChangePasswordScreen(props: { onDone: () => void }) {
       setErr("两次输入的密码不一致");
       return;
     }
+    if (password.length < 6) {
+      setErr("密码至少 6 位");
+      return;
+    }
     setPending(true);
     setErr(null);
     try {
       await api.changePassword(password);
+      toast.success("密码已修改,请使用新密码重新登录");
       props.onDone();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "修改失败");
@@ -30,8 +36,8 @@ export function ChangePasswordScreen(props: { onDone: () => void }) {
       <div className="nh-login-wrap">
         <div className="nh-login-box">
           <div className="nh-login-pane">
-            <h2 style={{ marginBottom: "1rem", color: "var(--text)" }}>请修改初始密码</h2>
-            <p className="nh-login-hint">为了安全起见，您必须修改密码才能继续使用。</p>
+            <div className="nh-login-title">请修改初始密码</div>
+            <p className="nh-login-sub">为了安全起见,您必须修改密码才能继续使用。</p>
             <input
               className="nh-login-input"
               type="password"
@@ -50,6 +56,7 @@ export function ChangePasswordScreen(props: { onDone: () => void }) {
               }}
             />
             <button
+              type="button"
               className="nh-btn-primary"
               onClick={() => void onSubmit()}
               disabled={pending || !password || !confirm}

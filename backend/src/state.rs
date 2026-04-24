@@ -17,11 +17,17 @@ impl AppState {
         let sso = SsoCache::load(&pg, &cfg.sso).await?;
         let storage = StorageBackendState::from_config(&cfg).await?;
         
-        let reqwest_client = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
-            .pool_max_idle_per_host(16)
-            .danger_accept_invalid_certs(true)
-            .build()?;
+            .pool_max_idle_per_host(16);
+        if cfg.app.tls_accept_invalid_certs {
+            tracing::warn!(
+                "app.tls_accept_invalid_certs=true: HTTPS certificate validation is DISABLED. \
+                 Do NOT use this in production."
+            );
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+        let reqwest_client = builder.build()?;
             
         Ok(Self {
             cfg,

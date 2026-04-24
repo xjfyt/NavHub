@@ -149,6 +149,10 @@ pub struct GeneralConfig {
     pub site_name: String,
     #[serde(default)]
     pub iframe_whitelist: Vec<String>,
+    /// 允许 reqwest 接受非法 TLS 证书(自签名、过期、域名不匹配)。
+    /// 默认 false。仅在受控内网调试自签 CA 时手动开启,生产环境切勿开启。
+    #[serde(default)]
+    pub tls_accept_invalid_certs: bool,
 }
 
 fn default_retention() -> i64 {

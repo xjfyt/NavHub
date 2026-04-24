@@ -13,6 +13,13 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
+/// 处于 must_change_password 状态的会话仍被允许访问的改密端点。
+/// 先剥离可选的 `/api` 前缀再比对,兼容 axum nest 是否剥前缀的两种情形。
+fn is_must_change_password_allowed(path: &str) -> bool {
+    let normalized = path.strip_prefix("/api").unwrap_or(path);
+    normalized == "/auth/password/change"
+}
+
 /// Injects a `request_id` tracing span for every incoming request,
 /// enabling structured log correlation across handlers.
 pub async fn inject_request_id(
@@ -42,11 +49,8 @@ pub async fn require_login(
         .await?
         .ok_or(AppError::Unauthorized)?;
     let role = Role::from_str(&data.role).unwrap_or(Role::Guest);
-    if data.must_change_password {
-        let path = req.uri().path();
-        if !path.starts_with("/auth/") && !path.starts_with("/api/auth/") {
-            return Err(AppError::Forbidden("must_change_password"));
-        }
+    if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
+        return Err(AppError::Forbidden("must_change_password"));
     }
     let user = SessionUser {
         id: data.user_id,
@@ -85,11 +89,8 @@ pub async fn optional_login(
     let maybe_user: Option<SessionUser> = match session::extract_sid(req.headers()) {
         Some(sid) => match session::get_session(&state, &sid).await? {
             Some(data) => {
-                if data.must_change_password {
-                    let path = req.uri().path();
-                    if !path.starts_with("/auth/") && !path.starts_with("/api/auth/") {
-                        return Err(AppError::Forbidden("must_change_password"));
-                    }
+                if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
+                    return Err(AppError::Forbidden("must_change_password"));
                 }
                 let user = SessionUser {
                     id: data.user_id,

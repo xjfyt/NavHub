@@ -28,6 +28,13 @@ username = "superadmin"
 password = "superadmin"
 email = "superadmin@admin.com"
 display_name = "Super Admin"
+# 是否允许超管用账号密码登录;关闭后 /auth/password 返回 403
+# password_login_enabled = true
+# 首位完成 SSO 登录的用户自动升级为 superadmin
+# first_sso_bind = false
+# 是否要求超管在首次登录时强制修改密码。默认 true。
+# 关闭此项意味着配置文件中的明文 password 直接生效为永久密码,仅在受控演示环境考虑关闭。
+# force_change_password = true
 
 [sso]
 # 默认值；超管可在后台修改，修改后以 app_settings.sso 为准
@@ -44,6 +51,8 @@ uploads_dir = "./uploads"
 session_ttl_days = 7
 upload_max_mb = 2
 log_level = "info"
+# 关闭后端出站 HTTPS 证书校验,仅在调试自签名证书时开启,生产环境严禁开启
+# tls_accept_invalid_certs = false
 
 [storage]
 # local: 写入本地 uploads_dir

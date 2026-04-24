@@ -216,6 +216,7 @@ export interface AuthStatus {
   passwordEnabled: boolean;
   issuer?: string;
   appName: string;
+  mustChangePassword: boolean;
 }
 
 // ---------- Icon Library ----------

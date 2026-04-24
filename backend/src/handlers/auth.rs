@@ -205,6 +205,7 @@ pub struct StatusResp {
     pub sso_enabled: bool,
     pub password_enabled: bool,
     pub app_name: String,
+    pub must_change_password: bool,
 }
 
 pub async fn status(
@@ -212,15 +213,19 @@ pub async fn status(
     headers: HeaderMap,
 ) -> AppResult<Json<StatusResp>> {
     let sso = state.sso.read().await;
-    let authed = match session::extract_sid(&headers) {
-        Some(sid) => session::get_session(&state, &sid).await?.is_some(),
-        None => false,
+    let (authed, must_change) = match session::extract_sid(&headers) {
+        Some(sid) => match session::get_session(&state, &sid).await? {
+            Some(data) => (true, data.must_change_password),
+            None => (false, false),
+        },
+        None => (false, false),
     };
     Ok(Json(StatusResp {
         authenticated: authed,
         sso_enabled: sso.enabled,
         password_enabled: state.cfg.superadmin.password_login_enabled,
         app_name: state.cfg.app.site_name.clone(),
+        must_change_password: must_change,
     }))
 }
 
@@ -355,6 +360,7 @@ pub struct UpdatePasswordReq {
 pub async fn change_password(
     State(state): State<Arc<AppState>>,
     Extension(user): Extension<SessionUser>,
+    headers: HeaderMap,
     Json(body): Json<UpdatePasswordReq>,
 ) -> AppResult<Response> {
     if body.new_password.len() < 6 {
@@ -366,9 +372,15 @@ pub async fn change_password(
         .bind(user.id)
         .execute(&state.pg)
         .await?;
-        
-    // Also update session in redis (or they just relogin)
-    // Actually we don't have to touch session, next login must_change_password will be false.
-    let resp = (StatusCode::NO_CONTENT, "").into_response();
+
+    // 销毁当前会话并清理 cookie,强制用户用新密码重新登录。
+    // 比原地改写 session 状态更稳妥:避免中间件/前端对陈旧 session 的缓存假设。
+    if let Some(sid) = session::extract_sid(&headers) {
+        let _ = session::destroy_session(&state, &sid).await;
+    }
+    let cookie = session::clear_cookie(session::is_https_public(&state));
+    let mut resp = (StatusCode::NO_CONTENT, "").into_response();
+    resp.headers_mut()
+        .insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
     Ok(resp)
 }
