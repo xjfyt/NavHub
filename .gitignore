@@ -6,3 +6,7 @@ uploads/
 .env
 .DS_Store
 *.log
+*.tsbuildinfo
+backend/clippy.txt
+backend/clippy.json
+frontend/ts-prune.txt
