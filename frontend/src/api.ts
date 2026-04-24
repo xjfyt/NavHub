@@ -231,6 +231,8 @@ export const api = {
         imageRadius: body.imageRadius,
         isFolder: body.isFolder ?? false,
         iframePreview: body.iframePreview ?? false,
+        fontSize: body.fontSize ?? "md",
+        textAlign: body.textAlign ?? "center",
       }),
     });
   },
@@ -251,6 +253,8 @@ export const api = {
         imageRadius: body.imageRadius,
         iframePreview: body.iframePreview,
         groupId: body.groupId,
+        fontSize: body.fontSize,
+        textAlign: body.textAlign,
       }),
     });
   },

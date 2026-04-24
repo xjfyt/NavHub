@@ -173,6 +173,8 @@ pub async fn get_workspace(
                 sort_order: i.sort_order,
                 grid_x: i.grid_x,
                 grid_y: i.grid_y,
+                font_size: i.font_size,
+                text_align: i.text_align,
                 folder_items: items,
             }
         })

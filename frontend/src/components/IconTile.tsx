@@ -32,6 +32,9 @@ export const IconTile = ({
     icon.imageUrl && icon.size !== "circle-size"
       ? (icon.imageRadius === "square" ? "radius-square" : "radius-rounded")
       : "";
+  const fontSize = icon.fontSize || "md";
+  const textAlign = icon.textAlign || "center";
+  const labelClass = `tile-label font-${fontSize} align-${textAlign}`;
 
   const renderGlyph = (item: TileRenderable, fallback?: string) => {
     const builtin = parseBuiltinIconUrl(item.imageUrl);
@@ -175,7 +178,7 @@ export const IconTile = ({
         >
           {renderGlyph(icon)}
         </div>
-        <div className="tile-label">{icon.name}</div>
+        <div className={labelClass}>{icon.name}</div>
       </div>
     );
   }
@@ -189,7 +192,7 @@ export const IconTile = ({
         >
           {renderGlyph(icon)}
         </div>
-        <div className="tile-text">
+        <div className={`tile-text font-${fontSize} align-${textAlign}`}>
           <span className="main">{icon.name}</span>
           <span className="sub">{icon.sub || icon.url}</span>
         </div>
@@ -206,7 +209,7 @@ export const IconTile = ({
         >
           {renderGlyph(icon)}
         </div>
-        <div className="tile-label">{icon.name}</div>
+        <div className={labelClass}>{icon.name}</div>
       </div>
     );
   }
@@ -219,7 +222,7 @@ export const IconTile = ({
       >
         {renderGlyph(icon)}
       </div>
-      <div className="tile-label">{icon.name}</div>
+      <div className={labelClass}>{icon.name}</div>
     </div>
   );
 };

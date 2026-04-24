@@ -28,6 +28,8 @@ export interface GroupView {
 export type IconSize = "sq" | "pill-size" | "circle-size" | "lg" | "lg-4" | "lg-9";
 export type IconImageStyle = "framed" | "plain";
 export type IconImageRadius = "rounded" | "square";
+export type IconFontSize = "sm" | "md" | "lg";
+export type IconTextAlign = "left" | "center" | "right";
 
 export interface FolderItemView {
   id: string;
@@ -60,6 +62,8 @@ export interface IconView {
   sortOrder: number;
   gridX: number | null;
   gridY: number | null;
+  fontSize: IconFontSize;
+  textAlign: IconTextAlign;
   folderItems: FolderItemView[];
   readOnly: boolean;
 }

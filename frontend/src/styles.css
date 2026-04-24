@@ -729,11 +729,21 @@ html[data-mode="light"] .sidebar-bottom::before {
   line-height: 1.25;
   text-shadow: 0 1px 3px rgba(0,0,0,0.35);
   padding: 0 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 84px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
+/* Font-size tiers for icon labels (sq / circle / lg variants) */
+.tile-label.font-sm { font-size: 11px; }
+.tile-label.font-md { font-size: 12px; }
+.tile-label.font-lg { font-size: 14px; }
+.tile-label.align-left   { text-align: left; }
+.tile-label.align-center { text-align: center; }
+.tile-label.align-right  { text-align: right; }
 
 /* Square — bare 56px icon */
 .tile.sq {
@@ -753,11 +763,11 @@ html[data-mode="light"] .sidebar-bottom::before {
   margin-top: 8px;
 }
 
-/* Pill size (rectangle wide) — still uses a glass container because it has a subtitle */
+/* Pill size (rectangle wide) — icon matches sq (56×56), container just wider */
 .tile.pill-size {
   flex-direction: row;
-  padding: 10px 14px;
-  gap: 12px;
+  padding: 4px 10px;
+  gap: 10px;
   align-items: center;
   height: 68px;
   border-radius: 18px;
@@ -767,10 +777,34 @@ html[data-mode="light"] .sidebar-bottom::before {
   border: 1px solid rgba(255,255,255,0.14);
 }
 .tile.pill-size:hover { background: rgba(255,255,255,0.18); }
-.tile.pill-size .tile-icon { width: 44px; height: 44px; font-size: 20px; border-radius: 12px; }
-.tile.pill-size .tile-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.tile.pill-size .tile-text .main { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
-.tile.pill-size .tile-text .sub { font-size: 11px; color: var(--text-soft); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+.tile.pill-size .tile-icon {
+  width: 56px; height: 56px;
+  aspect-ratio: 1 / 1;
+  font-size: 26px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+.tile.pill-size .tile-text {
+  display: flex; flex-direction: column;
+  flex: 1; min-width: 0;
+  justify-content: center;
+}
+.tile.pill-size .tile-text .main { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile.pill-size .tile-text .sub  { color: var(--text-soft); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Default font tier if tile-text has no font class (backward-compat) */
+.tile.pill-size .tile-text:not([class*="font-"]) .main { font-size: 14px; }
+.tile.pill-size .tile-text:not([class*="font-"]) .sub  { font-size: 11px; }
+/* Font tiers carry to pill as well */
+.tile.pill-size .tile-text.font-sm .main { font-size: 13px; }
+.tile.pill-size .tile-text.font-md .main { font-size: 14px; }
+.tile.pill-size .tile-text.font-lg .main { font-size: 16px; }
+.tile.pill-size .tile-text.font-sm .sub  { font-size: 10px; }
+.tile.pill-size .tile-text.font-md .sub  { font-size: 11px; }
+.tile.pill-size .tile-text.font-lg .sub  { font-size: 13px; }
+/* Alignment within pill text block */
+.tile.pill-size .tile-text.align-left   { align-items: flex-start; }
+.tile.pill-size .tile-text.align-center { align-items: center; }
+.tile.pill-size .tile-text.align-right  { align-items: flex-end; }
 
 /* Circle — bare 56px round icon */
 .tile.circle-size {

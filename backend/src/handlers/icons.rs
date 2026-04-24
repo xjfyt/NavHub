@@ -30,8 +30,8 @@ pub async fn create(
         return Err(AppError::Forbidden("not_owner"));
     }
     let icon: Icon = sqlx::query_as(
-        "INSERT INTO icons (group_id, name, url, sub, title, cta, size, letter, color, image_url, image_style, image_radius, is_folder, iframe_preview, sort_order) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, \
+        "INSERT INTO icons (group_id, name, url, sub, title, cta, size, letter, color, image_url, image_style, image_radius, is_folder, iframe_preview, font_size, text_align, sort_order) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16, \
            COALESCE((SELECT MAX(sort_order)+1 FROM icons WHERE group_id=$1), 0)) RETURNING *"
     )
     .bind(body.group_id)
@@ -48,6 +48,8 @@ pub async fn create(
     .bind(&body.image_radius)
     .bind(body.is_folder)
     .bind(body.iframe_preview)
+    .bind(&body.font_size)
+    .bind(&body.text_align)
     .fetch_one(&state.pg)
     .await?;
     util::audit(
@@ -78,6 +80,8 @@ pub async fn create(
         sort_order: icon.sort_order,
         grid_x: icon.grid_x,
         grid_y: icon.grid_y,
+        font_size: icon.font_size,
+        text_align: icon.text_align,
         folder_items: vec![],
         read_only: false,
     };
@@ -123,8 +127,10 @@ pub async fn update(
            image_radius = COALESCE($11, image_radius), \
            iframe_preview = COALESCE($12, iframe_preview), \
            group_id = COALESCE($13, group_id), \
+           font_size = COALESCE($14, font_size), \
+           text_align = COALESCE($15, text_align), \
            updated_at = now() \
-         WHERE id = $14 RETURNING *",
+         WHERE id = $16 RETURNING *",
     )
     .bind(body.name.as_deref())
     .bind(body.url.as_deref())
@@ -139,6 +145,8 @@ pub async fn update(
     .bind(body.image_radius.as_deref())
     .bind(body.iframe_preview)
     .bind(body.group_id)
+    .bind(body.font_size.as_deref())
+    .bind(body.text_align.as_deref())
     .bind(id)
     .fetch_one(&state.pg)
     .await?;
@@ -189,6 +197,8 @@ pub async fn load_icon_view(state: Arc<AppState>, icon: &Icon) -> AppResult<Icon
         sort_order: icon.sort_order,
         grid_x: icon.grid_x,
         grid_y: icon.grid_y,
+        font_size: icon.font_size.clone(),
+        text_align: icon.text_align.clone(),
         folder_items: items,
         read_only: false,
     })

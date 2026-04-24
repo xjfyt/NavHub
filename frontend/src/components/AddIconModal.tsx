@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   GroupView,
+  IconFontSize,
   IconImageRadius,
   IconImageStyle,
   IconSize,
+  IconTextAlign,
   IconView,
   IconLibraryView,
   LibraryIconView,
@@ -52,6 +54,18 @@ const IMAGE_RADIUS_OPTIONS: { id: IconImageRadius; name: string }[] = [
   { id: "square", name: "直角" },
 ];
 
+const FONT_SIZE_OPTIONS: { id: IconFontSize; name: string }[] = [
+  { id: "sm", name: "小" },
+  { id: "md", name: "中" },
+  { id: "lg", name: "大" },
+];
+
+const TEXT_ALIGN_OPTIONS: { id: IconTextAlign; name: string }[] = [
+  { id: "left", name: "左" },
+  { id: "center", name: "中" },
+  { id: "right", name: "右" },
+];
+
 export interface AddIconPayload {
   groupId: string;
   name: string;
@@ -64,6 +78,8 @@ export interface AddIconPayload {
   imageUrl: string | null;
   imageStyle: IconImageStyle;
   imageRadius: IconImageRadius;
+  fontSize: IconFontSize;
+  textAlign: IconTextAlign;
 }
 
 function stripExt(filename: string): string {
@@ -122,6 +138,8 @@ export function AddIconModal({
 
   const [imageStyle, setImageStyle] = useState<IconImageStyle>(initialIcon?.imageStyle || "plain");
   const [imageRadius, setImageRadius] = useState<IconImageRadius>(initialIcon?.imageRadius || "rounded");
+  const [fontSize, setFontSize] = useState<IconFontSize>(initialIcon?.fontSize || "md");
+  const [textAlign, setTextAlign] = useState<IconTextAlign>(initialIcon?.textAlign || "center");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const loadLibraryIcons = (id: string) => {
@@ -187,6 +205,8 @@ export function AddIconModal({
     sortOrder: 0,
     gridX: null,
     gridY: null,
+    fontSize,
+    textAlign,
     folderItems: [],
     readOnly: false,
   };
@@ -213,6 +233,8 @@ export function AddIconModal({
       imageUrl: effectiveImageUrl,
       imageStyle,
       imageRadius,
+      fontSize,
+      textAlign,
     });
   };
 
@@ -463,6 +485,34 @@ export function AddIconModal({
                   </div>
                 </div>
               )}
+
+              <div className="field-row" style={{ marginTop: '16px', marginBottom: 0 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 12 }}>文字大小</label>
+                  <div className="tabs" style={{ background: 'var(--panel-bg)' }}>
+                    {FONT_SIZE_OPTIONS.map((opt) => (
+                      <button key={opt.id} type="button" className={"tab " + (fontSize === opt.id ? "active" : "")} onClick={() => setFontSize(opt.id)}>
+                        {opt.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 12 }}>文字对齐</label>
+                  <div className="tabs" style={{ background: 'var(--panel-bg)' }}>
+                    {TEXT_ALIGN_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={"tab " + (textAlign === opt.id ? "active" : "")}
+                        onClick={() => setTextAlign(opt.id)}
+                      >
+                        {opt.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 'auto', fontSize: 13, color: 'var(--text-soft)', paddingBottom: 4 }} onClick={() => setIframePreview((v) => !v)}>

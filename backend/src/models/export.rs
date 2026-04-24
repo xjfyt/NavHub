@@ -32,7 +32,19 @@ pub struct IconExportData {
     pub is_folder: bool,
     pub iframe_preview: bool,
     pub sort_order: i32,
+    #[serde(default = "default_font_size")]
+    pub font_size: String,
+    #[serde(default = "default_text_align")]
+    pub text_align: String,
     pub folder_items: Vec<FolderItemData>,
+}
+
+fn default_font_size() -> String {
+    "md".into()
+}
+
+fn default_text_align() -> String {
+    "center".into()
 }
 
 #[derive(Debug, Serialize, Deserialize)]

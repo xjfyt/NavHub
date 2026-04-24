@@ -151,6 +151,8 @@ pub async fn export(
             is_folder: ic.is_folder,
             iframe_preview: ic.iframe_preview,
             sort_order: ic.sort_order,
+            font_size: ic.font_size,
+            text_align: ic.text_align,
             folder_items: items,
         }
     }).collect();
@@ -196,8 +198,8 @@ pub async fn import(
 
     for ic in payload.icons {
         let new_icon: Icon = sqlx::query_as(
-            "INSERT INTO icons (id, group_id, name, url, sub, title, cta, size, letter, color, image_url, image_style, image_radius, is_folder, iframe_preview, sort_order) \
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
+            "INSERT INTO icons (id, group_id, name, url, sub, title, cta, size, letter, color, image_url, image_style, image_radius, is_folder, iframe_preview, font_size, text_align, sort_order) \
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
              RETURNING *"
         )
         .bind(new_group.id)
@@ -214,6 +216,8 @@ pub async fn import(
         .bind(ic.image_radius)
         .bind(ic.is_folder)
         .bind(ic.iframe_preview)
+        .bind(ic.font_size)
+        .bind(ic.text_align)
         .bind(ic.sort_order)
         .fetch_one(&mut *tx)
         .await?;

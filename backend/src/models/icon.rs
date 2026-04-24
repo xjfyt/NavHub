@@ -23,6 +23,8 @@ pub struct Icon {
     pub sort_order: i32,
     pub grid_x: Option<i32>,
     pub grid_y: Option<i32>,
+    pub font_size: String,
+    pub text_align: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -62,6 +64,8 @@ pub struct IconView {
     pub sort_order: i32,
     pub grid_x: Option<i32>,
     pub grid_y: Option<i32>,
+    pub font_size: String,
+    pub text_align: String,
     pub folder_items: Vec<FolderItemView>,
     pub read_only: bool,
 }
@@ -119,6 +123,10 @@ pub struct IconCreate {
     pub is_folder: bool,
     #[serde(default)]
     pub iframe_preview: bool,
+    #[serde(default = "default_font_size")]
+    pub font_size: String,
+    #[serde(default = "default_text_align")]
+    pub text_align: String,
 }
 
 fn default_size() -> String {
@@ -131,6 +139,14 @@ fn default_image_style() -> String {
 
 fn default_image_radius() -> String {
     "rounded".into()
+}
+
+fn default_font_size() -> String {
+    "md".into()
+}
+
+fn default_text_align() -> String {
+    "center".into()
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,6 +165,8 @@ pub struct IconUpdate {
     pub image_radius: Option<String>,
     pub iframe_preview: Option<bool>,
     pub group_id: Option<Uuid>,
+    pub font_size: Option<String>,
+    pub text_align: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
