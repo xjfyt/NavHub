@@ -1,8 +1,22 @@
-import React, { useMemo, useState } from "react";
-import { DEMO_CONFIG, WIDGET_KINDS, WIDGET_REGISTRY } from "../widgets";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  DEMO_CONFIG,
+  WIDGET_KINDS,
+  WIDGET_REGISTRY,
+  WIDGET_SIZE_DIMENSIONS,
+  WIDGET_SIZE_LABEL,
+  WIDGET_SIZE_ORDER,
+  type WidgetSizeId,
+} from "../widgets";
 import { PREVIEW_WIDGET_ID } from "../widgets/types";
 import { Icon } from "./Icon";
 import { GroupView, WidgetView } from "../types";
+
+const PREVIEW_PX: Record<WidgetSizeId, { w: number; h: number }> = {
+  small: { w: 280, h: 130 },
+  medium: { w: 280, h: 280 },
+  large: { w: 560, h: 230 },
+};
 
 export const WidgetCatalogModal = ({
   groups,
@@ -13,11 +27,11 @@ export const WidgetCatalogModal = ({
   groups: GroupView[];
   defaultGroupId: string;
   onClose: () => void;
-  onAdd: (groupId: string, widgetId: string, span: number) => void;
+  onAdd: (groupId: string, widgetId: string, size: WidgetSizeId) => void;
 }) => {
   const [selectedId, setSelectedId] = useState(WIDGET_KINDS[0]?.id);
   const [targetGroup, setTargetGroup] = useState(defaultGroupId);
-  const [size, setSize] = useState<number>(2); // Default medium (span=2)
+  const [size, setSize] = useState<WidgetSizeId>("medium");
   const [search, setSearch] = useState("");
 
   const filtered = WIDGET_KINDS.filter(k => 
@@ -26,21 +40,27 @@ export const WidgetCatalogModal = ({
 
   const selectedWidget = WIDGET_REGISTRY[selectedId as keyof typeof WIDGET_REGISTRY];
 
+  // 当切换组件时，把 size 重置为该组件的默认尺寸
+  useEffect(() => {
+    if (selectedWidget?.defaultSize) setSize(selectedWidget.defaultSize);
+  }, [selectedWidget]);
+
   const demoWidget = useMemo<WidgetView | undefined>(() => {
     if (!selectedWidget) return undefined;
+    const dim = WIDGET_SIZE_DIMENSIONS[size];
     return {
       id: PREVIEW_WIDGET_ID,
       groupId: "",
       widget: selectedWidget.id,
-      wSpan: selectedWidget.span,
-      wRow: null,
+      wSpan: dim.wSpan,
+      wRow: dim.wRow,
       config: DEMO_CONFIG[selectedWidget.id] ?? {},
       sortOrder: 0,
       gridX: null,
       gridY: null,
       readOnly: true,
     };
-  }, [selectedWidget]);
+  }, [selectedWidget, size]);
 
   const handleWheel = (e: React.WheelEvent) => {
     // Only process if it's a significant scroll
@@ -95,18 +115,25 @@ export const WidgetCatalogModal = ({
                   <p>{selectedWidget.description}</p>
                   
                   <div className="wcc-size-toggles">
-                    <button className={size === 1 ? "active" : ""} onClick={() => setSize(1)}>小</button>
-                    <button className={size === 2 ? "active" : ""} onClick={() => setSize(2)}>中</button>
-                    <button className={size === 3 ? "active" : ""} onClick={() => setSize(3)}>大</button>
+                    {WIDGET_SIZE_ORDER.map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={size === id ? "active" : ""}
+                        onClick={() => setSize(id)}
+                      >
+                        {WIDGET_SIZE_LABEL[id]}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="wcc-preview-canvas">
-                  <div 
+                  <div
                     className="wcc-pseudo-widget"
-                    style={{ 
-                      width: size === 1 ? 160 : size === 2 ? 340 : 520,
-                      height: 160
+                    style={{
+                      width: PREVIEW_PX[size].w,
+                      height: PREVIEW_PX[size].h,
                     }}
                   >
                      <div className="widget-scale-wrap">

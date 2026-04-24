@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { IconView, WidgetView, Tweaks, GroupView } from "../types";
 import { IconTile } from "./IconTile";
-import { WIDGET_REGISTRY } from "../widgets";
+import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, snapWidgetSize } from "../widgets";
 import { Icon } from "./Icon";
 import { Layout, LayoutItem } from "react-grid-layout";
 import { Responsive, WidthProvider } from "react-grid-layout/legacy";
@@ -165,8 +165,20 @@ export const NavView = ({
     
     combined.forEach(obj => {
       const isWidget = obj.type === 'widget';
-      const wSpan = isWidget ? Math.min((obj.item as WidgetView).wSpan || ((WIDGET_REGISTRY[(obj.item as WidgetView).widget]?.span || 1) * 2), cols) : wSpanFor(obj.item as IconView, cols);
-      const hSpan = isWidget ? ((obj.item as WidgetView).wRow || ((WIDGET_REGISTRY[(obj.item as WidgetView).widget]?.row || 1) * 2)) : hSpanFor(obj.item as IconView);
+      let wSpan: number;
+      let hSpan: number;
+      if (isWidget) {
+        // 把存储的 wSpan/wRow 归约到三档之一（small/medium/large）后渲染
+        const widgetItem = obj.item as WidgetView;
+        const reg = WIDGET_REGISTRY[widgetItem.widget];
+        const sizeKey = snapWidgetSize(widgetItem.wSpan, widgetItem.wRow) || reg?.defaultSize || "medium";
+        const dim = WIDGET_SIZE_DIMENSIONS[sizeKey];
+        wSpan = Math.min(dim.wSpan, cols);
+        hSpan = dim.wRow;
+      } else {
+        wSpan = wSpanFor(obj.item as IconView, cols);
+        hSpan = hSpanFor(obj.item as IconView);
+      }
       
       let gX = obj.item.gridX;
       let gY = obj.item.gridY;
@@ -380,7 +392,6 @@ export const NavView = ({
                   } : undefined}
                   onContextMenu={(e => { e.preventDefault(); e.stopPropagation(); onCtxTile(e, w); })}>
                   {r.render(w)}
-                  {canExpand && <span className="widget-expand-hint" aria-hidden><Icon name="maximize" size={11} /></span>}
                 </div>
               </div>
             );

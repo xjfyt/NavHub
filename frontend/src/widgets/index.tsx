@@ -32,18 +32,66 @@ export { HitokotoWidget } from "./HitokotoWidget";
 export { MarkdownWidget } from "./MarkdownWidget";
 export { SearchWidget } from "./SearchWidget";
 
+/**
+ * 三档固定尺寸（参考 WebTab）：
+ * - small  小  → 横向胶囊  (6×3 cells ≈ 224×104px)
+ * - medium 中  → 方形      (6×6 cells ≈ 224×224px)
+ * - large  大  → 横向长条  (12×5 cells ≈ 464×184px)
+ */
+export type WidgetSizeId = "small" | "medium" | "large";
+
+export const WIDGET_SIZE_DIMENSIONS: Record<WidgetSizeId, { wSpan: number; wRow: number }> = {
+  small: { wSpan: 6, wRow: 3 },
+  medium: { wSpan: 6, wRow: 6 },
+  large: { wSpan: 12, wRow: 5 },
+};
+
+export const WIDGET_SIZE_ORDER: WidgetSizeId[] = ["small", "medium", "large"];
+
+export const WIDGET_SIZE_LABEL: Record<WidgetSizeId, string> = {
+  small: "小",
+  medium: "中",
+  large: "大",
+};
+
+/** 把任意存储的 wSpan/wRow 归约到三档之一（用于兼容旧数据） */
+export function snapWidgetSize(wSpan?: number | null, wRow?: number | null): WidgetSizeId {
+  const w = wSpan ?? 0;
+  const r = wRow ?? 0;
+  if (w <= 0 || r <= 0) return "medium";
+  // 精确匹配新方案
+  if (w === 6 && r === 3) return "small";
+  if (w === 6 && r === 6) return "medium";
+  if (w === 12 && r === 5) return "large";
+  // 按宽高比 + 面积推断
+  const area = w * r;
+  const aspect = w / r;
+  if (aspect >= 1.7) {
+    return area >= 28 ? "large" : "small";
+  }
+  return area >= 12 ? "medium" : "small";
+}
+
+export function widgetDimensionsOf(key: WidgetSizeId) {
+  return WIDGET_SIZE_DIMENSIONS[key];
+}
+
 export interface WidgetTypeInfo {
   id: string;
   name: string;
   description: string;
   icon?: string;
-  span: number;
+  /** @deprecated 旧字段，保留以兼容；新组件用 defaultSize */
+  span?: number;
+  /** @deprecated */
   row?: number;
+  /** 默认尺寸；catalog 选择 + 新建时使用 */
+  defaultSize?: WidgetSizeId;
   render: (w?: WidgetView) => React.ReactNode;
   /** 是否支持通过 WidgetEditModal 编辑（齿轮按钮是否显示） */
   editable?: boolean;
   /**
-   * 展开详情视图。若提供，磁贴右上角显示 ⤢ 按钮，点击后在 WidgetDetailModal 中显示。
+   * 展开详情视图。若提供，磁贴点击后在 WidgetDetailModal 中显示。
    * 若不提供，则不显示展开按钮（适合本身即为完整交互的组件，如计算器、嵌入网页）。
    */
   renderDetail?: (w?: WidgetView) => React.ReactNode;
@@ -58,8 +106,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "clock",
     name: "时钟",
     description: "世界时钟与本地问候，时刻保持时间敏感度。",
-    span: 1,
-    row: 1,
+    defaultSize: "small",
     render: (w) => <ClockWidget w={w} />,
     renderDetail: (w) => <ClockDetail w={w} />,
   },
@@ -68,8 +115,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "cloud",
     name: "天气",
     description: "24小时预报、未来7天预报、城市查询，随时关注天气变化状况。",
-    span: 2,
-    row: 2,
+    defaultSize: "large",
     editable: true,
     render: (w) => <WeatherWidget w={w} />,
     renderDetail: (w) => <WeatherDetail w={w} />,
@@ -79,8 +125,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "calendar",
     name: "倒计时",
     description: "重要日子倒计时记录，如纪念日、高考、下班等。",
-    span: 2,
-    row: 1,
+    defaultSize: "small",
     editable: true,
     render: (w) => <CountdownWidget w={w} />,
     renderDetail: (w) => <CountdownDetail w={w} />,
@@ -90,8 +135,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "check-square",
     name: "待办",
     description: "通过待办事项来列出需要处理的事物，包括生活、工作或其它事项。",
-    span: 2,
-    row: 2,
+    defaultSize: "medium",
     render: (w) => <TodoWidget w={w} />,
     renderDetail: (w) => <TodoDetail w={w} />,
   },
@@ -100,8 +144,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "edit",
     name: "便签",
     description: "极简便笺，随时随地记录灵感与思路。",
-    span: 2,
-    row: 2,
+    defaultSize: "medium",
     render: (w) => <NotesWidget w={w} />,
     renderDetail: (w) => <NotesDetail w={w} />,
   },
@@ -110,8 +153,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "calendar",
     name: "日历",
     description: "使用日历来跟踪倒数日、节假日、法定节假日、纪念日，不错过每一个重要的日子。",
-    span: 2,
-    row: 2,
+    defaultSize: "medium",
     render: (w) => <CalendarWidget w={w} />,
     renderDetail: (w) => <CalendarDetail w={w} />,
   },
@@ -120,8 +162,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "activity",
     name: "热搜",
     description: "热搜资讯，轻松获知全网动态。",
-    span: 2,
-    row: 2,
+    defaultSize: "medium",
     editable: true,
     render: (w) => <RssWidget w={w} />,
     renderDetail: (w) => <RssDetail w={w} />,
@@ -131,8 +172,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "music",
     name: "音乐",
     description: "沉浸式音乐播放器组件，极简美观。",
-    span: 2,
-    row: 2,
+    defaultSize: "medium",
     editable: true,
     render: (w) => <MusicWidget w={w} />,
     renderDetail: (w) => <MusicDetail w={w} />,
@@ -142,8 +182,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "hash",
     name: "计算器",
     description: "桌面快捷四则运算辅助，即用即走。",
-    span: 2,
-    row: 2,
+    defaultSize: "medium",
     render: (w) => <CalculatorWidget w={w} />,
   },
   iframe: {
@@ -151,8 +190,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "globe",
     name: "嵌入网页",
     description: "无缝嵌入其他网页面板或仪表盘。",
-    span: 2,
-    row: 2,
+    defaultSize: "large",
     editable: true,
     render: (w) => <IframeWidget w={w} />,
   },
@@ -161,8 +199,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "clock",
     name: "番茄钟",
     description: "经典番茄工作法计时器，专注 25 分钟、休息 5 分钟。",
-    span: 1,
-    row: 1,
+    defaultSize: "small",
     editable: true,
     render: (w) => <PomodoroWidget w={w} />,
     renderDetail: (w) => <PomodoroDetail w={w} />,
@@ -172,7 +209,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "activity",
     name: "年进度",
     description: "直观展示本年度已过进度，让时间感更具象。",
-    span: 1,
+    defaultSize: "small",
     render: (w) => <YearProgressWidget w={w} />,
     renderDetail: (w) => <YearProgressDetail w={w} />,
   },
@@ -181,7 +218,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "sparkle",
     name: "一言",
     description: "随机一句话，抚慰碎片时间；支持动漫 / 文学 / 诗词等多种来源。",
-    span: 2,
+    defaultSize: "medium",
     editable: true,
     render: (w) => <HitokotoWidget w={w} />,
     renderDetail: (w) => <HitokotoDetail w={w} />,
@@ -191,7 +228,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "search",
     name: "搜索",
     description: "直接在磁贴里发起网页搜索，支持多引擎切换。search / google / baidu / bing。",
-    span: 2,
+    defaultSize: "small",
     editable: true,
     render: (w) => <SearchWidget w={w} />,
   },
@@ -200,7 +237,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "edit",
     name: "Markdown 笔记",
     description: "多条笔记本，所见即所得编辑；支持颜色标记、搜索、表格、任务列表。笔记 / 文档 / note / Typora。",
-    span: 2,
+    defaultSize: "medium",
     detailWidth: "min(1100px, 94vw)",
     detailMaxHeight: "82vh",
     render: (w) => <MarkdownWidget w={w} />,

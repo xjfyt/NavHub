@@ -16,6 +16,7 @@ import {
 } from "../types";
 import { api } from "../api";
 import { toast } from "sonner";
+import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, type WidgetSizeId } from "../widgets";
 
 interface WorkspaceContextProps {
   me: Me | null;
@@ -36,7 +37,7 @@ interface WorkspaceContextProps {
   updateWidget: (id: string, patch: Partial<WidgetView>) => Promise<void>;
   updateWidgetLocal: (id: string, config: Record<string, unknown>) => void;
   deleteWidget: (id: string) => Promise<void>;
-  addWidget: (groupId: string, kind: string, wSpan?: number) => Promise<void>;
+  addWidget: (groupId: string, kind: string, size?: WidgetSizeId) => Promise<void>;
   addIcon: (body: Partial<IconView> & { groupId: string; name: string }) => Promise<IconView | null>;
   updateGroup: (id: string, patch: Partial<GroupView>) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
@@ -313,9 +314,16 @@ export function WorkspaceProvider({
   }, []);
 
   const addWidget = useCallback(
-    async (groupId: string, kind: string, wSpan = 2) => {
+    async (groupId: string, kind: string, size?: WidgetSizeId) => {
       try {
-        const w = await api.createWidget({ groupId, widget: kind, wSpan });
+        const sizeKey = size ?? WIDGET_REGISTRY[kind]?.defaultSize ?? "medium";
+        const dim = WIDGET_SIZE_DIMENSIONS[sizeKey];
+        const w = await api.createWidget({
+          groupId,
+          widget: kind,
+          wSpan: dim.wSpan,
+          wRow: dim.wRow,
+        });
         setWorkspace((s) => ({ ...s, widgets: [...s.widgets, w] }));
       } catch (e) {
         console.error("addWidget failed", e);

@@ -20,9 +20,9 @@ export const CalendarWidget = (_props: WidgetProps = {}) => {
   return (
     <div className="widget w-calendar">
       <div className="cal-head">
-        <div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}>
           <div className="cal-month">{year} · {monthNames[mo]}</div>
-          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{today.toLocaleDateString('zh-CN', { weekday: 'long' })}</div>
+          <div className="muted" style={{ fontSize: 11, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{today.toLocaleDateString('zh-CN', { weekday: 'long' })}</div>
         </div>
         <div className="cal-nav">
           <button onClick={(e) => { e.stopPropagation(); setMonth(new Date(year, mo - 1, 1)); }} onMouseDown={(e) => e.stopPropagation()}><Icon name="chevron-left" size={12} /></button>
