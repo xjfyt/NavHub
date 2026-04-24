@@ -18,10 +18,18 @@ import { IconSearchOverlay } from "./IconSearchOverlay";
 import { FolderOverlay } from "./FolderOverlay";
 import { IframePreviewModal } from "./IframePreviewModal";
 import { IconView, IconSize, WidgetView } from "../types";
-import { WIDGET_REGISTRY } from "../widgets";
 import {
-  buildWallpaperTweaks,
+  WIDGET_REGISTRY,
+  WIDGET_SIZE_DIMENSIONS,
+  WIDGET_SIZE_LABEL,
+  WIDGET_SIZE_ORDER,
+  snapWidgetSize,
+  type WidgetSizeId,
+} from "../widgets";
+import {
+  normalizeShuffleInterval,
   randomWallpaperPreset,
+  type WallpaperPreset,
 } from "../constants/wallpapers";
 import { confirmDialog, promptDialog } from "./Dialogs";
 import { toast } from "sonner";
@@ -86,6 +94,23 @@ export const Shell = ({
     ? workspace.widgets.find((w) => w.id === detailWidgetId) ?? null
     : null;
   const [isChangingWallpaper, setIsChangingWallpaper] = useState(false);
+  const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(null);
+
+  const shuffleEnabled =
+    tweaks.wallpaperShuffle !== false && tweaks.backgroundMode !== "theme";
+  const shuffleIntervalSec = normalizeShuffleInterval(tweaks.wallpaperShuffleInterval);
+
+  useEffect(() => {
+    if (!shuffleEnabled) {
+      setShufflePreset(null);
+      return;
+    }
+    setShufflePreset((prev) => prev || randomWallpaperPreset(null));
+    const timer = window.setInterval(() => {
+      setShufflePreset((prev) => randomWallpaperPreset(prev?.id || null));
+    }, shuffleIntervalSec * 1000);
+    return () => window.clearInterval(timer);
+  }, [shuffleEnabled, shuffleIntervalSec]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -117,23 +142,26 @@ export const Shell = ({
   }, []);
 
   const theme = tweaks.theme || "dawn";
-  const wallpaperUrl =
-    tweaks.backgroundMode === "wallpaper"
+  const shuffleActive = shuffleEnabled && !!shufflePreset;
+  const wallpaperUrl = shuffleActive
+    ? shufflePreset!.assetUrl
+    : tweaks.backgroundMode === "wallpaper"
       ? (tweaks.wallpaperUrl as string | undefined)
       : undefined;
-  const wallpaperMediaType =
-    tweaks.backgroundMode === "wallpaper"
+  const wallpaperMediaType = shuffleActive
+    ? shufflePreset!.mediaType
+    : tweaks.backgroundMode === "wallpaper"
       ? (tweaks.wallpaperMediaType as "image" | "video" | undefined)
       : undefined;
-  const wallpaperPosterUrl =
-    tweaks.backgroundMode === "wallpaper"
+  const wallpaperPosterUrl = shuffleActive
+    ? (shufflePreset!.posterUrl || shufflePreset!.thumbUrl)
+    : tweaks.backgroundMode === "wallpaper"
       ? (tweaks.wallpaperPosterUrl as string | undefined)
       : undefined;
   const sidebarMode = (tweaks.sidebar as "pinned" | "autohide" | "hidden") || "pinned";
   const sidebarWidth = Math.max(48, Math.min(84, Number(tweaks.sidebarWidth) || 56));
   const sidebarGap = Math.max(2, Math.min(18, Number(tweaks.sidebarGap) || 6));
-  const sidebarBgMode =
-    tweaks.backgroundMode === "wallpaper" && wallpaperUrl ? "wallpaper" : "theme";
+  const sidebarBgMode = wallpaperUrl ? "wallpaper" : "theme";
 
   // Moved openedFolder state up to prevent hook mismatch when adminOpen is true
   const [openedFolder, setOpenedFolder] = useState<IconView | null>(null);
@@ -153,34 +181,14 @@ export const Shell = ({
   const randomWallpaper = async () => {
     if (isChangingWallpaper) return;
     setIsChangingWallpaper(true);
-    const tid = toast.loading("获取壁纸中...");
     try {
-      const next = randomWallpaperPreset(
-        (tweaks.wallpaperId as string | undefined) || null,
-      );
-      
-      const isVideo = next.mediaType === "video";
-      if (isVideo) {
-        await new Promise((resolve) => {
-          const video = document.createElement("video");
-          video.src = next.assetUrl;
-          video.preload = "auto";
-          video.oncanplay = resolve;
-          video.onerror = resolve;
-          setTimeout(resolve, 3000);
-        });
+      if (shuffleEnabled) {
+        setShufflePreset((prev) => randomWallpaperPreset(prev?.id || null));
+        toast.success("已切换到新壁纸");
       } else {
-        await new Promise((resolve) => {
-          const img = new Image();
-          img.src = next.assetUrl;
-          img.onload = resolve;
-          img.onerror = resolve;
-          setTimeout(resolve, 3000);
-        });
+        await updateTweaks({ wallpaperShuffle: true, backgroundMode: undefined });
+        toast.success("已开启随机壁纸轮换");
       }
-
-      void updateTweaks(buildWallpaperTweaks(next));
-      toast.success("壁纸获取成功", { id: tid });
     } finally {
       setIsChangingWallpaper(false);
     }
@@ -235,16 +243,10 @@ export const Shell = ({
     openCtx(x, y, items);
   };
 
-  const widgetSizeToConfig = (sz: "sq" | "pill-size" | "lg") => {
-    if (sz === "lg") return { wSpan: 4, wRow: 4 };
-    if (sz === "pill-size") return { wSpan: 4, wRow: 2 };
-    return { wSpan: 2, wRow: 2 };
-  };
-  const widgetConfigToSize = (span?: number | null, row?: number | null): "sq" | "pill-size" | "lg" => {
-    if (span === 4 && row === 4) return "lg";
-    if (span === 4 && row === 2) return "pill-size";
-    return "sq";
-  };
+  const widgetSizeToConfig = (sz: WidgetSizeId) => WIDGET_SIZE_DIMENSIONS[sz];
+  const widgetConfigToSize = (span?: number | null, row?: number | null): WidgetSizeId =>
+    snapWidgetSize(span, row);
+  const WIDGET_SIZE_OPTIONS = WIDGET_SIZE_ORDER.map((id) => ({ id, label: WIDGET_SIZE_LABEL[id] }));
 
   const tileCtx = (e: React.MouseEvent, item: IconView | WidgetView) => {
     const x = e.clientX;
@@ -275,8 +277,9 @@ export const Shell = ({
         items.push({
           kind: "size",
           current: widgetConfigToSize(w.wSpan, w.wRow),
+          sizes: WIDGET_SIZE_OPTIONS,
           onPick: (sz) =>
-            void updateWidget(w.id, widgetSizeToConfig(sz as "sq" | "pill-size" | "lg")),
+            void updateWidget(w.id, widgetSizeToConfig(sz as WidgetSizeId)),
         });
         items.push({ divider: true });
         items.push({
@@ -400,7 +403,7 @@ export const Shell = ({
         wallpaperUrl={wallpaperUrl}
         wallpaperMediaType={wallpaperMediaType}
         wallpaperPosterUrl={wallpaperPosterUrl}
-        showWallpaper={tweaks.backgroundMode === "wallpaper" && !!wallpaperUrl}
+        showWallpaper={!!wallpaperUrl}
       />
 
       <div

@@ -120,6 +120,8 @@ export interface Tweaks {
   wallpaperLicense?: string;
   wallpaperAuthor?: string;
   wallpaperPosterUrl?: string;
+  wallpaperShuffle?: boolean;
+  wallpaperShuffleInterval?: number;
   [key: string]: unknown;
 }
 

@@ -268,6 +268,16 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
   }),
 ];
 
+export const DEFAULT_SHUFFLE_INTERVAL_SEC = 5;
+export const MIN_SHUFFLE_INTERVAL_SEC = 2;
+export const MAX_SHUFFLE_INTERVAL_SEC = 300;
+
+export function normalizeShuffleInterval(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_SHUFFLE_INTERVAL_SEC;
+  return Math.max(MIN_SHUFFLE_INTERVAL_SEC, Math.min(MAX_SHUFFLE_INTERVAL_SEC, Math.round(n)));
+}
+
 export function findWallpaperPreset(id?: string | null) {
   if (!id) return undefined;
   return WALLPAPER_PRESETS.find((item) => item.id === id);

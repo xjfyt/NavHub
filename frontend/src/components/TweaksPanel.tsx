@@ -8,9 +8,12 @@ import type { UserMessage, CustomEngine } from "../types";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import {
   buildWallpaperTweaks,
+  DEFAULT_SHUFFLE_INTERVAL_SEC,
   findWallpaperPreset,
   inferWallpaperMediaType,
-  randomWallpaperPreset,
+  MAX_SHUFFLE_INTERVAL_SEC,
+  MIN_SHUFFLE_INTERVAL_SEC,
+  normalizeShuffleInterval,
   WALLPAPER_PRESETS,
   WALLPAPER_SOURCES,
   type WallpaperPreset,
@@ -282,17 +285,19 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   const applyWallpaperPreset = (preset: WallpaperPreset) => {
-    updateTweaks(buildWallpaperTweaks(preset));
+    updateTweaks({ ...buildWallpaperTweaks(preset), wallpaperShuffle: false });
   };
 
-  const applyRandomWallpaper = () => {
-    applyWallpaperPreset(
-      randomWallpaperPreset((s.wallpaperId as string | undefined) || null),
-    );
+  const enableShuffle = () => {
+    updateTweaks({
+      wallpaperShuffle: true,
+      backgroundMode: undefined,
+      wallpaperShuffleInterval: normalizeShuffleInterval(s.wallpaperShuffleInterval),
+    });
   };
 
   const restoreGradient = () => {
-    updateTweaks({ backgroundMode: "theme" });
+    updateTweaks({ backgroundMode: "theme", wallpaperShuffle: false });
   };
 
   const applyCustomWallpaper = () => {
@@ -309,6 +314,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
       const mediaType = inferWallpaperMediaType(url.toString());
       updateTweaks({
         backgroundMode: "wallpaper",
+        wallpaperShuffle: false,
         wallpaperId: undefined,
         wallpaperName: mediaType === "video" ? "自定义动态壁纸" : "自定义壁纸",
         wallpaperUrl: url.toString(),
@@ -339,6 +345,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
       const mediaType = inferWallpaperMediaType(url.toString());
       updateTweaks({
         backgroundMode: "wallpaper",
+        wallpaperShuffle: false,
         wallpaperId: undefined,
         wallpaperName: mediaType === "video" ? "自定义动态壁纸" : "自定义本地壁纸",
         wallpaperUrl: url.toString(),
@@ -361,15 +368,31 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   const renderWallpaper = () => {
+    if (sub === "shuffleInterval") {
+      return <SliderPopover title="随机轮换间隔" onClose={() => setSub(null)} items={[
+        {
+          label: "切换间隔",
+          value: normalizeShuffleInterval(s.wallpaperShuffleInterval),
+          min: MIN_SHUFFLE_INTERVAL_SEC,
+          max: MAX_SHUFFLE_INTERVAL_SEC,
+          step: 1,
+          format: (v: number) => v + "s",
+          onChange: (v: number) => set("wallpaperShuffleInterval", normalizeShuffleInterval(v)),
+        },
+      ]} />;
+    }
     const selectedPreset = findWallpaperPreset((s.wallpaperId as string | undefined) || null);
     const currentTheme = themeOpts.find((item) => item.id === ((s.theme as string) || "dawn")) || themeOpts[0];
     const wallpaperUrl = (s.wallpaperUrl as string | undefined) || selectedPreset?.assetUrl;
     const wallpaperMediaType = ((s.wallpaperMediaType as "image" | "video" | undefined) || selectedPreset?.mediaType || "image");
     const wallpaperPosterUrl = (s.wallpaperPosterUrl as string | undefined) || selectedPreset?.posterUrl || selectedPreset?.thumbUrl;
-    const active = s.backgroundMode === "wallpaper" && !!wallpaperUrl;
+    const shuffleOn = s.wallpaperShuffle !== false && s.backgroundMode !== "theme";
+    const shuffleInterval = normalizeShuffleInterval(s.wallpaperShuffleInterval);
+    const customWallpaperActive = s.backgroundMode === "wallpaper" && !!wallpaperUrl && !shuffleOn;
+    const active = shuffleOn || customWallpaperActive;
     const themeActive = !active;
-    const activePreviewUrl = active ? wallpaperUrl : undefined;
-    const activePreviewPoster = active ? wallpaperPosterUrl : undefined;
+    const activePreviewUrl = customWallpaperActive ? wallpaperUrl : undefined;
+    const activePreviewPoster = customWallpaperActive ? wallpaperPosterUrl : undefined;
     const imagePresets = WALLPAPER_PRESETS.filter((preset) => preset.mediaType === "image");
     const videoPresets = WALLPAPER_PRESETS.filter((preset) => preset.mediaType === "video");
 
@@ -392,7 +415,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               <button
                 key={t.id}
                 className={"tw-theme-swatch theme-" + t.id + (s.theme === t.id ? " active" : "")}
-                onClick={() => updateTweaks({ theme: t.id, backgroundMode: "theme" })}
+                onClick={() => updateTweaks({ theme: t.id, backgroundMode: "theme", wallpaperShuffle: false })}
               >
                 <span className="tw-theme-name">{t.name}</span>
               </button>
@@ -408,37 +431,43 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               url={activePreviewUrl}
               posterUrl={activePreviewPoster}
               className={"tw-wallpaper-preview" + ((active || themeActive) ? " active" : "")}
-              emptyText={`当前使用 ${currentTheme.name} 主题`}
+              emptyText={shuffleOn ? `随机壁纸 · 每 ${shuffleInterval}s 切换` : `当前使用 ${currentTheme.name} 主题`}
             />
             <div className="tw-wallpaper-summary">
               <div className="tw-wallpaper-head">
                 <div>
                   <div className="tw-wallpaper-name">
-                    {active
-                      ? ((s.wallpaperName as string) || selectedPreset?.name || "自定义壁纸")
-                      : `${currentTheme.name} 背景主题`}
+                    {shuffleOn
+                      ? "随机壁纸轮换中"
+                      : customWallpaperActive
+                        ? ((s.wallpaperName as string) || selectedPreset?.name || "自定义壁纸")
+                        : `${currentTheme.name} 背景主题`}
                   </div>
                   <div className="tw-wallpaper-meta">
-                    {active
-                      ? [
-                          wallpaperMediaType === "video" ? "动态壁纸" : "静态壁纸",
-                          (s.wallpaperProvider as string) || selectedPreset?.provider,
-                          (s.wallpaperAuthor as string) || selectedPreset?.author,
-                          (s.wallpaperLicense as string) || selectedPreset?.license,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")
-                      : "当前背景由本页中的背景主题控制，与壁纸互斥。"}
+                    {shuffleOn
+                      ? `每 ${shuffleInterval} 秒从精选壁纸中随机挑选，可在下方关闭或调整间隔。`
+                      : customWallpaperActive
+                        ? [
+                            wallpaperMediaType === "video" ? "动态壁纸" : "静态壁纸",
+                            (s.wallpaperProvider as string) || selectedPreset?.provider,
+                            (s.wallpaperAuthor as string) || selectedPreset?.author,
+                            (s.wallpaperLicense as string) || selectedPreset?.license,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : "当前背景由本页中的背景主题控制，与壁纸互斥。"}
                   </div>
                 </div>
                 <span className={"tw-wallpaper-state" + ((active || themeActive) ? " on" : "")}>
-                  {active ? "壁纸中" : "主题中"}
+                  {shuffleOn ? "轮换中" : customWallpaperActive ? "壁纸中" : "主题中"}
                 </span>
               </div>
               <div className="tw-wallpaper-actions">
-                <button className="tw-action-btn primary" onClick={applyRandomWallpaper}>随机精选</button>
+                <button className="tw-action-btn primary" onClick={enableShuffle}>
+                  {shuffleOn ? "已开启随机" : "随机壁纸"}
+                </button>
                 <button className="tw-action-btn" onClick={restoreGradient}>恢复渐变</button>
-                {active && (s.wallpaperSourceUrl || selectedPreset?.sourceUrl) ? (
+                {customWallpaperActive && (s.wallpaperSourceUrl || selectedPreset?.sourceUrl) ? (
                   <a
                     className="tw-action-btn link"
                     href={(s.wallpaperSourceUrl as string) || selectedPreset?.sourceUrl}
@@ -450,6 +479,34 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                 ) : null}
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="tw-section">
+          <div className="tw-section-title">随机壁纸</div>
+          <div className="tw-section-card">
+            <Row label="自动轮换">
+              <Toggle
+                on={shuffleOn}
+                onChange={(v) => {
+                  if (v) {
+                    updateTweaks({
+                      wallpaperShuffle: true,
+                      backgroundMode: undefined,
+                      wallpaperShuffleInterval: shuffleInterval,
+                    });
+                  } else {
+                    set("wallpaperShuffle", false);
+                  }
+                }}
+              />
+            </Row>
+            <Row label="切换间隔" onClick={() => setSub("shuffleInterval")}>
+              <Chevron value={shuffleInterval + "s"} />
+            </Row>
+          </div>
+          <div className="tw-custom-hint">
+            开启后会从“精选壁纸”中随机挑选静态与动态背景，按设定间隔自动替换；选中具体壁纸或主题后会自动关闭。
           </div>
         </div>
 
