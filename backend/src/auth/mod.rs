@@ -26,14 +26,15 @@ pub async fn bootstrap_superadmin(state: &Arc<AppState>) -> anyhow::Result<()> {
     sqlx::query(
         r#"
         INSERT INTO users (id, username, email, display_name, role, password_hash, must_change_password)
-        VALUES (gen_random_uuid(), $1, $2, $3, 'superadmin', $4, true)
+        VALUES (gen_random_uuid(), $1, $2, $3, 'superadmin', $4, $5)
         ON CONFLICT (username) DO NOTHING
         "#,
     )
     .bind(&cfg.username)
     .bind(&cfg.email)
     .bind(&cfg.display_name)
-    .bind(&hash)
+    .bind(hash)
+    .bind(cfg.force_change_password)
     .execute(&state.pg)
     .await?;
     tracing::info!(

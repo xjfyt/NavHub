@@ -20,6 +20,7 @@ impl AppState {
         let reqwest_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .pool_max_idle_per_host(16)
+            .danger_accept_invalid_certs(true)
             .build()?;
             
         Ok(Self {

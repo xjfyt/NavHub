@@ -5,6 +5,8 @@ import { LoginScreen } from "./LoginScreen";
 import { WorkspaceScreen } from "./WorkspaceScreen";
 import { Toaster } from "sonner";
 
+import { ChangePasswordScreen } from "./ChangePasswordScreen";
+
 interface ReadyState {
   stage: "ready";
   status: AuthStatus;
@@ -15,6 +17,7 @@ interface ReadyState {
 type BootState =
   | { stage: "loading" }
   | { stage: "error"; message: string }
+  | { stage: "must_change_password" }
   | ReadyState;
 
 export function App() {
@@ -49,6 +52,10 @@ export function App() {
       setState({ stage: "ready", status, me, workspace });
       setWantLogin(false);
     } catch (e) {
+      if (e instanceof ApiError && e.code === "must_change_password") {
+        setState({ stage: "must_change_password" });
+        return;
+      }
       console.error("boot failed", e);
       setState({
         stage: "error",
@@ -79,6 +86,10 @@ export function App() {
         </button>
       </div>
     );
+  }
+
+  if (state.stage === "must_change_password") {
+    return <ChangePasswordScreen onDone={() => void boot()} />;
   }
 
   const showLogin = wantLogin && !state.me;

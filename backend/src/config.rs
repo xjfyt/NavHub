@@ -103,6 +103,9 @@ pub struct SuperadminConfig {
     /// 仅当数据库中尚无 casdoor_id 绑定的用户时生效
     #[serde(default)]
     pub first_sso_bind: bool,
+    /// 是否要求 superadmin 在首次登录时强制修改密码
+    #[serde(default = "default_true")]
+    pub force_change_password: bool,
 }
 
 fn default_super_display() -> String {

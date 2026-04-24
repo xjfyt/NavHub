@@ -115,6 +115,12 @@ export const api = {
       body: JSON.stringify({ username, password }),
     });
   },
+  async changePassword(password: string): Promise<void> {
+    await request("/auth/change_password", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  },
   async logout(): Promise<void> {
     await request("/auth/logout", { method: "POST" });
   },
