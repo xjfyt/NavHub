@@ -71,25 +71,29 @@ impl Scraper for NasaScraper {
             let author = data.and_then(|d| d.photographer.clone());
             let nasa_id = data.and_then(|d| d.nasa_id.clone());
 
-            // Find thumbnail link (rel = "preview" or render = "image")
-            let thumb_url = item
-                .links
-                .as_ref()
-                .and_then(|links| {
-                    links.iter().find(|l| {
-                        l.rel.as_deref() == Some("preview")
-                            || l.render.as_deref() == Some("image")
-                    })
-                })
+            let links = item.links.as_deref().unwrap_or(&[]);
+
+            // Canonical link is the full-resolution image (~orig.jpg)
+            let canonical_url = links
+                .iter()
+                .find(|l| l.rel.as_deref() == Some("canonical"))
                 .map(|l| l.href.clone());
 
-            let Some(thumb) = thumb_url else { continue };
+            // Preview link is the thumbnail (~thumb.jpg)
+            let thumb_url = links
+                .iter()
+                .find(|l| l.rel.as_deref() == Some("preview"))
+                .map(|l| l.href.clone());
 
-            // Construct large image URL from thumb URL (~thumb.jpg -> ~large.jpg)
-            let large_url = thumb
-                .replace("~thumb.jpg", "~large.jpg")
-                .replace("~small.jpg", "~large.jpg")
-                .replace("~medium.jpg", "~large.jpg");
+            // Fall back to deriving orig from thumb if no canonical link
+            let large_url = canonical_url.or_else(|| {
+                thumb_url.as_ref().map(|t| {
+                    t.replace("~thumb.jpg", "~orig.jpg")
+                        .replace("~small.jpg", "~orig.jpg")
+                })
+            });
+
+            let Some(large_url) = large_url else { continue };
 
             let page_url = nasa_id
                 .as_ref()
@@ -98,7 +102,7 @@ impl Scraper for NasaScraper {
             results.push(ScrapedWallpaper {
                 title,
                 video_url: large_url,
-                thumbnail_url: Some(thumb),
+                thumbnail_url: thumb_url,
                 page_url,
                 author,
                 media_type: "image".to_string(),

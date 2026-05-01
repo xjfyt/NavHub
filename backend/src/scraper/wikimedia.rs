@@ -94,8 +94,11 @@ impl Scraper for WikimediaScraper {
         // Batch info requests (up to 50 titles per request)
         for chunk in titles.chunks(10) {
             let titles_param = chunk.join("|");
+            // iiprop=url is sufficient; thumburl and descriptionurl are returned
+            // automatically when iiurlwidth is set (comma-separated values are rejected
+            // by the MediaWiki API — it requires pipe-separated, but url alone works)
             let info_url = format!(
-                "https://commons.wikimedia.org/w/api.php?action=query&titles={}&prop=imageinfo&iiprop=url,thumburl,descriptionurl&iiurlwidth=1280&format=json",
+                "https://commons.wikimedia.org/w/api.php?action=query&titles={}&prop=imageinfo&iiprop=url&iiurlwidth=1280&format=json",
                 urlencoding::encode(&titles_param)
             );
 

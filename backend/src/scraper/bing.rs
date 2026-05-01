@@ -84,18 +84,14 @@ impl Scraper for BingScraper {
     }
 }
 
-fn extract_param<'a>(url: &'a str, key: &str) -> Option<String> {
-    url.split('?')
-        .nth(1)?
-        .split('&')
-        .find(|p| p.starts_with(&format!("{key}=")))?
-        .split_once('=')?
+fn extract_param(url: &str, key: &str) -> Option<String> {
+    url.split_once('?')?
         .1
-        .split_once('&')
-        .map_or_else(
-            || Some(url.to_string()),
-            |(v, _)| Some(v.to_string()),
-        )
+        .split('&')
+        .find_map(|param| {
+            let (k, v) = param.split_once('=')?;
+            if k == key { Some(v.to_string()) } else { None }
+        })
 }
 
 fn parse_copyright_author(copyright: &str) -> Option<&str> {

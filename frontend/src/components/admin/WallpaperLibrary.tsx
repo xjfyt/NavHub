@@ -3,12 +3,102 @@ import { api } from "../../api";
 import { toast } from "sonner";
 import type { WallpaperSourceView, RemoteWallpaperItem } from "../../types";
 
-const SCRAPER_TYPES = [
-  { id: "bing", name: "Bing 每日壁纸" },
-  { id: "nasa", name: "NASA 图库" },
-  { id: "wikimedia", name: "Wikimedia Commons" },
-  { id: "desktophut", name: "Desktop Hut" },
-];
+interface ScraperConfig {
+  label: string;
+  defaultUrl: string;
+  defaultBatch: number;
+  keyParam?: string;
+  keyRequired?: boolean;
+  keyHint?: string;
+}
+
+const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
+  bing: {
+    label: "Bing 每日壁纸",
+    defaultUrl: "https://www.bing.com/HPImageArchive.aspx?format=js&n=8&mkt=zh-CN",
+    defaultBatch: 8,
+  },
+  nasa: {
+    label: "NASA 图库",
+    defaultUrl: "https://images-api.nasa.gov/search?q=earth&media_type=image&page_size=20",
+    defaultBatch: 20,
+  },
+  wikimedia: {
+    label: "Wikimedia Commons",
+    defaultUrl:
+      "https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:Featured_pictures_on_Wikimedia_Commons&cmtype=file&cmlimit=30&format=json",
+    defaultBatch: 30,
+  },
+  unsplash: {
+    label: "Unsplash",
+    defaultUrl: "https://api.unsplash.com/photos?per_page=30&order_by=popular",
+    defaultBatch: 30,
+    keyParam: "client_id",
+    keyRequired: true,
+    keyHint: "前往 unsplash.com/developers 注册，获取免费 Access Key",
+  },
+  wallhaven: {
+    label: "Wallhaven",
+    defaultUrl:
+      "https://wallhaven.cc/api/v1/search?purity=100&categories=110&sorting=hot&atleast=1920x1080",
+    defaultBatch: 24,
+    keyParam: "apikey",
+    keyRequired: false,
+    keyHint: "可选，登录 wallhaven.cc → 设置 → API Key（可提升速率限制）",
+  },
+  pexels: {
+    label: "Pexels",
+    defaultUrl: "https://api.pexels.com/v1/curated?per_page=30",
+    defaultBatch: 30,
+    keyParam: "api_key",
+    keyRequired: true,
+    keyHint: "前往 pexels.com/api 注册，获取免费 API Key",
+  },
+  pixabay: {
+    label: "Pixabay",
+    defaultUrl:
+      "https://pixabay.com/api/?category=nature&min_width=1920&per_page=30&order=popular",
+    defaultBatch: 30,
+    keyParam: "key",
+    keyRequired: true,
+    keyHint: "前往 pixabay.com/api/docs 注册，获取免费 API Key",
+  },
+  desktophut: {
+    label: "Desktop Hut",
+    defaultUrl: "https://www.desktophut.com",
+    defaultBatch: 15,
+  },
+};
+
+function extractKeyFromUrl(url: string, param: string): string {
+  try {
+    return new URL(url).searchParams.get(param) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function stripKeyFromUrl(url: string, param: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete(param);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+function injectKeyIntoUrl(url: string, param: string, key: string): string {
+  if (!key.trim()) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set(param, key.trim());
+    return u.toString();
+  } catch {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}${param}=${encodeURIComponent(key.trim())}`;
+  }
+}
 
 const SOURCE_TYPES = [
   { id: "image", name: "静态壁纸 (图片)" },
@@ -40,6 +130,7 @@ const EmptyCell = ({ text }: { text?: string }) => (
 interface SourceFormState {
   name: string;
   siteUrl: string;
+  apiKey: string;
   enabled: boolean;
   fetchBatchSize: number;
   cacheTtlHours: number;
@@ -50,9 +141,10 @@ interface SourceFormState {
 
 const defaultForm = (): SourceFormState => ({
   name: "",
-  siteUrl: "https://www.bing.com/HPImageArchive.aspx?format=js&n=8&mkt=zh-CN",
+  siteUrl: SCRAPER_CONFIGS.bing.defaultUrl,
+  apiKey: "",
   enabled: true,
-  fetchBatchSize: 15,
+  fetchBatchSize: 8,
   cacheTtlHours: 168,
   fetchIntervalHours: 24,
   sourceType: "image",
@@ -159,9 +251,13 @@ export const AdminWallpaperLibrary = () => {
 
   const openEditForm = (source: WallpaperSourceView) => {
     setEditingId(source.id);
+    const config = SCRAPER_CONFIGS[source.scraperType];
+    const apiKey = config?.keyParam ? extractKeyFromUrl(source.siteUrl, config.keyParam) : "";
+    const siteUrl = config?.keyParam ? stripKeyFromUrl(source.siteUrl, config.keyParam) : source.siteUrl;
     setForm({
       name: source.name,
-      siteUrl: source.siteUrl,
+      siteUrl,
+      apiKey,
       enabled: source.enabled,
       fetchBatchSize: source.fetchBatchSize,
       cacheTtlHours: source.cacheTtlHours,
@@ -178,14 +274,25 @@ export const AdminWallpaperLibrary = () => {
       toast.error("名称和地址不能为空");
       return;
     }
+    const config = SCRAPER_CONFIGS[form.scraperType];
+    if (config?.keyRequired && !form.apiKey.trim()) {
+      toast.error(`${config.label} 需要填写 API Key`);
+      return;
+    }
+    // Inject API key into URL before saving
+    let siteUrl = form.siteUrl;
+    if (config?.keyParam && form.apiKey.trim()) {
+      siteUrl = injectKeyIntoUrl(siteUrl, config.keyParam, form.apiKey);
+    }
+    const payload = { ...form, siteUrl };
     setSubmitting(true);
     try {
       if (editingId) {
-        const updated = await api.admin.updateWallpaperSource(editingId, form);
+        const updated = await api.admin.updateWallpaperSource(editingId, payload);
         setSources((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
         toast.success("已更新");
       } else {
-        const created = await api.admin.createWallpaperSource(form);
+        const created = await api.admin.createWallpaperSource(payload);
         setSources((prev) => [...prev, created]);
         toast.success("已添加来源");
       }
@@ -291,31 +398,79 @@ export const AdminWallpaperLibrary = () => {
             {editingId ? "编辑来源" : "添加来源"}
           </h3>
           <form onSubmit={handleSubmitForm}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 20px" }}>
-              {formField("名称", "name", "text", { placeholder: "Desktop Hut Live Wallpapers" })}
-              {formField("抓取地址 (URL)", "siteUrl", "text", { placeholder: "https://www.desktophut.com" })}
-              {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: 50 })}
-              {formField("缓存时长 (小时)", "cacheTtlHours", "number", { min: 1 })}
-              {formField("抓取间隔 (小时)", "fetchIntervalHours", "number", { min: 1 })}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
+            {/* Row 1: scraper type + name */}
+            <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "0 20px" }}>
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>爬虫类型</label>
                 <select
                   value={form.scraperType}
-                  onChange={(e) => setForm((f) => ({ ...f, scraperType: e.target.value }))}
+                  onChange={(e) => {
+                    const t = e.target.value;
+                    const cfg = SCRAPER_CONFIGS[t];
+                    setForm((f) => ({
+                      ...f,
+                      scraperType: t,
+                      siteUrl: cfg?.defaultUrl ?? f.siteUrl,
+                      apiKey: "",
+                      fetchBatchSize: cfg?.defaultBatch ?? f.fetchBatchSize,
+                      name: f.name || cfg?.label || f.name,
+                    }));
+                  }}
                   style={{
                     width: "100%", padding: "6px 10px",
                     background: "var(--admin-bg)", border: "1px solid var(--admin-border-str)",
                     borderRadius: 6, color: "var(--text)", fontSize: 13,
                   }}
                 >
-                  {SCRAPER_TYPES.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  {Object.entries(SCRAPER_CONFIGS).map(([id, cfg]) => (
+                    <option key={id} value={id}>{cfg.label}</option>
                   ))}
                 </select>
               </div>
+              {formField("名称", "name", "text", { placeholder: "自定义来源名称" })}
+            </div>
+
+            {/* API Key field — shown only for scrapers that support it */}
+            {SCRAPER_CONFIGS[form.scraperType]?.keyParam && (() => {
+              const cfg = SCRAPER_CONFIGS[form.scraperType];
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>
+                    API Key{cfg.keyRequired ? <span style={{ color: "#ff6b6b" }}> *</span> : <span style={{ color: "var(--text-soft)" }}> (可选)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={form.apiKey}
+                    onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                    placeholder={cfg.keyRequired ? "请填写 API Key" : "留空则跳过认证"}
+                    autoComplete="off"
+                    style={{
+                      width: "100%", padding: "6px 10px",
+                      background: "var(--admin-bg)", border: `1px solid ${cfg.keyRequired && !form.apiKey ? "rgba(255,107,107,0.4)" : "var(--admin-border-str)"}`,
+                      borderRadius: 6, color: "var(--text)", fontSize: 13, boxSizing: "border-box",
+                      fontFamily: form.apiKey ? "monospace" : "inherit",
+                    }}
+                  />
+                  {cfg.keyHint && (
+                    <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 4 }}>
+                      {cfg.keyHint}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* API URL */}
+            {formField("API 地址", "siteUrl", "text", { placeholder: "https://..." })}
+
+            {/* Numeric params */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
+              {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: 50 })}
+              {formField("缓存时长 (小时)", "cacheTtlHours", "number", { min: 1 })}
+              {formField("抓取间隔 (小时)", "fetchIntervalHours", "number", { min: 1 })}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>媒体类型</label>
                 <select
@@ -368,7 +523,7 @@ export const AdminWallpaperLibrary = () => {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {["名称 / 地址", "类型", "批次", "缓存(h)", "间隔(h)", "已抓取", "最后抓取", "状态", "操作"].map((h) => (
+              {["名称", "类型", "批次", "缓存(h)", "间隔(h)", "已抓取", "最后抓取", "状态", "操作"].map((h) => (
                 <th key={h} style={th}>{h}</th>
               ))}
             </tr>
@@ -385,8 +540,17 @@ export const AdminWallpaperLibrary = () => {
                 onClick={() => setSelectedSourceId(selectedSourceId === src.id ? null : src.id)}
               >
                 <td style={cell}>
-                  <div style={{ fontWeight: 500 }}>{src.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 2, wordBreak: "break-all" }}>{src.siteUrl}</div>
+                  <a
+                    href={(() => { try { const u = new URL(src.siteUrl); return `${u.protocol}//${u.hostname}`; } catch { return src.siteUrl; } })()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontWeight: 500, color: "var(--text)", textDecoration: "none" }}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+                    onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+                  >
+                    {src.name}
+                  </a>
                 </td>
                 <td style={cell}><span style={{ fontSize: 11, background: "var(--admin-border-str)", padding: "2px 6px", borderRadius: 4 }}>{src.scraperType}</span></td>
                 <td style={{ ...cell, textAlign: "center" }}>{src.fetchBatchSize}</td>
