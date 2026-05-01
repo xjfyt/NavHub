@@ -3101,6 +3101,8 @@ html[data-mode="light"] .search-input {
 }
 html[data-mode="light"] .search-input::placeholder { color: rgba(28,26,23,0.4); }
 html[data-mode="light"] .tile-icon { box-shadow: 0 3px 10px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.4) inset; }
+html[data-mode="light"] .tile-icon.has-plain-image { box-shadow: none; }
+html[data-mode="light"] .tile:hover .tile-icon.has-plain-image { box-shadow: none; }
 html[data-mode="light"] .engine-grid-pop { background: rgba(255,255,255,0.85); border-color: rgba(0,0,0,0.08); }
 html[data-mode="light"] .engine-tile:hover { background: rgba(0,0,0,0.05); }
 html[data-mode="light"] .engine-tile.active { background: rgba(0,0,0,0.08); }
