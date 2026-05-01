@@ -44,8 +44,8 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
   };
 
   return (
-    <div className="widget w-search">
-      <div className="search w-search-inner">
+    <div className="w-search-float">
+      <div className="search w-search-inner" data-nobubble>
         <button
           className="search-engine wt"
           onClick={(e) => {

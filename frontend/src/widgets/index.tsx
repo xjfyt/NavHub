@@ -98,6 +98,11 @@ export interface WidgetTypeInfo {
   /** 详情 Modal 的宽度/高度覆盖；默认 720px/80vh。 */
   detailWidth?: string;
   detailMaxHeight?: string;
+  /**
+   * 全宽悬浮条模式：不渲染卡片外壳，横跨全部列，不可拖动。
+   * 适合搜索框这类嵌入式工具组件。
+   */
+  floatingBar?: boolean;
 }
 
 export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
@@ -230,6 +235,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "直接在磁贴里发起网页搜索，支持多引擎切换。search / google / baidu / bing。",
     defaultSize: "small",
     editable: true,
+    floatingBar: true,
     render: (w) => <SearchWidget w={w} />,
   },
   markdown: {

@@ -52,7 +52,11 @@ export const NavView = ({
   const [meshUnit, setMeshUnit] = useState(24);
   const [dynamicCols, setDynamicCols] = useState(32);
   const [maxRows, setMaxRows] = useState(64);
+  const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
   const contentRef = useRef<HTMLDivElement>(null);
+  const prevActiveGroupRef = useRef<string | null>(null);
+  const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevIconIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!contentRef.current) return;
@@ -62,7 +66,7 @@ export const NavView = ({
         let h = entry.contentRect.height;
         // Rigorous geometry sync with 16px standard margins
         const M = 16;
-        const X = 24; // Base physical layout block width. wSpan=2 means 64px physical bounding box.
+        const X = 28; // Base physical layout block width. wSpan=2 means 72px physical bounding box.
         
         // Automatically calculate maximal stable columns to completely disregard broken legacy cached gridCols.
         const colsOptimal = Math.floor((w + M) / (X + M));
@@ -77,6 +81,20 @@ export const NavView = ({
     observer.observe(contentRef.current);
     return () => observer.disconnect();
   }, [tweaks.gridCols]);
+
+  // Unified slide animation: fires for BOTH sidebar clicks and wheel scroll
+  useEffect(() => {
+    const prevId = prevActiveGroupRef.current;
+    prevActiveGroupRef.current = activeGroup;
+    if (prevId === null || prevId === activeGroup) return;
+    const prevIdx = groups.findIndex(g => g.id === prevId);
+    const nextIdx = groups.findIndex(g => g.id === activeGroup);
+    if (prevIdx === -1 || nextIdx === -1) return;
+    const dir = nextIdx > prevIdx ? 1 : -1;
+    if (slideTimerRef.current) clearTimeout(slideTimerRef.current);
+    setSlideDir(dir);
+    slideTimerRef.current = setTimeout(() => setSlideDir(0), 380);
+  }, [activeGroup]);
 
   const wheelLockRef = useRef(0);
   const wheelAccumRef = useRef(0);
@@ -107,13 +125,24 @@ export const NavView = ({
     }
     wheelAccumRef.current = 0;
     wheelLockRef.current = now + 520;
-    setSlideDir(dir);
+    // slideDir is now set by the useEffect above; just change the group
     setActiveGroup(groups[nextIdx].id);
-    setTimeout(() => setSlideDir(0), 360);
   };
 
   const currentIcons = useMemo(() => icons.filter(i => i.groupId === activeGroup), [icons, activeGroup]);
   const currentWidgets = useMemo(() => widgets.filter(w => w.groupId === activeGroup), [widgets, activeGroup]);
+
+  // Pop-in animation for newly added or extracted icons
+  useEffect(() => {
+    const currentIds = new Set(currentIcons.map(i => i.id));
+    const added: string[] = [];
+    currentIds.forEach(id => { if (!prevIconIdsRef.current.has(id)) added.push(id); });
+    prevIconIdsRef.current = currentIds;
+    if (added.length === 0) return;
+    setNewIconIds(new Set(added));
+    const t = setTimeout(() => setNewIconIds(new Set()), 400);
+    return () => clearTimeout(t);
+  }, [currentIcons]);
 
   const cols = dynamicCols;
 
@@ -168,32 +197,42 @@ export const NavView = ({
       let wSpan: number;
       let hSpan: number;
       if (isWidget) {
-        // 把存储的 wSpan/wRow 归约到三档之一（small/medium/large）后渲染
         const widgetItem = obj.item as WidgetView;
         const reg = WIDGET_REGISTRY[widgetItem.widget];
-        const sizeKey = snapWidgetSize(widgetItem.wSpan, widgetItem.wRow) || reg?.defaultSize || "medium";
-        const dim = WIDGET_SIZE_DIMENSIONS[sizeKey];
-        wSpan = Math.min(dim.wSpan, cols);
-        hSpan = dim.wRow;
+        if (reg?.floatingBar) {
+          // 悬浮条组件：横跨全部列，高度固定 3 行
+          wSpan = cols;
+          hSpan = 3;
+        } else {
+          const sizeKey = snapWidgetSize(widgetItem.wSpan, widgetItem.wRow) || reg?.defaultSize || "medium";
+          const dim = WIDGET_SIZE_DIMENSIONS[sizeKey];
+          wSpan = Math.min(dim.wSpan, cols);
+          hSpan = dim.wRow;
+        }
       } else {
         wSpan = wSpanFor(obj.item as IconView, cols);
         hSpan = hSpanFor(obj.item as IconView);
       }
       
-      let gX = obj.item.gridX;
+      const isFloatingBar = obj.type === 'widget'
+        && WIDGET_REGISTRY[(obj.item as WidgetView).widget]?.floatingBar === true;
+
+      let gX = isFloatingBar ? 0 : obj.item.gridX;
       let gY = obj.item.gridY;
-      
+
       // Auto-recover items floating below the screen height
       if (gY !== null && (gY + hSpan > maxRows || gY < 0)) {
         gY = null;
         gX = null;
       }
-      
+
+      const extraProps = isFloatingBar ? { isDraggable: false } : {};
+
       if (gX !== null && gY !== null && isFree(gX, gY, wSpan, hSpan)) {
-        l.push({ i: obj.item.id, x: gX, y: gY, w: wSpan, h: hSpan });
+        l.push({ i: obj.item.id, x: gX, y: gY, w: wSpan, h: hSpan, ...extraProps });
         markOccupied(gX, gY, wSpan, hSpan);
       } else {
-        unplaced.push({ id: obj.item.id, wSpan, hSpan });
+        unplaced.push({ id: obj.item.id, wSpan, hSpan, extraProps });
       }
     });
 
@@ -207,21 +246,23 @@ export const NavView = ({
         }
         if (placed) break;
       }
-      l.push({ i: u.id, x: foundX, y: foundY, w: u.wSpan, h: u.hSpan });
+      l.push({ i: u.id, x: foundX, y: foundY, w: u.wSpan, h: u.hSpan, ...(u.extraProps || {}) });
       markOccupied(foundX, foundY, u.wSpan, u.hSpan);
     });
 
     if (!tweaks.hideAddIcon) {
       let foundX = 0, foundY = 0, placed = false;
-      for (let testY = 0; testY <= maxRows - 2; testY++) {
+      for (let testY = 0; testY <= maxRows - 3; testY++) {
         for (let testX = 0; testX <= cols - 2; testX++) {
-          if (isFree(testX, testY, 2, 2)) {
+          if (isFree(testX, testY, 2, 3)) {
             foundX = testX; foundY = testY; placed = true; break;
           }
         }
-        if(placed) break;
+        if (placed) break;
       }
-      l.push({ i: "__add_btn", x: foundX, y: foundY, w: 2, h: 2, isDraggable: false });
+      if (!placed) { foundX = 0; foundY = maxRows - 3; }
+      l.push({ i: "__add_btn", x: foundX, y: foundY, w: 2, h: 3, isDraggable: false });
+      markOccupied(foundX, foundY, 2, 3);
     }
 
     return l;
@@ -279,10 +320,10 @@ export const NavView = ({
         mergeTargetRef.current = relatedId;
         mergeTargetElRef.current = foundTarget;
         mergeTargetElRef.current.classList.add("merge-target-glow");
-        mergeTargetElRef.current.style.transition = "transform 0.2s, box-shadow 0.2s";
-        mergeTargetElRef.current.style.transform = "scale(1.05)";
-        mergeTargetElRef.current.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.5), 0 0 20px rgba(59, 130, 246, 0.4)";
-        mergeTargetElRef.current.style.borderRadius = "20px";
+        mergeTargetElRef.current.style.transition = "transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s";
+        mergeTargetElRef.current.style.transform = "scale(1.06)";
+        mergeTargetElRef.current.style.boxShadow = "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
+        mergeTargetElRef.current.style.borderRadius = "22px";
       }
     } else {
       clearMergeTarget();
@@ -292,10 +333,23 @@ export const NavView = ({
   const handleDragStop = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
     setTimeout(() => { isDraggingRef.current = false; }, 100);
     if (mergeTargetRef.current && newItem) {
-      console.log("MERGE TRIGGERED", newItem.i, "->", mergeTargetRef.current);
-      onMergeIcon(newItem.i, mergeTargetRef.current);
-      clearMergeTarget();
-      return; 
+      const targetEl = mergeTargetElRef.current;
+      const targetId = mergeTargetRef.current;
+      // Detach refs immediately so clearMergeTarget won't reset the animation mid-play
+      mergeTargetRef.current = null;
+      mergeTargetElRef.current = null;
+      if (targetEl) {
+        targetEl.classList.remove("merge-target-glow");
+        targetEl.style.transition = "";
+        targetEl.style.transform = "";
+        targetEl.style.boxShadow = "";
+        targetEl.classList.add("merge-absorb");
+      }
+      setTimeout(() => {
+        onMergeIcon(newItem.i, targetId);
+        targetEl?.classList.remove("merge-absorb");
+      }, 280);
+      return;
     }
     clearMergeTarget();
   };
@@ -377,12 +431,12 @@ export const NavView = ({
                 无效小组件
               </div>
             );
-            const canExpand = !!r.renderDetail && !!onExpandWidget;
+            const canExpand = !!r.renderDetail && !!onExpandWidget && !r.floatingBar;
             return (
               <div key={w.id}
                 data-nav-item-id={w.id}
                 data-nav-item-type="widget"
-                className={"widget-slot" + (canExpand ? " expandable" : "")}
+                className={"widget-slot" + (canExpand ? " expandable" : "") + (r.floatingBar ? " floating-bar-slot" : "")}
               >
                 <div style={{width:'100%', height:'100%'}}
                   onClick={canExpand ? (e) => {
@@ -401,7 +455,7 @@ export const NavView = ({
               data-nav-item-id={it.id}
               data-nav-item-type="icon"
             >
-              <div style={{width:'100%', height:'100%', cursor:'grab'}} className="icon-rgl-wrapper">
+              <div style={{width:'100%', height:'100%', cursor:'grab'}} className={newIconIds.has(it.id) ? "icon-rgl-wrapper icon-pop" : "icon-rgl-wrapper"}>
                 <IconTile
                   icon={it}
                   onClick={(e, ic) => {
