@@ -271,6 +271,17 @@ export const NavView = ({
   const mergeTargetRef = useRef<string | null>(null);
   const mergeTargetElRef = useRef<HTMLElement | null>(null);
   const isDraggingRef = useRef(false);
+  const dragGroupTargetRef = useRef<string | null>(null);
+  const dragGroupTargetElRef = useRef<HTMLElement | null>(null);
+  const skipNextLayoutChangeRef = useRef(false);
+
+  const clearGroupTarget = () => {
+    if (dragGroupTargetElRef.current) {
+      dragGroupTargetElRef.current.classList.remove("drag-group-target");
+      dragGroupTargetElRef.current = null;
+    }
+    dragGroupTargetRef.current = null;
+  };
 
   const clearMergeTarget = () => {
     if (mergeTargetElRef.current) {
@@ -289,15 +300,40 @@ export const NavView = ({
   const handleDrag = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
     const mouseEvent = e as MouseEvent;
     if (!mouseEvent || !mouseEvent.clientX || !element) return;
-    
-    const draggedType = element.dataset.navItemType;
-    if (draggedType !== "icon") return; // we only merge icons
 
     const px = mouseEvent.clientX;
     const py = mouseEvent.clientY;
 
+    // Check if cursor is over a sidebar group button (cross-category drag).
+    const groupBtns = document.querySelectorAll<HTMLElement>('.side-btn.cat[data-group-id]');
+    let foundGroupEl: HTMLElement | null = null;
+    let foundGroupId: string | null = null;
+    for (const btn of groupBtns) {
+      const r = btn.getBoundingClientRect();
+      if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) {
+        foundGroupEl = btn;
+        foundGroupId = btn.dataset.groupId!;
+        break;
+      }
+    }
+
+    if (foundGroupEl && foundGroupId && foundGroupId !== activeGroup) {
+      if (dragGroupTargetRef.current !== foundGroupId) {
+        clearGroupTarget();
+        clearMergeTarget();
+        dragGroupTargetRef.current = foundGroupId;
+        dragGroupTargetElRef.current = foundGroupEl;
+        foundGroupEl.classList.add("drag-group-target");
+      }
+      return; // sidebar target takes priority — skip merge logic
+    }
+    clearGroupTarget();
+
+    const draggedType = element.dataset.navItemType;
+    if (draggedType !== "icon") return; // we only merge icons
+
     let foundTarget: HTMLElement | null = null;
-    const iconEls = document.querySelectorAll('[data-nav-item-type="icon"]:not(.react-grid-placeholder)'); 
+    const iconEls = document.querySelectorAll('[data-nav-item-type="icon"]:not(.react-grid-placeholder)');
     for (let i = 0; i < iconEls.length; i++) {
         const el = iconEls[i] as HTMLElement;
         const id = el.dataset.navItemId;
