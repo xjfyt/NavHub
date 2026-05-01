@@ -160,7 +160,7 @@ const SearchResultCard = ({
   const color = DEFAULT_ICON_COLORS[icon.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
   const text = icon.letter || icon.name?.[0] || "?";
   const builtin = parseBuiltinIconUrl(icon.imageUrl);
-  const plainImage = !!icon.imageUrl && (icon.imageStyle || "framed") === "plain";
+  const plainImage = !!icon.imageUrl && (icon.imageStyle || "plain") === "plain";
   const radiusClass =
     icon.size !== "circle-size"
       ? (icon.imageRadius === "square" ? "radius-square" : "radius-rounded")

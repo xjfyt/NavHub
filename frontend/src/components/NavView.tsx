@@ -66,7 +66,7 @@ export const NavView = ({
         let h = entry.contentRect.height;
         // Rigorous geometry sync with 16px standard margins
         const M = 16;
-        const X = 28; // Base physical layout block width. wSpan=2 means 72px physical bounding box.
+        const X = 36; // Base physical layout block width. wSpan=2 means 88px physical bounding box.
         
         // Automatically calculate maximal stable columns to completely disregard broken legacy cached gridCols.
         const colsOptimal = Math.floor((w + M) / (X + M));
@@ -152,15 +152,15 @@ export const NavView = ({
       return Math.min(4, colsMax);
     }
     if (icon.size === "lg" || icon.size === "pill-size") return Math.min(4, colsMax);
-    return Math.min(2, colsMax);
+    return Math.min(2, colsMax); // sq / circle-size: 2 cols = 88px
   };
 
   const hSpanFor = (icon: IconView) => {
     if (icon.isFolder && (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg")) return 4;
-    if (icon.isFolder) return 4; // Folders are all 4x4 now.
+    if (icon.isFolder) return 4;
     if (!icon.isFolder && icon.size === "lg") return 4;
     if (icon.size === "pill-size") return 2;
-    return 3;
+    return 3; // sq / circle-size: 3 rows = 140px
   };
 
   // Convert current icons and widgets into react-grid-layout structure

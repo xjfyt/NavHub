@@ -55,7 +55,7 @@ export const FolderOverlay = ({
 
   const renderGlyph = (item: any) => {
     const builtin = parseBuiltinIconUrl(item.imageUrl);
-    const plain = !!item.imageUrl && (item.imageStyle || "framed") === "plain";
+    const plain = !!item.imageUrl && (item.imageStyle || "plain") === "plain";
     const shapeClass = item.imageRadius === "square" ? "radius-square" : "radius-rounded";
     if (builtin) {
       return (
@@ -179,7 +179,7 @@ export const FolderOverlay = ({
         <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
           {localItems.map((it) => {
              const c = DEFAULT_ICON_COLORS[it.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
-             const plain = !!it.imageUrl && (it.imageStyle || "framed") === "plain";
+             const plain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
              const shapeClass = it.imageRadius === "square" ? "radius-square" : "radius-rounded";
              
              return (

@@ -27,7 +27,9 @@ export const IconTile = ({
     onContext?.(e, icon); 
   };
 
-  const imageMode = icon.imageUrl ? (icon.imageStyle || "framed") : "framed";
+  // Default to "plain" for image icons so the favicon fills the tile like a native app icon.
+  // "framed" (padded inside a colored box) can still be forced via explicit imageStyle setting.
+  const imageMode = icon.imageUrl ? (icon.imageStyle || "plain") : "framed";
   const radiusClass =
     icon.imageUrl && icon.size !== "circle-size"
       ? (icon.imageRadius === "square" ? "radius-square" : "radius-rounded")
@@ -38,7 +40,7 @@ export const IconTile = ({
 
   const renderGlyph = (item: TileRenderable, fallback?: string) => {
     const builtin = parseBuiltinIconUrl(item.imageUrl);
-    const plain = !!item.imageUrl && (item.imageStyle || "framed") === "plain";
+    const plain = !!item.imageUrl && (item.imageStyle || "plain") === "plain";
     const shapeClass = item.imageRadius === "square" ? "radius-square" : "radius-rounded";
     if (builtin) {
       return (
@@ -91,7 +93,7 @@ export const IconTile = ({
                     <div className="folder-overflow-grid" style={{ width: '100%', height: '100%', borderRadius: isLg9 ? '12px' : '20px' }}>
                       {overflowItems.map((ov, idx) => {
                         const c = DEFAULT_ICON_COLORS[ov.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
-                        const plain = !!ov.imageUrl && (ov.imageStyle || "framed") === "plain";
+                        const plain = !!ov.imageUrl && (ov.imageStyle || "plain") === "plain";
                         const shapeClass = ov.imageRadius === "square" ? "radius-square " : "radius-rounded ";
                         return (
                           <div
@@ -116,7 +118,7 @@ export const IconTile = ({
               }
 
               const c = DEFAULT_ICON_COLORS[it.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
-              const plain = !!it.imageUrl && (it.imageStyle || "framed") === "plain";
+              const plain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
               const shapeClass = it.imageRadius === "square" ? "radius-square" : "radius-rounded";
               
               const isLink = !!it.url && it.url !== "#";
@@ -146,7 +148,7 @@ export const IconTile = ({
         <div className="tile-icon">
           {items.slice(0, 9).map((it, i) => {
             const c = DEFAULT_ICON_COLORS[it.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
-            const folderPlain = !!it.imageUrl && (it.imageStyle || "framed") === "plain";
+            const folderPlain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
             return (
               <div
                 key={it.id || i}

@@ -654,7 +654,7 @@ html[data-mode="light"] .sidebar-bottom::before {
   min-height: 0;
   overflow: hidden;
   position: relative;
-  padding: 28px 24px 40px;
+  padding: 28px 72px 40px;
 }
 
 .grid {
@@ -741,6 +741,9 @@ html[data-mode="light"] .sidebar-bottom::before {
   overflow: hidden;
   color: var(--text);
 }
+.tile-icon.has-plain-image::after {
+  content: none;
+}
 .tile-image,
 .tile-image-glyph {
   display: grid;
@@ -796,22 +799,22 @@ html[data-mode="light"] .sidebar-bottom::before {
 .tile-label.align-center { text-align: center; }
 .tile-label.align-right  { text-align: right; }
 
-/* Square — bare icon cell; standalone size matches meshUnit=28 cell (72×116px) */
+/* Square — 2×3 grid cells at meshUnit=36: 88×140px */
 .tile.sq {
   justify-content: flex-start;
-  padding-top: 4px;
-  width: 72px;
-  height: 116px;
+  padding: 4px 0 0;
+  width: 88px;
+  height: 140px;
 }
-.tile.sq .tile-icon { 
+.tile.sq .tile-icon {
   width: 100%;
   height: auto;
-  aspect-ratio: 1 / 1; 
-  font-size: 32px; 
-  border-radius: 20%; 
+  aspect-ratio: 1 / 1;
+  font-size: 36px;
+  border-radius: 22%;
 }
 .tile.sq .tile-label {
-  margin-top: 8px;
+  margin-top: 9px;
 }
 
 /* Pill size (rectangle wide) — icon matches sq (56×56), container just wider */
@@ -820,7 +823,7 @@ html[data-mode="light"] .sidebar-bottom::before {
   padding: 4px 10px;
   gap: 10px;
   align-items: center;
-  height: 68px;
+  height: 80px;
   border-radius: 18px;
   background: rgba(255,255,255,0.11);
   backdrop-filter: blur(18px) saturate(150%);
@@ -862,22 +865,22 @@ html[data-mode="light"] .sidebar-bottom::before {
 .tile.pill-size .tile-text.align-center { align-items: center; }
 .tile.pill-size .tile-text.align-right  { align-items: flex-end; }
 
-/* Circle — bare 56px round icon */
+/* Circle — 2×3 grid cells at meshUnit=36: 88×140px */
 .tile.circle-size {
   justify-content: flex-start;
-  padding-top: 4px;
-  width: 64px;
-  height: 104px;
+  padding: 4px 0 0;
+  width: 88px;
+  height: 140px;
 }
-.tile.circle-size .tile-icon { 
+.tile.circle-size .tile-icon {
   width: 100%;
   height: auto;
-  aspect-ratio: 1 / 1; 
-  font-size: 22px; 
-  border-radius: 50%; 
+  aspect-ratio: 1 / 1;
+  font-size: 28px;
+  border-radius: 50%;
 }
 .tile.circle-size .tile-label {
-  margin-top: 8px;
+  margin-top: 9px;
 }
 
 /* Large Square — bare 128px icon */

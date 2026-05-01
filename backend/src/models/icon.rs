@@ -134,7 +134,7 @@ fn default_size() -> String {
 }
 
 fn default_image_style() -> String {
-    "framed".into()
+    "plain".into()
 }
 
 fn default_image_radius() -> String {
