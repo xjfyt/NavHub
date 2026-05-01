@@ -5,6 +5,7 @@ mod db;
 mod error;
 mod handlers;
 mod models;
+mod scraper;
 mod state;
 mod storage;
 
@@ -114,6 +115,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/widgets/music/search", get(handlers::music::search))
         .route("/widgets/music/song/:id", get(handlers::music::song))
         .route("/auth/password/change", post(handlers::auth::change_password))
+
+        // Wallpapers (public list for all logged-in users)
+        .route("/wallpapers", get(handlers::wallpapers::list_wallpapers))
+
         // Admin
         .route(
             "/admin/dashboard",
@@ -175,6 +180,29 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/admin/icons/:id",
             axum::routing::delete(handlers::admin::icon_libraries::delete_icon),
+        )
+        // Wallpaper sources & remote wallpapers admin
+        .route(
+            "/admin/wallpaper-sources",
+            get(handlers::admin::wallpapers::list_sources)
+                .post(handlers::admin::wallpapers::create_source),
+        )
+        .route(
+            "/admin/wallpaper-sources/:id",
+            patch(handlers::admin::wallpapers::update_source)
+                .delete(handlers::admin::wallpapers::delete_source),
+        )
+        .route(
+            "/admin/wallpaper-sources/:id/fetch",
+            post(handlers::admin::wallpapers::trigger_fetch),
+        )
+        .route(
+            "/admin/remote-wallpapers",
+            get(handlers::admin::wallpapers::list_wallpapers),
+        )
+        .route(
+            "/admin/remote-wallpapers/:id",
+            axum::routing::delete(handlers::admin::wallpapers::delete_wallpaper),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -298,6 +326,42 @@ async fn main() -> anyhow::Result<()> {
             if let Err(e) = res {
                 tracing::warn!("audit log cleanup failed: {e}");
             }
+        }
+    });
+
+    // Wallpaper fetch background task — runs every hour, picks sources due for refresh
+    let state_wp = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            tracing::info!("checking wallpaper sources for scheduled fetch...");
+            let sources: Result<Vec<crate::models::WallpaperSource>, _> = sqlx::query_as(
+                "SELECT * FROM wallpaper_sources WHERE enabled = true
+                 AND (last_fetched_at IS NULL OR last_fetched_at < now() - (fetch_interval_hours || ' hours')::interval)",
+            )
+            .fetch_all(&state_wp.pg)
+            .await;
+            match sources {
+                Ok(srcs) => {
+                    for src in srcs {
+                        tracing::info!("scheduled fetch for source '{}'", src.name);
+                        let s = state_wp.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = crate::handlers::admin::wallpapers::run_fetch(&s, &src).await {
+                                tracing::error!("wallpaper fetch error '{}': {e}", src.name);
+                            }
+                        });
+                    }
+                }
+                Err(e) => tracing::warn!("wallpaper source query failed: {e}"),
+            }
+            // Clean up expired wallpapers
+            let _ = sqlx::query(
+                "DELETE FROM remote_wallpapers WHERE expires_at IS NOT NULL AND expires_at < now()",
+            )
+            .execute(&state_wp.pg)
+            .await;
         }
     });
 

@@ -9,5 +9,6 @@ pub mod music;
 pub mod prefs;
 pub mod upload;
 pub mod util;
+pub mod wallpapers;
 pub mod widgets;
 pub mod workspace;
