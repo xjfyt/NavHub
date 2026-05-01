@@ -4,19 +4,13 @@ import { Icon } from "./Icon";
 import { DocumentModal, TermsContent, PrivacyContent } from "./DocumentModal";
 import { api } from "../api";
 import { toast } from "sonner";
-import type { UserMessage, CustomEngine } from "../types";
+import type { UserMessage, CustomEngine, RemoteWallpaperItem } from "../types";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import {
-  buildWallpaperTweaks,
   DEFAULT_SHUFFLE_INTERVAL_SEC,
-  findWallpaperPreset,
-  inferWallpaperMediaType,
   MAX_SHUFFLE_INTERVAL_SEC,
   MIN_SHUFFLE_INTERVAL_SEC,
   normalizeShuffleInterval,
-  WALLPAPER_PRESETS,
-  WALLPAPER_SOURCES,
-  type WallpaperPreset,
 } from "../constants/wallpapers";
 
 // ---------- Reusable rows ----------
@@ -153,10 +147,13 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const s = workspace.preferences.tweaks || {};
   const [activeNav, setActiveNav] = useState("general");
   const [sub, setSub] = useState<string | null>(null);
-  const [customWallpaperUrl, setCustomWallpaperUrl] = useState((s.wallpaperUrl as string) || "");
   const [messages, setMessages] = useState<UserMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [uploadingWallpaper, setUploadingWallpaper] = useState(false);
+  const [remoteWallpapers, setRemoteWallpapers] = useState<RemoteWallpaperItem[]>([]);
+  const [remoteWallpapersLoading, setRemoteWallpapersLoading] = useState(false);
+  const [wallpaperSearch, setWallpaperSearch] = useState("");
+  const [wallpaperMediaFilter, setWallpaperMediaFilter] = useState<"" | "image" | "video">("");
+  const [wallpaperPage, setWallpaperPage] = useState(0);
 
   const set = (k: string, v: any) => {
     updateTweaks({ [k]: v });
@@ -165,8 +162,22 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
 
   useEffect(() => {
     if (activeNav !== "wallpaper") return;
-    setCustomWallpaperUrl((s.wallpaperUrl as string) || "");
-  }, [activeNav, s.wallpaperUrl]);
+    let alive = true;
+    setRemoteWallpapersLoading(true);
+    const delay = wallpaperSearch ? 300 : 0;
+    const timer = setTimeout(() => {
+      api.wallpapers({
+        limit: 24,
+        offset: wallpaperPage * 24,
+        mediaType: wallpaperMediaFilter || undefined,
+        q: wallpaperSearch || undefined,
+      })
+        .then((rows) => { if (alive) setRemoteWallpapers(rows); })
+        .catch(() => { if (alive) setRemoteWallpapers([]); })
+        .finally(() => { if (alive) setRemoteWallpapersLoading(false); });
+    }, delay);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [activeNav, wallpaperSearch, wallpaperMediaFilter, wallpaperPage]);
 
   useEffect(() => {
     if (activeNav !== "notify" || !me) return;
@@ -284,8 +295,22 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
     );
   };
 
-  const applyWallpaperPreset = (preset: WallpaperPreset) => {
-    updateTweaks({ ...buildWallpaperTweaks(preset), wallpaperShuffle: false });
+  const applyRemoteWallpaper = (w: RemoteWallpaperItem) => {
+    updateTweaks({
+      backgroundMode: "wallpaper",
+      wallpaperShuffle: false,
+      wallpaperId: `remote-${w.id}`,
+      wallpaperName: w.title ?? "在线动态壁纸",
+      wallpaperUrl: w.url,
+      wallpaperThumb: w.thumbnailUrl ?? w.url,
+      wallpaperProvider: "远程壁纸库",
+      wallpaperProviderUrl: w.pageUrl ?? "",
+      wallpaperSourceUrl: w.pageUrl ?? w.url,
+      wallpaperLicense: "",
+      wallpaperAuthor: w.author ?? undefined,
+      wallpaperMediaType: w.mediaType,
+      wallpaperPosterUrl: w.thumbnailUrl ?? undefined,
+    });
   };
 
   const enableShuffle = () => {
@@ -298,73 +323,6 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
 
   const restoreGradient = () => {
     updateTweaks({ backgroundMode: "theme", wallpaperShuffle: false });
-  };
-
-  const applyCustomWallpaper = () => {
-    const raw = customWallpaperUrl.trim();
-    if (!raw) {
-      toast.error("请输入可直接访问的图片或视频地址。");
-      return;
-    }
-    try {
-      const url = new URL(raw);
-      if (!/^https?:$/.test(url.protocol)) {
-        throw new Error("unsupported protocol");
-      }
-      const mediaType = inferWallpaperMediaType(url.toString());
-      updateTweaks({
-        backgroundMode: "wallpaper",
-        wallpaperShuffle: false,
-        wallpaperId: undefined,
-        wallpaperName: mediaType === "video" ? "自定义动态壁纸" : "自定义壁纸",
-        wallpaperUrl: url.toString(),
-        wallpaperThumb: url.toString(),
-        wallpaperProvider: "自定义地址",
-        wallpaperProviderUrl: url.origin,
-        wallpaperSourceUrl: url.toString(),
-        wallpaperLicense: "由用户提供",
-        wallpaperAuthor: undefined,
-        wallpaperMediaType: mediaType,
-        wallpaperPosterUrl: undefined,
-      });
-      toast.success("自定义壁纸已应用");
-    } catch {
-      toast.error("地址无效，请输入 http(s) 直链。");
-    }
-  };
-
-  const handleWallpaperUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingWallpaper(true);
-    try {
-      const res = await api.upload(file, 'wallpaper');
-      const url = new URL(res.url, window.location.origin);
-      setCustomWallpaperUrl(url.toString());
-      
-      const mediaType = inferWallpaperMediaType(url.toString());
-      updateTweaks({
-        backgroundMode: "wallpaper",
-        wallpaperShuffle: false,
-        wallpaperId: undefined,
-        wallpaperName: mediaType === "video" ? "自定义动态壁纸" : "自定义本地壁纸",
-        wallpaperUrl: url.toString(),
-        wallpaperThumb: url.toString(),
-        wallpaperProvider: "本地上传",
-        wallpaperProviderUrl: window.location.origin,
-        wallpaperSourceUrl: url.toString(),
-        wallpaperLicense: "用户上传",
-        wallpaperAuthor: undefined,
-        wallpaperMediaType: mediaType,
-        wallpaperPosterUrl: undefined,
-      });
-      toast.success("本地壁纸上传并应用成功");
-    } catch (err: any) {
-      toast.error("上传失败：" + err.message);
-    } finally {
-      setUploadingWallpaper(false);
-      e.target.value = '';
-    }
   };
 
   const renderWallpaper = () => {
@@ -381,20 +339,17 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         },
       ]} />;
     }
-    const selectedPreset = findWallpaperPreset((s.wallpaperId as string | undefined) || null);
     const currentTheme = themeOpts.find((item) => item.id === ((s.theme as string) || "dawn")) || themeOpts[0];
-    const wallpaperUrl = (s.wallpaperUrl as string | undefined) || selectedPreset?.assetUrl;
-    const wallpaperMediaType = ((s.wallpaperMediaType as "image" | "video" | undefined) || selectedPreset?.mediaType || "image");
-    const wallpaperPosterUrl = (s.wallpaperPosterUrl as string | undefined) || selectedPreset?.posterUrl || selectedPreset?.thumbUrl;
+    const wallpaperUrl = s.wallpaperUrl as string | undefined;
+    const wallpaperMediaType = (s.wallpaperMediaType as "image" | "video" | undefined) ?? "image";
+    const wallpaperPosterUrl = s.wallpaperPosterUrl as string | undefined;
     const shuffleOn = s.wallpaperShuffle !== false && s.backgroundMode !== "theme";
     const shuffleInterval = normalizeShuffleInterval(s.wallpaperShuffleInterval);
-    const customWallpaperActive = s.backgroundMode === "wallpaper" && !!wallpaperUrl && !shuffleOn;
-    const active = shuffleOn || customWallpaperActive;
+    const wallpaperActive = s.backgroundMode === "wallpaper" && !!wallpaperUrl && !shuffleOn;
+    const active = shuffleOn || wallpaperActive;
     const themeActive = !active;
-    const activePreviewUrl = customWallpaperActive ? wallpaperUrl : undefined;
-    const activePreviewPoster = customWallpaperActive ? wallpaperPosterUrl : undefined;
-    const imagePresets = WALLPAPER_PRESETS.filter((preset) => preset.mediaType === "image");
-    const videoPresets = WALLPAPER_PRESETS.filter((preset) => preset.mediaType === "video");
+    const activePreviewUrl = wallpaperActive ? wallpaperUrl : undefined;
+    const activePreviewPoster = wallpaperActive ? wallpaperPosterUrl : undefined;
 
     return (
       <div className="tw-content">
@@ -439,27 +394,26 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                   <div className="tw-wallpaper-name">
                     {shuffleOn
                       ? "随机壁纸轮换中"
-                      : customWallpaperActive
-                        ? ((s.wallpaperName as string) || selectedPreset?.name || "自定义壁纸")
+                      : wallpaperActive
+                        ? ((s.wallpaperName as string) || "壁纸")
                         : `${currentTheme.name} 背景主题`}
                   </div>
                   <div className="tw-wallpaper-meta">
                     {shuffleOn
-                      ? `每 ${shuffleInterval} 秒从精选壁纸中随机挑选，可在下方关闭或调整间隔。`
-                      : customWallpaperActive
+                      ? `每 ${shuffleInterval} 秒随机切换，选中具体壁纸或主题后自动关闭。`
+                      : wallpaperActive
                         ? [
                             wallpaperMediaType === "video" ? "动态壁纸" : "静态壁纸",
-                            (s.wallpaperProvider as string) || selectedPreset?.provider,
-                            (s.wallpaperAuthor as string) || selectedPreset?.author,
-                            (s.wallpaperLicense as string) || selectedPreset?.license,
+                            s.wallpaperProvider as string,
+                            s.wallpaperAuthor as string,
                           ]
                             .filter(Boolean)
                             .join(" · ")
-                        : "当前背景由本页中的背景主题控制，与壁纸互斥。"}
+                        : "当前背景由背景主题控制，与壁纸互斥。"}
                   </div>
                 </div>
                 <span className={"tw-wallpaper-state" + ((active || themeActive) ? " on" : "")}>
-                  {shuffleOn ? "轮换中" : customWallpaperActive ? "壁纸中" : "主题中"}
+                  {shuffleOn ? "轮换中" : wallpaperActive ? "壁纸中" : "主题中"}
                 </span>
               </div>
               <div className="tw-wallpaper-actions">
@@ -467,10 +421,10 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                   {shuffleOn ? "已开启随机" : "随机壁纸"}
                 </button>
                 <button className="tw-action-btn" onClick={restoreGradient}>恢复渐变</button>
-                {customWallpaperActive && (s.wallpaperSourceUrl || selectedPreset?.sourceUrl) ? (
+                {wallpaperActive && (s.wallpaperSourceUrl as string) ? (
                   <a
                     className="tw-action-btn link"
-                    href={(s.wallpaperSourceUrl as string) || selectedPreset?.sourceUrl}
+                    href={s.wallpaperSourceUrl as string}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -506,121 +460,110 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
             </Row>
           </div>
           <div className="tw-custom-hint">
-            开启后会从“精选壁纸”中随机挑选静态与动态背景，按设定间隔自动替换；选中具体壁纸或主题后会自动关闭。
+            开启后按设定间隔自动随机切换壁纸库中的壁纸；选中具体壁纸或背景主题后自动关闭。
           </div>
         </div>
 
         <div className="tw-section">
-          <div className="tw-section-title">公开来源</div>
-          <div className="tw-source-grid">
-            {WALLPAPER_SOURCES.map((source) => (
-              <a key={source.id} className="tw-source-card" href={source.url} target="_blank" rel="noreferrer">
-                <div className="tw-source-name">{source.name}</div>
-                <div className="tw-source-desc">{source.description}</div>
-              </a>
-            ))}
-          </div>
-        </div>
+          <div className="tw-section-title">壁纸库</div>
 
-        <div className="tw-section">
-          <div className="tw-section-title">精选图片壁纸</div>
-          <div className="tw-wallpaper-grid">
-            {imagePresets.map((preset) => {
-              const selected = (s.wallpaperId as string | undefined) === preset.id;
-              const using = selected && active;
-              return (
-                <button
-                  key={preset.id}
-                  className={"tw-wallpaper-card" + (selected ? " active" : "")}
-                  onClick={() => applyWallpaperPreset(preset)}
-                >
-                  <div
-                    className="tw-wallpaper-thumb"
-                    style={{
-                      backgroundImage: [
-                        "linear-gradient(180deg, rgba(14,18,26,0.05) 0%, rgba(14,18,26,0.28) 100%)",
-                        `url("${preset.thumbUrl}")`,
-                      ].join(", "),
-                    }}
-                  />
-                  <div className="tw-wallpaper-card-body">
-                    <div className="tw-wallpaper-card-top">
-                      <div className="tw-wallpaper-card-name">{preset.name}</div>
-                      {using ? <span className="tw-wallpaper-tag">当前</span> : null}
-                    </div>
-                    <div className="tw-wallpaper-card-meta">
-                      {[preset.provider, preset.author, preset.license].filter(Boolean).join(" · ")}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="tw-section">
-          <div className="tw-section-title">精选动态壁纸</div>
-          <div className="tw-wallpaper-grid">
-            {videoPresets.map((preset) => {
-              const selected = (s.wallpaperId as string | undefined) === preset.id;
-              const using = selected && active;
-              return (
-                <button
-                  key={preset.id}
-                  className={"tw-wallpaper-card" + (selected ? " active" : "")}
-                  onClick={() => applyWallpaperPreset(preset)}
-                >
-                  <div className="tw-wallpaper-thumb tw-wallpaper-thumb-video">
-                    <img src={preset.thumbUrl} alt="" />
-                    <span className="tw-wallpaper-play">
-                      <Icon name="play" size={14} />
-                    </span>
-                  </div>
-                  <div className="tw-wallpaper-card-body">
-                    <div className="tw-wallpaper-card-top">
-                      <div className="tw-wallpaper-card-name">{preset.name}</div>
-                      <div className="tw-wallpaper-badges">
-                        <span className="tw-wallpaper-kind">动态</span>
-                        {using ? <span className="tw-wallpaper-tag">当前</span> : null}
-                      </div>
-                    </div>
-                    <div className="tw-wallpaper-card-meta">
-                      {[preset.provider, preset.author, preset.license].filter(Boolean).join(" · ")}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="tw-section">
-          <div className="tw-section-title">自定义地址</div>
-          <div className="tw-custom-wallpaper">
-            <input
-              type="url"
-              value={customWallpaperUrl}
-              placeholder="https://example.com/wallpaper.mp4"
-              onChange={(e) => setCustomWallpaperUrl(e.target.value)}
-            />
-            <button className="tw-action-btn primary" onClick={applyCustomWallpaper}>使用地址</button>
-          </div>
-          <div className="tw-custom-wallpaper" style={{ marginTop: 12 }}>
-            <label className="tw-action-btn" style={{ flex: 1, textAlign: 'center', justifyContent: 'center', cursor: uploadingWallpaper ? 'not-allowed' : 'pointer' }}>
-              <Icon name="upload" size={14} style={{ marginRight: 6 }} />
-              {uploadingWallpaper ? "上传中..." : "上传本地文件作为壁纸"}
-              <input 
-                type="file" 
-                accept="image/*,video/*" 
-                style={{ display: "none" }} 
-                disabled={uploadingWallpaper}
-                onChange={handleWallpaperUpload} 
+          {/* Search + filter bar */}
+          <div className="tw-wallpaper-toolbar">
+            <div className="tw-wallpaper-search">
+              <Icon name="search" size={13} />
+              <input
+                type="search"
+                placeholder="搜索壁纸..."
+                value={wallpaperSearch}
+                onChange={(e) => { setWallpaperSearch(e.target.value); setWallpaperPage(0); }}
               />
-            </label>
+            </div>
+            <div className="tw-wallpaper-filter">
+              {(["", "image", "video"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={"tw-filter-btn" + (wallpaperMediaFilter === f ? " active" : "")}
+                  onClick={() => { setWallpaperMediaFilter(f); setWallpaperPage(0); }}
+                >
+                  {f === "" ? "全部" : f === "image" ? "静态" : "动态"}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="tw-custom-hint">
-            支持 `jpg/png/webp/gif/mp4/webm/ogv` 格式的主流壁纸。视频会自动静音循环播放，适合作为动态壁纸上传与应用。
-          </div>
+
+          {/* Grid */}
+          {remoteWallpapersLoading ? (
+            <div className="tw-wallpaper-loading">加载中...</div>
+          ) : remoteWallpapers.length === 0 ? (
+            <div className="tw-wallpaper-loading">
+              {wallpaperSearch ? `未找到「${wallpaperSearch}」相关壁纸` : "暂无壁纸，管理员可在后台壁纸库中添加来源"}
+            </div>
+          ) : (
+            <div className="tw-wallpaper-grid">
+              {remoteWallpapers.map((w) => {
+                const isActive = (s.wallpaperId as string | undefined) === `remote-${w.id}`;
+                return (
+                  <button
+                    key={w.id}
+                    type="button"
+                    className={"tw-wallpaper-card" + (isActive ? " active" : "")}
+                    onClick={() => applyRemoteWallpaper(w)}
+                  >
+                    {w.thumbnailUrl ? (
+                      <div className={"tw-wallpaper-thumb" + (w.mediaType === "video" ? " tw-wallpaper-thumb-video" : "")}>
+                        <img
+                          src={w.thumbnailUrl}
+                          alt={w.title ?? ""}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                        {w.mediaType === "video" && (
+                          <span className="tw-wallpaper-play"><Icon name="play" size={14} /></span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="tw-wallpaper-thumb tw-wallpaper-thumb-empty">
+                        <Icon name={w.mediaType === "video" ? "play" : "image"} size={18} />
+                      </div>
+                    )}
+                    <div className="tw-wallpaper-card-body">
+                      <div className="tw-wallpaper-card-top">
+                        <div className="tw-wallpaper-card-name">{w.title ?? "壁纸"}</div>
+                        <div className="tw-wallpaper-badges">
+                          {w.mediaType === "video" && <span className="tw-wallpaper-kind">动态</span>}
+                          {isActive && <span className="tw-wallpaper-tag">当前</span>}
+                        </div>
+                      </div>
+                      {w.author && <div className="tw-wallpaper-card-meta">{w.author}</div>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {(wallpaperPage > 0 || remoteWallpapers.length >= 24) && (
+            <div className="tw-wallpaper-pager">
+              <button
+                type="button"
+                className="tw-action-btn"
+                disabled={wallpaperPage === 0}
+                onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
+              >
+                上一页
+              </button>
+              <span className="tw-pager-label">第 {wallpaperPage + 1} 页</span>
+              <button
+                type="button"
+                className="tw-action-btn"
+                disabled={remoteWallpapers.length < 24}
+                onClick={() => setWallpaperPage((p) => p + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -254,3 +254,31 @@ export interface GroupExportData {
   icons: IconView[];
   widgets: WidgetView[];
 }
+
+// ---------- Remote Wallpapers ----------
+export interface RemoteWallpaperItem {
+  id: string;
+  sourceId: string;
+  title: string | null;
+  url: string;
+  thumbnailUrl: string | null;
+  pageUrl: string | null;
+  mediaType: "video" | "image";
+  author: string | null;
+}
+
+export interface WallpaperSourceView {
+  id: string;
+  name: string;
+  siteUrl: string;
+  enabled: boolean;
+  fetchBatchSize: number;
+  cacheTtlHours: number;
+  fetchIntervalHours: number;
+  sourceType: string;
+  scraperType: string;
+  lastFetchedAt: string | null;
+  totalFetched: number;
+  createdAt: string;
+  updatedAt: string;
+}

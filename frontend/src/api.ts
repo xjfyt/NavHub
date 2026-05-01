@@ -12,9 +12,11 @@ import type {
   LibraryIconView,
   Me,
   PreferencesView,
+  RemoteWallpaperItem,
   UserMessage,
   WidgetView,
   Workspace,
+  WallpaperSourceView,
 } from "./types";
 
 export interface WeatherHour {
@@ -337,6 +339,17 @@ export const api = {
     return `/api/widgets/music/song/${id}`;
   },
 
+  // ---------- Remote Wallpapers ----------
+  async wallpapers(params: { limit?: number; offset?: number; mediaType?: string; q?: string } = {}): Promise<RemoteWallpaperItem[]> {
+    const qs = new URLSearchParams();
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.offset != null) qs.set("offset", String(params.offset));
+    if (params.mediaType) qs.set("mediaType", params.mediaType);
+    if (params.q) qs.set("q", params.q);
+    const tail = qs.toString() ? `?${qs}` : "";
+    return request(`/api/wallpapers${tail}`);
+  },
+
   // ---------- Upload / favicon ----------
   async upload(file: File, purpose: 'icon' | 'wallpaper' | 'avatar' = 'icon'): Promise<{ url: string; filename: string; size: number; sha256?: string }> {
     const fd = new FormData();
@@ -500,6 +513,58 @@ export const api = {
     },
     async deleteIcon(id: string): Promise<void> {
       await request(`/api/admin/icons/${id}`, { method: "DELETE" });
+    },
+
+    // Wallpaper sources
+    async wallpaperSources(): Promise<WallpaperSourceView[]> {
+      return request("/api/admin/wallpaper-sources");
+    },
+    async createWallpaperSource(body: {
+      name: string;
+      siteUrl: string;
+      enabled?: boolean;
+      fetchBatchSize?: number;
+      cacheTtlHours?: number;
+      fetchIntervalHours?: number;
+      sourceType?: string;
+      scraperType?: string;
+    }): Promise<WallpaperSourceView> {
+      return request("/api/admin/wallpaper-sources", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    async updateWallpaperSource(id: string, body: Partial<{
+      name: string;
+      siteUrl: string;
+      enabled: boolean;
+      fetchBatchSize: number;
+      cacheTtlHours: number;
+      fetchIntervalHours: number;
+      sourceType: string;
+      scraperType: string;
+    }>): Promise<WallpaperSourceView> {
+      return request(`/api/admin/wallpaper-sources/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    async deleteWallpaperSource(id: string): Promise<void> {
+      await request(`/api/admin/wallpaper-sources/${id}`, { method: "DELETE" });
+    },
+    async triggerWallpaperFetch(id: string): Promise<{ status: string }> {
+      return request(`/api/admin/wallpaper-sources/${id}/fetch`, { method: "POST" });
+    },
+    async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number } = {}): Promise<RemoteWallpaperItem[]> {
+      const qs = new URLSearchParams();
+      if (params.sourceId) qs.set("sourceId", params.sourceId);
+      if (params.limit != null) qs.set("limit", String(params.limit));
+      if (params.offset != null) qs.set("offset", String(params.offset));
+      const tail = qs.toString() ? `?${qs}` : "";
+      return request(`/api/admin/remote-wallpapers${tail}`);
+    },
+    async deleteRemoteWallpaper(id: string): Promise<void> {
+      await request(`/api/admin/remote-wallpapers/${id}`, { method: "DELETE" });
     },
   },
 };

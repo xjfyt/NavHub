@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useWorkspace } from "../hooks/useWorkspace";
+import { useWallpaperShuffle } from "../hooks/useWallpaperShuffle";
+import { useColorMode } from "../hooks/useColorMode";
 import { Background } from "./Background";
 import { Sidebar } from "./Sidebar";
 import { NavView } from "./NavView";
@@ -26,21 +28,8 @@ import {
   snapWidgetSize,
   type WidgetSizeId,
 } from "../widgets";
-import {
-  normalizeShuffleInterval,
-  randomWallpaperPreset,
-  type WallpaperPreset,
-} from "../constants/wallpapers";
 import { confirmDialog, promptDialog } from "./Dialogs";
 import { toast } from "sonner";
-
-const WIDGET_KINDS: { id: string; name: string }[] = [
-  { id: "clock", name: "时钟" },
-  { id: "weather", name: "天气" },
-  { id: "hot", name: "热搜" },
-  { id: "countdown", name: "倒计时" },
-  { id: "calendar", name: "日历" },
-];
 
 export const Shell = ({
   onLogout,
@@ -94,40 +83,9 @@ export const Shell = ({
     ? workspace.widgets.find((w) => w.id === detailWidgetId) ?? null
     : null;
   const [isChangingWallpaper, setIsChangingWallpaper] = useState(false);
-  const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(null);
-
-  const shuffleEnabled =
-    tweaks.wallpaperShuffle !== false && tweaks.backgroundMode !== "theme";
-  const shuffleIntervalSec = normalizeShuffleInterval(tweaks.wallpaperShuffleInterval);
-
-  useEffect(() => {
-    if (!shuffleEnabled) {
-      setShufflePreset(null);
-      return;
-    }
-    setShufflePreset((prev) => prev || randomWallpaperPreset(null));
-    const timer = window.setInterval(() => {
-      setShufflePreset((prev) => randomWallpaperPreset(prev?.id || null));
-    }, shuffleIntervalSec * 1000);
-    return () => window.clearInterval(timer);
-  }, [shuffleEnabled, shuffleIntervalSec]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    let mode = tweaks.mode || "auto";
-    const mm = window.matchMedia("(prefers-color-scheme: light)");
-    
-    const applyMode = () => {
-      const actual = mode === "auto" ? (mm.matches ? "light" : "dark") : mode;
-      root.dataset.mode = actual;
-    };
-    
-    applyMode();
-    if (mode === "auto") {
-      mm.addEventListener("change", applyMode);
-      return () => mm.removeEventListener("change", applyMode);
-    }
-  }, [tweaks.mode]);
+  const { shufflePreset, shuffleEnabled, shuffleActive, nextPreset } =
+    useWallpaperShuffle(tweaks);
+  useColorMode(tweaks.mode);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -142,7 +100,6 @@ export const Shell = ({
   }, []);
 
   const theme = tweaks.theme || "dawn";
-  const shuffleActive = shuffleEnabled && !!shufflePreset;
   const wallpaperUrl = shuffleActive
     ? shufflePreset!.assetUrl
     : tweaks.backgroundMode === "wallpaper"
@@ -183,7 +140,7 @@ export const Shell = ({
     setIsChangingWallpaper(true);
     try {
       if (shuffleEnabled) {
-        setShufflePreset((prev) => randomWallpaperPreset(prev?.id || null));
+        nextPreset();
         toast.success("已切换到新壁纸");
       } else {
         await updateTweaks({ wallpaperShuffle: true, backgroundMode: undefined });

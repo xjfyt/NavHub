@@ -17,6 +17,7 @@ import type {
   MessageTargetType,
 } from "../../types";
 import { ROLES, PERMISSIONS, ROLE_MATRIX } from "../../constants/design";
+import { AdminWallpaperLibrary } from "./WallpaperLibrary";
 
 const MESSAGE_LEVELS: { id: MessageLevel; name: string }[] = [
   { id: "info", name: "普通" },
@@ -124,6 +125,7 @@ export const AdminShell = ({ onClose, initialTab }: { onClose: () => void, initi
     { id: "push", name: "推送分类", icon: "send" },
     { id: "icons", name: "图标管理", icon: "image" },
     { id: "visibility", name: "图标可见性", icon: "eye" },
+    { id: "wallpapers", name: "壁纸库", icon: "image" },
     ...(isSuper ? [{ id: "sso", name: "SSO 接入", icon: "key", super: true }] : []),
     { id: "audit", name: "审计日志", icon: "activity" },
     { id: "settings", name: "系统设置", icon: "settings" },
@@ -156,6 +158,7 @@ export const AdminShell = ({ onClose, initialTab }: { onClose: () => void, initi
         {tab === "push" && <AdminPush groups={workspace.groups} />}
         {tab === "icons" && <AdminIcons />}
         {tab === "visibility" && <AdminVisibility groups={workspace.groups} icons={workspace.icons} />}
+        {tab === "wallpapers" && <AdminWallpaperLibrary />}
         {tab === "sso" && isSuper && <AdminSSO />}
         {tab === "audit" && <AdminAudit />}
         {tab === "settings" && <AdminSettings />}
