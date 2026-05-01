@@ -332,6 +332,18 @@ export const NavView = ({
 
   const handleDragStop = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
     setTimeout(() => { isDraggingRef.current = false; }, 100);
+
+    // Cross-category drop: move item to the hovered sidebar group.
+    if (dragGroupTargetRef.current && newItem) {
+      const targetGroupId = dragGroupTargetRef.current;
+      const draggedItemType = element?.dataset.navItemType as "icon" | "widget" | undefined;
+      clearGroupTarget();
+      clearMergeTarget();
+      skipNextLayoutChangeRef.current = true;
+      if (draggedItemType) onMoveGroupItem?.(draggedItemType, newItem.i, targetGroupId, 0);
+      return;
+    }
+
     if (mergeTargetRef.current && newItem) {
       const targetEl = mergeTargetElRef.current;
       const targetId = mergeTargetRef.current;
@@ -355,9 +367,7 @@ export const NavView = ({
   };
 
   const handleLayoutChange = (newLayout: Layout) => {
-    // Only fire if the user actually moved something (so we don't spam the API on load if not needed)
-    // Actually, RGL fires this on mount if the layout collides and it auto-fixes it. 
-    // Wait, let's just send the update to the backend. We map them back to icons / widgets.
+    if (skipNextLayoutChangeRef.current) { skipNextLayoutChangeRef.current = false; return; }
     const res: { id: string, type: "icon" | "widget", x: number, y: number }[] = [];
     
     // Check if anything actually changed physically relative to current state

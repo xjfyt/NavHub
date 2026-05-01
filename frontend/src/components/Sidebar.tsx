@@ -62,6 +62,7 @@ export const Sidebar = ({
         {groups.map((g) => (
           <button
             key={g.id}
+            data-group-id={g.id}
             className={"side-btn cat " + (activeGroup === g.id ? "active" : "") + (hoverCategory === g.id ? " hover-target" : "")}
             draggable={!isGuest}
             onDragStart={() => {

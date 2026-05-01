@@ -333,6 +333,13 @@ html[data-mode="light"] .sidebar-bottom::before {
 }
 .side-btn.add-cat:hover { color: var(--text); }
 .side-btn.avatar-btn { margin-bottom: 0; }
+/* Sidebar group highlighted while dragging an icon over it */
+.side-btn.drag-group-target {
+  background: rgba(255,215,165,0.25);
+  box-shadow: 0 0 0 2px rgba(255,215,165,0.7);
+  transform: scale(1.12);
+  color: var(--accent);
+}
 
 /* Hover tooltip */
 .side-tip {
