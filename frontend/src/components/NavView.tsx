@@ -307,6 +307,15 @@ export const NavView = ({
   const dragGroupTargetRef = useRef<string | null>(null);
   const dragGroupTargetElRef = useRef<HTMLElement | null>(null);
   const skipNextLayoutChangeRef = useRef(false);
+  /** 时间戳：在该时间之前发生的 layoutChange 不发 reorder 请求。
+   *  跨分类拖拽落地、活动分类切换都会触发多次重渲染，单次 skip 标志兜不住，
+   *  这里用一个时间窗口统一吸收所有 spurious 的 layoutChange，避免请求风暴 + 后端死锁。 */
+  const suppressReorderUntilRef = useRef<number>(0);
+
+  // 切换活动分类时短暂抑制 reorder：layout 重算会触发 layoutChange，但实际上没有用户操作。
+  useEffect(() => {
+    suppressReorderUntilRef.current = Date.now() + 400;
+  }, [activeGroup]);
 
   const clearGroupTarget = () => {
     if (dragGroupTargetElRef.current) {
@@ -418,6 +427,10 @@ export const NavView = ({
       const targetEl = dragGroupTargetElRef.current;
       clearGroupTarget();
       clearMergeTarget();
+      // onMoveGroupItem 内部会发 PATCH /icons + POST /reorder-items，乐观更新会触发 layout 重算；
+      // 紧接着 setActiveGroup 又会触发一次重算。开一个 1s 的抑制窗口吸收掉所有 spurious 的
+      // layoutChange，避免短时间内对同一个 group 连发多个 reorder 请求引起后端死锁。
+      suppressReorderUntilRef.current = Date.now() + 1000;
       skipNextLayoutChangeRef.current = true;
       if (draggedItemType) {
         onMoveGroupItem?.(draggedItemType, newItem.i, targetGroupId, 0);
@@ -457,6 +470,9 @@ export const NavView = ({
 
   const handleLayoutChange = (newLayout: Layout) => {
     if (skipNextLayoutChangeRef.current) { skipNextLayoutChangeRef.current = false; return; }
+    // 处于抑制窗口（跨分类移动 / 切换分类导致的重渲染）时直接忽略，
+    // 否则会出现一次拖拽放大成多个 reorder 请求并发，引发后端死锁。
+    if (Date.now() < suppressReorderUntilRef.current) return;
     const res: { id: string, type: "icon" | "widget", x: number, y: number }[] = [];
     
     // Check if anything actually changed physically relative to current state

@@ -216,34 +216,75 @@ pub async fn reorder_items(
         }
     }
 
-    let mut tx = state.pg.begin().await?;
-    let mut updated_rows: u64 = 0;
+    // 拆成两组并行的批量 UPDATE，避免逐行更新带来的事务时间开销与锁顺序歧义。
+    let mut icon_ids: Vec<Uuid> = Vec::new();
+    let mut icon_orders: Vec<i32> = Vec::new();
+    let mut icon_xs: Vec<Option<i32>> = Vec::new();
+    let mut icon_ys: Vec<Option<i32>> = Vec::new();
+    let mut widget_ids: Vec<Uuid> = Vec::new();
+    let mut widget_orders: Vec<i32> = Vec::new();
+    let mut widget_xs: Vec<Option<i32>> = Vec::new();
+    let mut widget_ys: Vec<Option<i32>> = Vec::new();
     for (i, item) in body.order.iter().enumerate() {
-        if item.r#type == "icon" {
-            let res = sqlx::query("UPDATE icons SET sort_order = $1, grid_x = $2, grid_y = $3 WHERE id = $4 AND group_id = $5")
-                .bind(i as i32)
-                .bind(item.x)
-                .bind(item.y)
-                .bind(item.id)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
-            updated_rows += res.rows_affected();
-        } else if item.r#type == "widget" {
-            let res = sqlx::query("UPDATE widgets SET sort_order = $1, grid_x = $2, grid_y = $3 WHERE id = $4 AND group_id = $5")
-                .bind(i as i32)
-                .bind(item.x)
-                .bind(item.y)
-                .bind(item.id)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
-            updated_rows += res.rows_affected();
-        } else {
-            tx.rollback().await?;
-            return Err(AppError::BadRequest(format!("unknown item type: {}", item.r#type)));
+        match item.r#type.as_str() {
+            "icon" => {
+                icon_ids.push(item.id);
+                icon_orders.push(i as i32);
+                icon_xs.push(item.x);
+                icon_ys.push(item.y);
+            }
+            "widget" => {
+                widget_ids.push(item.id);
+                widget_orders.push(i as i32);
+                widget_xs.push(item.x);
+                widget_ys.push(item.y);
+            }
+            other => {
+                return Err(AppError::BadRequest(format!("unknown item type: {other}")));
+            }
         }
     }
+
+    let mut tx = state.pg.begin().await?;
+    // 同 group 的并发 reorder 请求互斥，防止两个事务交错更新 icons/widgets 表导致死锁。
+    // pg_advisory_xact_lock 在事务结束（commit/rollback）时自动释放。
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext($1::text))")
+        .bind(id.to_string())
+        .execute(&mut *tx)
+        .await?;
+
+    let mut updated_rows: u64 = 0;
+    if !icon_ids.is_empty() {
+        let res = sqlx::query(
+            "UPDATE icons AS t SET sort_order = data.sort_order, grid_x = data.grid_x, grid_y = data.grid_y
+             FROM UNNEST($1::uuid[], $2::int4[], $3::int4[], $4::int4[]) AS data(id, sort_order, grid_x, grid_y)
+             WHERE t.id = data.id AND t.group_id = $5",
+        )
+        .bind(&icon_ids)
+        .bind(&icon_orders)
+        .bind(&icon_xs)
+        .bind(&icon_ys)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        updated_rows += res.rows_affected();
+    }
+    if !widget_ids.is_empty() {
+        let res = sqlx::query(
+            "UPDATE widgets AS t SET sort_order = data.sort_order, grid_x = data.grid_x, grid_y = data.grid_y
+             FROM UNNEST($1::uuid[], $2::int4[], $3::int4[], $4::int4[]) AS data(id, sort_order, grid_x, grid_y)
+             WHERE t.id = data.id AND t.group_id = $5",
+        )
+        .bind(&widget_ids)
+        .bind(&widget_orders)
+        .bind(&widget_xs)
+        .bind(&widget_ys)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        updated_rows += res.rows_affected();
+    }
+
     let expected = body.order.len() as u64;
     if updated_rows != expected {
         tx.rollback().await?;
