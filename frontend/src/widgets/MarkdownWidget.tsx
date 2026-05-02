@@ -8,6 +8,7 @@ import { history } from "@milkdown/plugin-history";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { Icon } from "../components/Icon";
+import { confirmDialog } from "../components/Dialogs";
 import type { WidgetProps } from "./types";
 
 interface Note {
@@ -293,9 +294,9 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
                   <button
                     className="md-note-del"
                     title="删除笔记"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (window.confirm(`删除「${title}」？`)) deleteNote(n.id);
+                      if (await confirmDialog(`删除「${title}」？`)) deleteNote(n.id);
                     }}
                   >
                     <Icon name="close" size={12} />

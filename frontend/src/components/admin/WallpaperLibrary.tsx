@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../../api";
 import { toast } from "sonner";
+import { confirmDialog } from "../Dialogs";
 import type { WallpaperSourceView, RemoteWallpaperItem } from "../../types";
 
 interface ScraperConfig {
@@ -229,7 +230,7 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleDeleteSource = async (id: string) => {
-    if (!confirm("确定删除该壁纸来源？关联的壁纸也会一并删除。")) return;
+    if (!(await confirmDialog("确定删除该壁纸来源？关联的壁纸也会一并删除。"))) return;
     try {
       await api.admin.deleteWallpaperSource(id);
       setSources((prev) => prev.filter((s) => s.id !== id));

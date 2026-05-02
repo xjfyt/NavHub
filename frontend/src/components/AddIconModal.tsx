@@ -14,6 +14,7 @@ import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
 import { IconTile } from "./IconTile";
 import { api } from "../api";
+import { toast } from "sonner";
 import {
   buildBuiltinIconUrl,
   inferNameFromUrl,
@@ -250,7 +251,7 @@ export function AddIconModal({
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "上传失败";
-      alert(message);
+      toast.error(message);
     } finally {
       setUploading(false);
       setDragOver(false);
