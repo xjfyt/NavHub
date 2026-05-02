@@ -365,7 +365,7 @@ export const Shell = ({
       />
 
       <div
-        className={`app sb-${sidebarMode} sbpos-${tweaks.sidebarPos || "left"} bgmode-${sidebarBgMode}`}
+        className={`app sb-${sidebarMode} sbpos-${tweaks.sidebarPos || "left"} bgmode-${sidebarBgMode}${tweaks.hideIconName ? " hide-icon-name" : ""}`}
         style={{
           fontFamily: tweaks.useSystemFont ? "system-ui" : "var(--font-main)",
           ["--sidebar-width" as string]: `${sidebarWidth}px`,
@@ -429,21 +429,24 @@ export const Shell = ({
             onReorderGroupItems={reorderGroupItems}
             onMergeIcon={mergeIcon}
             onMoveGroupItem={async (itemType, itemId, targetGroupId, targetIndex) => {
+              // 元素跨分类落地后必须切换 active group —— 与 Sidebar 的 onDropItemToGroup 行为对齐，
+              // 避免「图标已经移动但页面还停在原分类」的体验断裂。
+              setActiveGroup(targetGroupId);
               if (itemType === "icon") {
                 await updateIcon(itemId, { groupId: targetGroupId });
               } else if (itemType === "widget") {
                 await updateWidget(itemId, { groupId: targetGroupId });
               }
-              
+
               const currentWidgets = workspace.widgets.filter(w => w.groupId === targetGroupId && w.id !== itemId);
               const currentIcons = workspace.icons.filter(i => i.groupId === targetGroupId && i.id !== itemId);
               const combinedItems = [
                 ...currentWidgets.map(w => ({ type: 'widget' as const, id: w.id, sortOrder: w.sortOrder, gridX: w.gridX, gridY: w.gridY })),
                 ...currentIcons.map(i => ({ type: 'icon' as const, id: i.id, sortOrder: i.sortOrder, gridX: i.gridX, gridY: i.gridY })),
               ].sort((a, b) => a.sortOrder - b.sortOrder);
-              
+
               combinedItems.splice(targetIndex, 0, { type: itemType as any, id: itemId, sortOrder: 0, gridX: null, gridY: null });
-              
+
               reorderGroupItems(targetGroupId, combinedItems.map(x => ({ id: x.id, type: x.type, x: x.gridX, y: x.gridY })));
             }}
             onExpandWidget={(w) => setDetailWidgetId(w.id)}

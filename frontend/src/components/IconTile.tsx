@@ -74,6 +74,7 @@ export const IconTile = ({
       const displayItems = items.slice(0, maxItems);
       return (
         <div className={`tile folder-grid lg ${isLg9 ? "grid-9" : "grid-4"}`} onClick={e => onClick?.(e, icon)} onContextMenu={ctx} {...(dragProps || {})}>
+          <div className="folder-grid-square">
           <div className="folder-grid-bg" />
           <div className="folder-grid-items">
             {Array.from({ length: maxItems }).map((_, i) => {
@@ -129,16 +130,18 @@ export const IconTile = ({
               );
 
               return (
-                <div key={it.id} className="fg-item direct-link" style={{ WebkitUserDrag: 'none' } as any} onClick={e => { 
-                  e.stopPropagation(); 
+                <div key={it.id} className="fg-item direct-link" style={{ WebkitUserDrag: 'none' } as any} onClick={e => {
+                  e.stopPropagation();
                   if (isLink) window.open(it.url!, "_blank");
-                  else onClick?.(e, icon); 
+                  else onClick?.(e, icon);
                 }} onContextMenu={ctx}>
                   {Inner}
                 </div>
               );
             })}
           </div>
+          </div>
+          <div className={labelClass}>{icon.name}</div>
         </div>
       );
     }
@@ -146,7 +149,7 @@ export const IconTile = ({
     return (
       <div className={"tile folder sq"} {...(dragProps || {})} onClick={e => onClick?.(e, icon)} onContextMenu={ctx}>
         <div className="tile-icon">
-          {items.slice(0, 9).map((it, i) => {
+          {items.slice(0, 4).map((it, i) => {
             const c = DEFAULT_ICON_COLORS[it.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
             const folderPlain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
             return (
@@ -163,10 +166,8 @@ export const IconTile = ({
               </div>
             );
           })}
-          {Array.from({ length: Math.max(0, 9 - items.length) }).map((_, i) => (
-            <div key={"e" + i} className="folder-mini" style={{ background: 'rgba(255,255,255,0.08)' }} />
-          ))}
         </div>
+        <div className={labelClass}>{icon.name}</div>
       </div>
     );
   }

@@ -98,7 +98,9 @@ export interface Tweaks {
   iconOpen?: string;
   iconAreaWidth?: number;
   hideAddIcon?: boolean;
+  addBtnPositions?: Record<string, { x: number; y: number }>;
   hideIconName?: boolean;
+  iconAutoSwap?: boolean;
   wheelPage?: boolean;
   searchWidth?: number;
   searchOpacity?: number;

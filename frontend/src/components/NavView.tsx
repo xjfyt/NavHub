@@ -1,21 +1,80 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
-import { IconView, WidgetView, Tweaks, GroupView } from "../types";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GroupView, IconView, Tweaks, WidgetView } from "../types";
 import { IconTile } from "./IconTile";
-import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, snapWidgetSize } from "../widgets";
 import { Icon } from "./Icon";
-import { Layout, LayoutItem } from "react-grid-layout";
-import { Responsive, WidthProvider } from "react-grid-layout/legacy";
-import "react-grid-layout/css/styles.css";
-import "react-resizable/css/styles.css";
+import {
+  WIDGET_REGISTRY,
+  WidgetSizeId,
+  snapWidgetSize,
+} from "../widgets";
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
+// =================================================================
+// CSS Grid 单元格尺寸：图标/小组件按 cell 数量 (w × h) 占位。
+//
+//   sq / circle / 普通文件夹    : 1 × 1
+//   pill (横长胶囊) / 折叠文件夹 : 2 × 1
+//   lg / lg-4 / lg-9           : 2 × 2
+//   widget small               : 2 × 1
+//   widget medium              : 2 × 2
+//   widget large               : 4 × 2
+//
+// 实际像素由 CSS 变量 `--nav-cell-w` / `--nav-cell-h` 控制。
+// =================================================================
 
-type CombinedItem = {
-  type: "icon" | "widget";
-  id: string;
-  item: IconView | WidgetView;
-  sortOrder: number;
-};
+type CellSpan = { w: number; h: number };
+
+function spanForIcon(icon: IconView): CellSpan {
+  if (icon.isFolder) {
+    if (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg") return { w: 2, h: 2 };
+    if (icon.size === "pill-size") return { w: 3, h: 1 };
+    return { w: 1, h: 1 };
+  }
+  if (icon.size === "lg") return { w: 2, h: 2 };
+  if (icon.size === "pill-size") return { w: 3, h: 1 };
+  return { w: 1, h: 1 };
+}
+
+function spanForWidget(widget: WidgetView): CellSpan {
+  const reg = WIDGET_REGISTRY[widget.widget];
+  const sizeKey = (snapWidgetSize(widget.wSpan, widget.wRow) || reg?.defaultSize || "medium") as WidgetSizeId;
+  if (sizeKey === "small") return { w: 3, h: 1 };
+  if (sizeKey === "large") return { w: 4, h: 2 };
+  return { w: 2, h: 2 };
+}
+
+type Item =
+  | { kind: "icon"; id: string; icon: IconView; sortOrder: number; span: CellSpan }
+  | { kind: "widget"; id: string; widget: WidgetView; sortOrder: number; span: CellSpan };
+
+// =================================================================
+// NavView：分类下的 icon / widget 网格。
+//
+// 设计原则：
+//  • 使用原生 CSS Grid (auto-flow: row dense)；每个元素只通过 sortOrder 决定顺序，
+//    位置由浏览器自动计算，不再保存 gridX/gridY。
+//  • 搜索条等 floatingBar 小组件单独渲染在网格之上，不参与排序、不可拖。
+//  • 拖拽用 @dnd-kit/sortable，松手只更新 sortOrder。
+//  • 跨分类拖拽：拖动期间用 pointermove 命中 sidebar 上的分类按钮。
+//  • 文件夹合并：拖动期间用 pointermove 命中其他 icon 中心区。
+// =================================================================
 
 export const NavView = ({
   activeGroup,
@@ -32,7 +91,6 @@ export const NavView = ({
   onMoveGroupItem,
   onExpandWidget,
   onExtractFolderItem,
-  onMoveAddBtn,
 }: {
   activeGroup: string;
   groups: GroupView[];
@@ -43,73 +101,52 @@ export const NavView = ({
   onOpenIcon: (e: React.MouseEvent | React.DragEvent | null, icon: IconView) => void;
   onCtxTile: (e: React.MouseEvent, item: IconView | WidgetView) => void;
   onAddClick: (e: React.MouseEvent) => void;
-  onReorderGroupItems: (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => void;
+  onReorderGroupItems: (
+    groupId: string,
+    items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[],
+  ) => void;
   onMergeIcon: (dragId: string, targetId: string) => void;
-  onMoveGroupItem?: (itemType: "icon" | "widget", itemId: string, targetGroupId: string, targetIndex: number) => void;
+  onMoveGroupItem?: (
+    itemType: "icon" | "widget",
+    itemId: string,
+    targetGroupId: string,
+    targetIndex: number,
+  ) => void;
   onExpandWidget?: (w: WidgetView) => void;
   onExtractFolderItem?: (folderId: string, itemId: string) => void;
-  onMoveAddBtn?: (groupId: string, x: number, y: number) => void;
 }) => {
   const [slideDir, setSlideDir] = useState(0);
-  const [meshUnit, setMeshUnit] = useState(24);
-  const [dynamicCols, setDynamicCols] = useState(32);
-  const [maxRows, setMaxRows] = useState(64);
   const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
   const contentRef = useRef<HTMLDivElement>(null);
   const prevActiveGroupRef = useRef<string | null>(null);
   const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevIconIdsRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!contentRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        let w = entry.contentRect.width;
-        let h = entry.contentRect.height;
-        // Rigorous geometry sync with 24px standard margins (1.5× of legacy 16px)
-        const M = 24;
-        const X = 36; // Base physical layout block width. wSpan=2 means 96px physical bounding box at M=24.
-        
-        // Automatically calculate maximal stable columns to completely disregard broken legacy cached gridCols.
-        const colsOptimal = Math.floor((w + M) / (X + M));
-        setDynamicCols(colsOptimal);
-        setMeshUnit(X);
-        
-        // Exact height calculation for iPad-like absolute bounding
-        const vRows = Math.floor((h + M) / (X + M));
-        setMaxRows(Math.max(vRows, 4));
-      }
-    });
-    observer.observe(contentRef.current);
-    return () => observer.disconnect();
-  }, [tweaks.gridCols]);
-
-  // Unified slide animation: fires for BOTH sidebar clicks and wheel scroll
+  // ----- 切换分类的滑入动画 -----
   useEffect(() => {
     const prevId = prevActiveGroupRef.current;
     prevActiveGroupRef.current = activeGroup;
     if (prevId === null || prevId === activeGroup) return;
-    const prevIdx = groups.findIndex(g => g.id === prevId);
-    const nextIdx = groups.findIndex(g => g.id === activeGroup);
+    const prevIdx = groups.findIndex((g) => g.id === prevId);
+    const nextIdx = groups.findIndex((g) => g.id === activeGroup);
     if (prevIdx === -1 || nextIdx === -1) return;
     const dir = nextIdx > prevIdx ? 1 : -1;
     if (slideTimerRef.current) clearTimeout(slideTimerRef.current);
     setSlideDir(dir);
     slideTimerRef.current = setTimeout(() => setSlideDir(0), 380);
-  }, [activeGroup]);
+  }, [activeGroup, groups]);
 
+  // ----- 滚轮翻页 -----
   const wheelLockRef = useRef(0);
   const wheelAccumRef = useRef(0);
-
   const onWheel = (e: React.WheelEvent) => {
     if (tweaks.wheelPage === false) return;
     const ay = Math.abs(e.deltaY), ax = Math.abs(e.deltaX);
     if (ay < ax) return;
-
     let el = e.target as HTMLElement | null;
     while (el && el !== e.currentTarget) {
       const s = getComputedStyle(el);
-      if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) return;
+      if ((s.overflowY === "auto" || s.overflowY === "scroll") && el.scrollHeight > el.clientHeight) return;
       el = el.parentElement;
     }
     const now = Date.now();
@@ -118,7 +155,7 @@ export const NavView = ({
     const threshold = tweaks.wheelSensitivity ?? 40;
     if (Math.abs(wheelAccumRef.current) < threshold) return;
     const dir = wheelAccumRef.current > 0 ? 1 : -1;
-    const idx = groups.findIndex(g => g.id === activeGroup);
+    const idx = groups.findIndex((g) => g.id === activeGroup);
     const nextIdx = idx + dir;
     if (nextIdx < 0 || nextIdx >= groups.length) {
       wheelAccumRef.current = 0;
@@ -127,18 +164,17 @@ export const NavView = ({
     }
     wheelAccumRef.current = 0;
     wheelLockRef.current = now + 520;
-    // slideDir is now set by the useEffect above; just change the group
     setActiveGroup(groups[nextIdx].id);
   };
 
-  const currentIcons = useMemo(() => icons.filter(i => i.groupId === activeGroup), [icons, activeGroup]);
-  const currentWidgets = useMemo(() => widgets.filter(w => w.groupId === activeGroup), [widgets, activeGroup]);
+  const currentIcons = useMemo(() => icons.filter((i) => i.groupId === activeGroup), [icons, activeGroup]);
+  const currentWidgets = useMemo(() => widgets.filter((w) => w.groupId === activeGroup), [widgets, activeGroup]);
 
-  // Pop-in animation for newly added or extracted icons
+  // 新增图标的 pop-in 动画
   useEffect(() => {
-    const currentIds = new Set(currentIcons.map(i => i.id));
+    const currentIds = new Set(currentIcons.map((i) => i.id));
     const added: string[] = [];
-    currentIds.forEach(id => { if (!prevIconIdsRef.current.has(id)) added.push(id); });
+    currentIds.forEach((id) => { if (!prevIconIdsRef.current.has(id)) added.push(id); });
     prevIconIdsRef.current = currentIds;
     if (added.length === 0) return;
     setNewIconIds(new Set(added));
@@ -146,501 +182,395 @@ export const NavView = ({
     return () => clearTimeout(t);
   }, [currentIcons]);
 
-  const cols = dynamicCols;
+  // 拆分悬浮条小组件（独立渲染于顶部）和参与排序的网格元素。
+  const floatingBars = useMemo(
+    () =>
+      currentWidgets
+        .filter((w) => WIDGET_REGISTRY[w.widget]?.floatingBar)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [currentWidgets],
+  );
 
-  const wSpanFor = (icon: IconView, colsMax: number) => {
-    if (icon.isFolder) {
-      if (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg") return Math.min(4, colsMax);
-      return Math.min(4, colsMax);
-    }
-    if (icon.size === "lg" || icon.size === "pill-size") return Math.min(4, colsMax);
-    return Math.min(2, colsMax); // sq / circle-size: 2 cols = 88px
-  };
+  // ----- 跨分类「实时预览」状态 -----
+  // 用户拖拽时悬停在侧边栏目标分类按钮 ~400ms，会 setActiveGroup 把视图切到目标分类，
+  // 同时把被拖元素「临时」加进目标分类的 gridItems（数据未落库）。这样 @dnd-kit 的拖拽
+  // 不中断，用户可以继续在目标分类里挑位置后松手。
+  // 落地（onDragEnd）时根据 sortable 的最终位置一次性提交 onMoveGroupItem(targetIndex)。
+  // 取消（onDragCancel/escape）则把 activeGroup 切回源分类，丢弃预览。
+  const [pendingGroupOverride, setPendingGroupOverride] = useState<{
+    itemId: string;
+    fromGroupId: string;
+    toGroupId: string;
+  } | null>(null);
 
-  const hSpanFor = (icon: IconView) => {
-    if (icon.isFolder && (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg")) return 4;
-    if (icon.isFolder) return 4;
-    if (!icon.isFolder && icon.size === "lg") return 4;
-    if (icon.size === "pill-size") return 2;
-    return 3; // sq / circle-size: 3 rows = 140px
-  };
-
-  // 将当前分类的图标和小组件转换为 react-grid-layout 结构。
-  //
-  // 设计原则：
-  // 1. 悬浮条（搜索框等 floatingBar 小组件）始终顶部对齐、独占行、static
-  //    不参与 sortOrder 的混排，也不会被任何元素推动；
-  // 2. 普通元素的 gridY 不允许落在悬浮条占用的顶部保留区，否则会被视为「位置无效」
-  //    重新分配位置；
-  // 3. 拥有有效 gridX/gridY 的元素优先占据保存位置；其余进入 unplaced；
-  // 4. unplaced 元素的兜底位置改为：从顶部保留区往下逐格扫描，避免落到 (0,0) 重叠或
-  //    依赖 lastEndIdx（删除其他元素时 lastEndIdx 改变会引起整片 null-position 元素移动）。
-  const layout: LayoutItem[] = useMemo(() => {
-    const l: LayoutItem[] = [];
-    const occupied = new Set<string>();
-    const isFree = (tryX: number, tryY: number, w: number, h: number) => {
-      if (tryX < 0 || tryY < 0 || tryX + w > cols) return false;
-      for (let x = tryX; x < tryX + w; x++) {
-        for (let y = tryY; y < tryY + h; y++) {
-          if (occupied.has(`${x},${y}`)) return false;
-        }
-      }
-      return true;
-    };
-    const markOccupied = (x: number, y: number, w: number, h: number) => {
-      for (let ix = x; ix < x + w; ix++) {
-        for (let iy = y; iy < y + h; iy++) {
-          occupied.add(`${ix},${iy}`);
-        }
-      }
-    };
-
-    // Step 1: 顶部固定区 —— 悬浮条小组件（搜索框等）。
-    let topReserved = 0;
-    const floatingBars = currentWidgets.filter((w) => WIDGET_REGISTRY[w.widget]?.floatingBar);
-    floatingBars
-      .slice()
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .forEach((fb) => {
-        const h = 3;
-        l.push({
-          i: fb.id,
-          x: 0,
-          y: topReserved,
-          w: cols,
-          h,
-          isDraggable: false,
-          isResizable: false,
-          static: true,
-        });
-        markOccupied(0, topReserved, cols, h);
-        topReserved += h;
-      });
-
-    // Step 2: 普通元素，按 sortOrder 排序。
-    const others: { type: 'widget' | 'icon'; item: IconView | WidgetView; wSpan: number; hSpan: number }[] = [
+  const gridItems = useMemo<Item[]>(() => {
+    const arr: Item[] = [
       ...currentWidgets
         .filter((w) => !WIDGET_REGISTRY[w.widget]?.floatingBar)
-        .map((w) => {
-          const reg = WIDGET_REGISTRY[w.widget];
-          const sizeKey = snapWidgetSize(w.wSpan, w.wRow) || reg?.defaultSize || "medium";
-          const dim = WIDGET_SIZE_DIMENSIONS[sizeKey];
-          return { type: 'widget' as const, item: w, wSpan: Math.min(dim.wSpan, cols), hSpan: dim.wRow };
-        }),
-      ...currentIcons.map((ic) => ({
-        type: 'icon' as const,
-        item: ic,
-        wSpan: wSpanFor(ic, cols),
-        hSpan: hSpanFor(ic),
+        .map((w) => ({
+          kind: "widget" as const,
+          id: w.id,
+          widget: w,
+          sortOrder: w.sortOrder,
+          span: spanForWidget(w),
+        })),
+      ...currentIcons.map((i) => ({
+        kind: "icon" as const,
+        id: i.id,
+        icon: i,
+        sortOrder: i.sortOrder,
+        span: spanForIcon(i),
       })),
-    ].sort((a, b) => a.item.sortOrder - b.item.sortOrder);
-
-    const unplaced: { id: string; wSpan: number; hSpan: number }[] = [];
-    others.forEach((obj) => {
-      let gX = obj.item.gridX;
-      let gY = obj.item.gridY;
-      // 落在顶部保留区或越界 → 视为无效位置
-      if (gY !== null && (gY < topReserved || gY + obj.hSpan > maxRows || gY < 0)) {
-        gX = null;
-        gY = null;
-      }
-      if (gX !== null && gY !== null && isFree(gX, gY, obj.wSpan, obj.hSpan)) {
-        l.push({ i: obj.item.id, x: gX, y: gY, w: obj.wSpan, h: obj.hSpan });
-        markOccupied(gX, gY, obj.wSpan, obj.hSpan);
+    ];
+    arr.sort((a, b) => a.sortOrder - b.sortOrder);
+    // 如果有 pending override 且目标 group == 当前 activeGroup，
+    // 把源 group 里那个被拖的元素「插入」当前 grid 末尾，让 @dnd-kit 仍然认得它。
+    if (
+      pendingGroupOverride &&
+      pendingGroupOverride.toGroupId === activeGroup &&
+      !arr.some((it) => it.id === pendingGroupOverride.itemId)
+    ) {
+      const itemId = pendingGroupOverride.itemId;
+      const ic = icons.find((i) => i.id === itemId);
+      if (ic) {
+        arr.push({
+          kind: "icon",
+          id: ic.id,
+          icon: ic,
+          sortOrder: arr.length,
+          span: spanForIcon(ic),
+        });
       } else {
-        unplaced.push({ id: obj.item.id, wSpan: obj.wSpan, hSpan: obj.hSpan });
-      }
-    });
-
-    // Step 3: 加号按钮的固定锚点（如果用户拖动过）。
-    let reservedAddPos: { x: number; y: number } | null = null;
-    if (!tweaks.hideAddIcon) {
-      const saved = tweaks.addBtnPositions?.[activeGroup];
-      if (
-        saved &&
-        typeof saved.x === 'number' && typeof saved.y === 'number' &&
-        saved.x >= 0 && saved.y >= topReserved &&
-        saved.x + 2 <= cols && saved.y + 3 <= maxRows &&
-        isFree(saved.x, saved.y, 2, 3)
-      ) {
-        reservedAddPos = { x: saved.x, y: saved.y };
-        markOccupied(saved.x, saved.y, 2, 3);
-      }
-    }
-
-    // Step 4: unplaced 元素从顶部保留区往下扫描第一个可放下的位置。
-    // 不再依赖 lastEndIdx —— 删除其他元素后 lastEndIdx 改变会引起整片 null-position 元素移动。
-    const findFirstFree = (wSpan: number, hSpan: number) => {
-      for (let y = topReserved; y + hSpan <= maxRows; y++) {
-        for (let x = 0; x + wSpan <= cols; x++) {
-          if (isFree(x, y, wSpan, hSpan)) return { x, y };
+        const wd = widgets.find((w) => w.id === itemId);
+        if (wd) {
+          arr.push({
+            kind: "widget",
+            id: wd.id,
+            widget: wd,
+            sortOrder: arr.length,
+            span: spanForWidget(wd),
+          });
         }
       }
-      return null;
-    };
-    unplaced.forEach((u) => {
-      const pos = findFirstFree(u.wSpan, u.hSpan);
-      if (pos) {
-        l.push({ i: u.id, x: pos.x, y: pos.y, w: u.wSpan, h: u.hSpan });
-        markOccupied(pos.x, pos.y, u.wSpan, u.hSpan);
-      }
-      // 找不到位置则不放（不会回退到 (0,0) 造成重叠）
-    });
-
-    // Step 5: 加号按钮。
-    if (!tweaks.hideAddIcon) {
-      const pos = reservedAddPos ?? findFirstFree(2, 3) ?? { x: 0, y: Math.max(topReserved, maxRows - 3) };
-      l.push({ i: "__add_btn", x: pos.x, y: pos.y, w: 2, h: 3 });
-      if (!reservedAddPos) markOccupied(pos.x, pos.y, 2, 3);
     }
+    return arr;
+  }, [currentIcons, currentWidgets, pendingGroupOverride, activeGroup, icons, widgets]);
 
-    return l;
-  }, [currentIcons, currentWidgets, cols, maxRows, tweaks.hideAddIcon, tweaks.addBtnPositions, activeGroup]);
+  // ----- 拖拽态 -----
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
 
-  // 自动持久化 layout 分配出来的位置：当某个图标 / 小组件在 db 里 gridX/gridY 还是 null
-  // 但 layout 已经给它分配了具体坐标时，把这份坐标写回服务端。
-  // 这是"删除一个图标导致其他图标位置变化"问题的根因修复 —— 让所有元素都拥有显式
-  // 的 gridX/gridY，避免每次重渲染都重新依据当前 occupied 集合分配位置。
-  useEffect(() => {
-    if (isDraggingRef.current) return;
-    if (Date.now() < suppressReorderUntilRef.current) return;
-    const stale = layout.some((it) => {
-      if (it.i === "__add_btn") return false;
-      const icon = currentIcons.find((i) => i.id === it.i);
-      const widget = currentWidgets.find((w) => w.id === it.i);
-      const orig = icon ?? widget;
-      if (!orig) return false;
-      // 悬浮条由 layout 函数硬编码定位，无需持久化
-      if (widget && WIDGET_REGISTRY[widget.widget]?.floatingBar) return false;
-      return orig.gridX !== it.x || orig.gridY !== it.y;
-    });
-    if (!stale) return;
-    const t = setTimeout(() => {
-      if (isDraggingRef.current) return;
-      const res = layout
-        .filter((it) => it.i !== "__add_btn")
-        .map((it) => ({
-          id: it.i,
-          type: currentIcons.some((ic) => ic.id === it.i) ? ("icon" as const) : ("widget" as const),
-          x: it.x,
-          y: it.y,
-        }));
-      onReorderGroupItems(activeGroup, res);
-    }, 800);
-    return () => clearTimeout(t);
-  }, [layout, currentIcons, currentWidgets, activeGroup, onReorderGroupItems]);
-
+  // 跨分类目标（侧边栏分类按钮）
+  const groupTargetRef = useRef<string | null>(null);
+  const groupTargetElRef = useRef<HTMLElement | null>(null);
+  // 跨分类悬停定时器：悬停 400ms 才触发实时切换。
+  const hoverSwitchTimerRef = useRef<number | null>(null);
+  // 文件夹合并目标（另一个 icon）
   const mergeTargetRef = useRef<string | null>(null);
   const mergeTargetElRef = useRef<HTMLElement | null>(null);
-  const isDraggingRef = useRef(false);
-  const dragGroupTargetRef = useRef<string | null>(null);
-  const dragGroupTargetElRef = useRef<HTMLElement | null>(null);
-  const skipNextLayoutChangeRef = useRef(false);
-  /** 时间戳：在该时间之前发生的 layoutChange 不发 reorder 请求。
-   *  跨分类拖拽落地、活动分类切换都会触发多次重渲染，单次 skip 标志兜不住，
-   *  这里用一个时间窗口统一吸收所有 spurious 的 layoutChange，避免请求风暴 + 后端死锁。 */
-  const suppressReorderUntilRef = useRef<number>(0);
-  /** dragStop 时打开、200ms 后关闭。只有该窗口期内的 layoutChange 视作用户操作触发；
-   *  其它来源（props 同步 / 窗口 resize / activeGroup 切换）一律忽略，避免请求风暴。 */
-  const justDraggedRef = useRef(false);
-  /** 拖拽开始时拍下当前 layout 快照（{id -> {x,y,w,h}}），用于 dragStop 时
-   *  精确判定哪些元素被 RGL 推走 —— 比 currentIcons.gridX 更可靠，
-   *  因为后者对从未拖过、gridX/gridY 仍为 null 的元素无能为力。 */
-  const preDragLayoutRef = useRef<Map<string, { x: number; y: number; w: number; h: number }>>(new Map());
 
-  // 切换活动分类时短暂抑制 reorder：layout 重算会触发 layoutChange，但实际上没有用户操作。
-  useEffect(() => {
-    suppressReorderUntilRef.current = Date.now() + 400;
-  }, [activeGroup]);
-
-  const clearGroupTarget = () => {
-    if (dragGroupTargetElRef.current) {
-      dragGroupTargetElRef.current.classList.remove("drag-group-target");
-      dragGroupTargetElRef.current = null;
+  const clearHoverSwitchTimer = () => {
+    if (hoverSwitchTimerRef.current !== null) {
+      window.clearTimeout(hoverSwitchTimerRef.current);
+      hoverSwitchTimerRef.current = null;
     }
-    dragGroupTargetRef.current = null;
   };
 
+  const clearGroupTarget = () => {
+    if (groupTargetElRef.current) {
+      groupTargetElRef.current.classList.remove("drag-group-target");
+      groupTargetElRef.current = null;
+    }
+    groupTargetRef.current = null;
+    clearHoverSwitchTimer();
+  };
   const clearMergeTarget = () => {
     if (mergeTargetElRef.current) {
-      mergeTargetElRef.current.classList.remove("merge-target-glow");
-      mergeTargetElRef.current.style.transform = "scale(1)";
-      mergeTargetElRef.current.style.boxShadow = "none";
+      mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
+      mergeTargetElRef.current.style.transform = "";
+      mergeTargetElRef.current.style.boxShadow = "";
       mergeTargetElRef.current = null;
     }
     mergeTargetRef.current = null;
   };
 
-  const handleDragStart = () => {
-    isDraggingRef.current = true;
-    // 拍下拖拽前的 layout 快照
-    const snap = new Map<string, { x: number; y: number; w: number; h: number }>();
-    layout.forEach((it) => snap.set(it.i, { x: it.x, y: it.y, w: it.w, h: it.h }));
-    preDragLayoutRef.current = snap;
+  const onDragStart = (e: DragStartEvent) => {
+    setActiveId(String(e.active.id));
   };
 
-  const handleDrag = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
-    const mouseEvent = e as MouseEvent;
-    if (!mouseEvent || !mouseEvent.clientX || !element) return;
+  const onDragMove = (e: DragMoveEvent) => {
+    const activator = e.activatorEvent as PointerEvent | undefined;
+    if (!activator || typeof activator.clientX !== "number") return;
+    const px = activator.clientX + e.delta.x;
+    const py = activator.clientY + e.delta.y;
+    const draggedId = activeId ?? String(e.active.id);
 
-    const px = mouseEvent.clientX;
-    const py = mouseEvent.clientY;
-
-    // Check if cursor is over a sidebar group button (cross-category drag).
-    const groupBtns = document.querySelectorAll<HTMLElement>('.side-btn.cat[data-group-id]');
+    // 1) 命中侧边栏分类按钮 → 跨分类目标
+    const groupBtns = document.querySelectorAll<HTMLElement>(".side-btn.cat[data-group-id]");
     let foundGroupEl: HTMLElement | null = null;
     let foundGroupId: string | null = null;
-    for (const btn of groupBtns) {
+    for (const btn of Array.from(groupBtns)) {
       const r = btn.getBoundingClientRect();
       if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) {
         foundGroupEl = btn;
-        foundGroupId = btn.dataset.groupId!;
+        foundGroupId = btn.dataset.groupId ?? null;
         break;
       }
     }
-
     if (foundGroupEl && foundGroupId && foundGroupId !== activeGroup) {
-      if (dragGroupTargetRef.current !== foundGroupId) {
+      if (groupTargetRef.current !== foundGroupId) {
         clearGroupTarget();
         clearMergeTarget();
-        dragGroupTargetRef.current = foundGroupId;
-        dragGroupTargetElRef.current = foundGroupEl;
+        groupTargetRef.current = foundGroupId;
+        groupTargetElRef.current = foundGroupEl;
         foundGroupEl.classList.add("drag-group-target");
+        // 启动 400ms 悬停定时器：用户在该按钮上停够 400ms 才把视图切到目标分类，
+        // 避免拖拽路径上「擦过」按钮导致的误切。切换是「实时预览」——只更新视图，
+        // 数据落库放到 onDragEnd。
+        const targetGroupId = foundGroupId;
+        const draggedItemId = draggedId;
+        clearHoverSwitchTimer();
+        hoverSwitchTimerRef.current = window.setTimeout(() => {
+          hoverSwitchTimerRef.current = null;
+          // 找出元素的源 group（拖拽开始时它所在的分类）
+          const ic = icons.find((i) => i.id === draggedItemId);
+          const wd = widgets.find((w) => w.id === draggedItemId);
+          const fromGroupId = ic?.groupId ?? wd?.groupId;
+          if (!fromGroupId || fromGroupId === targetGroupId) return;
+          setPendingGroupOverride({
+            itemId: draggedItemId,
+            fromGroupId,
+            toGroupId: targetGroupId,
+          });
+          setActiveGroup(targetGroupId);
+        }, 400);
       }
-      return; // sidebar target takes priority — skip merge logic
+      return;
     }
     clearGroupTarget();
 
-    const draggedType = element.dataset.navItemType;
-    if (draggedType !== "icon") return; // we only merge icons
-
-    let foundTarget: HTMLElement | null = null;
-    const iconEls = document.querySelectorAll('[data-nav-item-type="icon"]:not(.react-grid-placeholder)');
-    for (let i = 0; i < iconEls.length; i++) {
-        const el = iconEls[i] as HTMLElement;
-        const id = el.dataset.navItemId;
-        if (!id || id === newItem?.i) continue; // skip self
-
-        const rect = el.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-
-        if (Math.abs(px - cx) < rect.width * 0.25 && Math.abs(py - cy) < rect.height * 0.25) {
-            foundTarget = el;
-            break;
-        }
+    // 2) 合并 / 落入文件夹检测
+    //    用「拖拽矩形与目标矩形的重叠面积比」判断意图，比之前「光标在目标 25% 中心区」
+    //    更接近视觉直觉、命中区显著变大；文件夹门槛更低（25%）作为显式落入区。
+    const draggedItem = gridItems.find((it) => it.id === draggedId);
+    if (!draggedItem || draggedItem.kind !== "icon") {
+      clearMergeTarget();
+      return;
     }
-
-    if (foundTarget) {
-      const relatedId = foundTarget.dataset.navItemId!;
-      if (mergeTargetRef.current !== relatedId) {
+    const draggedRect = e.active.rect.current?.translated ?? null;
+    if (!draggedRect) {
+      clearMergeTarget();
+      return;
+    }
+    const overlapRatio = (a: { left: number; top: number; right: number; bottom: number; width: number; height: number }, b: DOMRect) => {
+      const left = Math.max(a.left, b.left);
+      const right = Math.min(a.right, b.right);
+      const top = Math.max(a.top, b.top);
+      const bottom = Math.min(a.bottom, b.bottom);
+      if (left >= right || top >= bottom) return 0;
+      const inter = (right - left) * (bottom - top);
+      const minArea = Math.min(a.width * a.height, b.width * b.height);
+      return minArea > 0 ? inter / minArea : 0;
+    };
+    const iconEls = document.querySelectorAll<HTMLElement>("[data-nav-item-type='icon']");
+    let foundMergeEl: HTMLElement | null = null;
+    let bestRatio = 0;
+    for (const el of Array.from(iconEls)) {
+      const id = el.dataset.navItemId;
+      if (!id || id === draggedId) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0) continue;
+      const isFolder = el.dataset.navItemFolder === "true";
+      const threshold = isFolder ? 0.25 : 0.5;
+      const ratio = overlapRatio(draggedRect, r);
+      if (ratio >= threshold && ratio > bestRatio) {
+        foundMergeEl = el;
+        bestRatio = ratio;
+      }
+    }
+    if (foundMergeEl) {
+      const id = foundMergeEl.dataset.navItemId!;
+      const isFolder = foundMergeEl.dataset.navItemFolder === "true";
+      if (mergeTargetRef.current !== id) {
         clearMergeTarget();
-        mergeTargetRef.current = relatedId;
-        mergeTargetElRef.current = foundTarget;
-        mergeTargetElRef.current.classList.add("merge-target-glow");
-        mergeTargetElRef.current.style.transition = "transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s";
-        mergeTargetElRef.current.style.transform = "scale(1.06)";
-        mergeTargetElRef.current.style.boxShadow = "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
-        mergeTargetElRef.current.style.borderRadius = "22px";
+        mergeTargetRef.current = id;
+        mergeTargetElRef.current = foundMergeEl;
+        foundMergeEl.classList.add("merge-target-glow");
+        if (isFolder) foundMergeEl.classList.add("merge-target-folder");
+        foundMergeEl.style.transition =
+          "transform .18s var(--spring), box-shadow .18s";
+        foundMergeEl.style.transform = isFolder ? "scale(1.10)" : "scale(1.06)";
+        foundMergeEl.style.boxShadow = isFolder
+          ? "0 0 0 4px rgba(155,231,180,0.85), 0 0 28px rgba(155,231,180,0.45)"
+          : "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
       }
     } else {
       clearMergeTarget();
     }
   };
 
-  const handleDragStop = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
-    setTimeout(() => { isDraggingRef.current = false; }, 100);
-    // 打开短暂的「刚刚 dragStop」窗口；handleLayoutChange 仅在该窗口内允许把 layout 写回服务端。
-    // 这样可阻断 props 同步 / 窗口 resize / setWorkspace 等非用户操作触发的 layoutChange 引发的请求循环。
-    justDraggedRef.current = true;
-    setTimeout(() => { justDraggedRef.current = false; }, 200);
+  const onDragEnd = (e: DragEndEvent) => {
+    const dragId = activeId ?? String(e.active.id);
+    setActiveId(null);
+    clearHoverSwitchTimer();
 
-    // Add-icon button drag: persist the new position for this group.
-    if (newItem?.i === "__add_btn") {
+    // 1) 实时预览生效中：用户已经在目标分类里挑了具体位置 → 一次性提交跨分类移动 + 排序。
+    if (pendingGroupOverride && pendingGroupOverride.itemId === dragId) {
+      const { toGroupId } = pendingGroupOverride;
+      setPendingGroupOverride(null);
+      const targetEl = groupTargetElRef.current;
       clearGroupTarget();
       clearMergeTarget();
-      skipNextLayoutChangeRef.current = true;
-      onMoveAddBtn?.(activeGroup, newItem.x, newItem.y);
-      return;
-    }
-
-    // Cross-category drop: move item to the hovered sidebar group.
-    if (dragGroupTargetRef.current && newItem) {
-      const targetGroupId = dragGroupTargetRef.current;
-      const draggedItemType = element?.dataset.navItemType as "icon" | "widget" | undefined;
-      const targetEl = dragGroupTargetElRef.current;
-      clearGroupTarget();
-      clearMergeTarget();
-      // onMoveGroupItem 内部会发 PATCH /icons + POST /reorder-items，乐观更新会触发 layout 重算；
-      // 紧接着 setActiveGroup 又会触发一次重算。开一个 1s 的抑制窗口吸收掉所有 spurious 的
-      // layoutChange，避免短时间内对同一个 group 连发多个 reorder 请求引起后端死锁。
-      suppressReorderUntilRef.current = Date.now() + 1000;
-      skipNextLayoutChangeRef.current = true;
-      if (draggedItemType) {
-        onMoveGroupItem?.(draggedItemType, newItem.i, targetGroupId, 0);
-        // 命中的分类按钮做一次接收脉冲
+      const draggedItem = gridItems.find((it) => it.id === dragId);
+      if (draggedItem && onMoveGroupItem) {
+        // sortable 在当前 grid（已包含被拖元素）里给出 over —— 用 arrayMove 算出新位置。
+        const overId = e.over?.id;
+        let targetIndex = gridItems.findIndex((it) => it.id === dragId);
+        if (overId && overId !== dragId) {
+          const oldIdx = gridItems.findIndex((it) => it.id === dragId);
+          const newIdx = gridItems.findIndex((it) => it.id === overId);
+          if (oldIdx >= 0 && newIdx >= 0) targetIndex = newIdx;
+        }
+        if (targetIndex < 0) targetIndex = 0;
+        onMoveGroupItem(draggedItem.kind, draggedItem.id, toGroupId, targetIndex);
         if (targetEl) {
           targetEl.classList.add("group-receive-pulse");
           window.setTimeout(() => targetEl.classList.remove("group-receive-pulse"), 520);
         }
-        // 切到目标分类：updateIcon/updateWidget 已乐观更新本地状态，
-        // 新分类里能立刻看到刚搬过去的元素，便于继续调整位置。
-        if (targetGroupId !== activeGroup) setActiveGroup(targetGroupId);
       }
       return;
     }
 
-    if (mergeTargetRef.current && newItem) {
-      const targetEl = mergeTargetElRef.current;
+    // 2) 仅悬停过侧边栏但还没等够 400ms 就放手 → 走老的「丢到目标分类顶部」逻辑。
+    if (groupTargetRef.current) {
+      const targetGroupId = groupTargetRef.current;
+      const draggedItem = gridItems.find((it) => it.id === dragId);
+      const targetEl = groupTargetElRef.current;
+      clearGroupTarget();
+      clearMergeTarget();
+      if (draggedItem && onMoveGroupItem) {
+        onMoveGroupItem(draggedItem.kind, draggedItem.id, targetGroupId, 0);
+        if (targetEl) {
+          targetEl.classList.add("group-receive-pulse");
+          window.setTimeout(() => targetEl.classList.remove("group-receive-pulse"), 520);
+        }
+      }
+      return;
+    }
+
+    // 3) 文件夹合并
+    if (mergeTargetRef.current && dragId) {
       const targetId = mergeTargetRef.current;
-      // Detach refs immediately so clearMergeTarget won't reset the animation mid-play
+      const targetEl = mergeTargetElRef.current;
       mergeTargetRef.current = null;
       mergeTargetElRef.current = null;
       if (targetEl) {
         targetEl.classList.remove("merge-target-glow");
-        targetEl.style.transition = "";
         targetEl.style.transform = "";
         targetEl.style.boxShadow = "";
         targetEl.classList.add("merge-absorb");
       }
-      setTimeout(() => {
-        onMergeIcon(newItem.i, targetId);
+      window.setTimeout(() => {
+        onMergeIcon(dragId, targetId);
         targetEl?.classList.remove("merge-absorb");
       }, 280);
       return;
     }
     clearMergeTarget();
 
-    // 横向 swap：preventCollision=false 时 RGL 默认会把被压到的元素往「下」挤，
-    // 这通常不是用户期望的。我们改用「把被位移的元素挪到 A 原位置」的 swap，
-    // 体验上就像「往旁边让位」。
-    if (newItem && oldItem && (oldItem.x !== newItem.x || oldItem.y !== newItem.y)) {
-      // 用拖拽前的 layout 快照判断哪些元素被 RGL 推走（不依赖 db gridX/gridY）
-      const pre = preDragLayoutRef.current;
-      const displaced = ly.filter((it) => {
-        if (it.i === newItem.i || it.i === "__add_btn") return false;
-        const p = pre.get(it.i);
-        if (!p) return false;
-        return p.x !== it.x || p.y !== it.y;
-      });
-      if (displaced.length > 0) {
-        // 候选 swap：把所有被推走的元素还原到拖拽前位置，再把第一个挪到 A 的原位置
-        const swapLayout: LayoutItem[] = ly.map((it) => {
-          if (it.i === newItem.i || it.i === "__add_btn") return it;
-          const p = pre.get(it.i);
-          if (p) return { ...it, x: p.x, y: p.y };
-          return it;
-        });
-        const head = displaced[0];
-        const final = swapLayout.map((it) =>
-          it.i === head.i ? { ...it, x: oldItem.x, y: oldItem.y } : it,
-        );
-        // 校验：所有元素无重叠、不越界
-        const overlapOk = (() => {
-          for (let i = 0; i < final.length; i++) {
-            const a = final[i];
-            if (a.i === "__add_btn") continue;
-            if (a.y + a.h > maxRows || a.x + a.w > cols || a.x < 0 || a.y < 0) return false;
-            for (let j = i + 1; j < final.length; j++) {
-              const b = final[j];
-              if (b.i === "__add_btn") continue;
-              if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) return false;
-            }
-          }
-          return true;
-        })();
-        if (overlapOk) {
-          // swap 成功：直接落库，handleLayoutChange 不必再处理这次 layout
-          skipNextLayoutChangeRef.current = true;
-          suppressReorderUntilRef.current = Date.now() + 1500;
-          const res = final
-            .filter((it) => it.i !== "__add_btn")
-            .map((it) => ({
-              id: it.i,
-              type: currentIcons.some((ic) => ic.id === it.i) ? ("icon" as const) : ("widget" as const),
-              x: it.x,
-              y: it.y,
-            }));
-          onReorderGroupItems(activeGroup, res);
-        } else {
-          // swap 不可行（尺寸不匹配 / A 原位被占等）→ 整体 snap back。
-          // RGL 在 dragStop 时已把内部 state 改成「带下推」的 layout，仅靠 skip 不会让 RGL
-          // 重新对齐到 props（它走 deep-equal 比较）。把当前 layout（拖拽前位置）作为
-          // reorder 提交一次，迫使 props.layouts 与 RGL 内部 state 不一致 → RGL 主动同步
-          // 内部 state 回拖拽前位置 → 视觉回弹。同样的位置写回服务端是无感的。
-          skipNextLayoutChangeRef.current = true;
-          suppressReorderUntilRef.current = Date.now() + 1500;
-          const restoreRes = layout
-            .filter((it) => it.i !== "__add_btn")
-            .map((it) => ({
-              id: it.i,
-              type: currentIcons.some((ic) => ic.id === it.i) ? ("icon" as const) : ("widget" as const),
-              x: it.x,
-              y: it.y,
-            }));
-          onReorderGroupItems(activeGroup, restoreRes);
-        }
-        // 进入了 displaced 分支后必然走 swap 或 snap-back，handleLayoutChange 不再处理
-        return;
-      }
-    }
+    // 4) 普通排序：用 sortable 的 over 计算新顺序
+    const overId = e.over?.id;
+    if (!overId || overId === e.active.id || !dragId) return;
+    const oldIdx = gridItems.findIndex((it) => it.id === dragId);
+    const newIdx = gridItems.findIndex((it) => it.id === overId);
+    if (oldIdx < 0 || newIdx < 0) return;
+    const reordered = arrayMove(gridItems, oldIdx, newIdx);
+    onReorderGroupItems(
+      activeGroup,
+      reordered.map((it) => ({ id: it.id, type: it.kind, x: null, y: null })),
+    );
   };
 
-  const handleLayoutChange = (newLayout: Layout) => {
-    if (skipNextLayoutChangeRef.current) { skipNextLayoutChangeRef.current = false; return; }
-    // 处于抑制窗口（跨分类移动 / 切换分类导致的重渲染）时直接忽略，
-    // 否则会出现一次拖拽放大成多个 reorder 请求并发，引发后端死锁。
-    if (Date.now() < suppressReorderUntilRef.current) return;
-    // 仅在 dragStop 之后 200ms 内允许把 layout 写回服务端：
-    // - props 同步、setWorkspace、窗口 resize 等同样会触发 onLayoutChange，
-    //   但都不是用户操作，不应产生 reorder 请求；
-    // - 不加这个 gate 就会出现自循环：reorder → setWorkspace → re-render
-    //   → onLayoutChange → reorder ...，最终 ERR_INSUFFICIENT_RESOURCES。
-    if (!justDraggedRef.current) return;
-
-    // 防御：极少数情况下 RGL 在 compactType=null 时无法找到合适位置安置被挤开的
-    // 图标，会给出一个仍带重叠的 layout。这种 layout 一旦写回，下一帧布局重算
-    // 会让被挤的图标走到 placeAfterLast/placeAnywhere 兜底，可能塌到左上角。
-    // 直接丢弃该次 layoutChange，RGL 下一帧按 props 回弹到原位置。
-    for (let i = 0; i < newLayout.length; i++) {
-      const a = newLayout[i];
-      if (a.i === "__add_btn") continue;
-      for (let j = i + 1; j < newLayout.length; j++) {
-        const b = newLayout[j];
-        if (b.i === "__add_btn") continue;
-        const overlap = a.x < b.x + b.w && b.x < a.x + a.w
-                     && a.y < b.y + b.h && b.y < a.y + a.h;
-        if (overlap) return;
-      }
+  const onDragCancel = () => {
+    setActiveId(null);
+    clearHoverSwitchTimer();
+    // 实时预览状态下取消拖拽：把视图切回源分类、丢弃预览。
+    if (pendingGroupOverride) {
+      const fromGroup = pendingGroupOverride.fromGroupId;
+      setPendingGroupOverride(null);
+      if (fromGroup && fromGroup !== activeGroup) setActiveGroup(fromGroup);
     }
-    const res: { id: string, type: "icon" | "widget", x: number, y: number }[] = [];
-    
-    // Check if anything actually changed physically relative to current state
-    let changed = false;
+    clearGroupTarget();
+    clearMergeTarget();
+  };
 
-    newLayout.forEach(ly => {
-      const isWidget = currentWidgets.some(w => w.id === ly.i);
-      const isIcon = currentIcons.some(ic => ic.id === ly.i);
-      if (isWidget) {
-        const w = currentWidgets.find(w => w.id === ly.i)!;
-        if (w.gridX !== ly.x || w.gridY !== ly.y) changed = true;
-        res.push({ id: ly.i, type: "widget", x: ly.x, y: ly.y });
-      } else if (isIcon) {
-        const ic = currentIcons.find(ic => ic.id === ly.i)!;
-        if (ic.gridX !== ly.x || ic.gridY !== ly.y) changed = true;
-        res.push({ id: ly.i, type: "icon", x: ly.x, y: ly.y });
+  const activeItem = activeId ? gridItems.find((it) => it.id === activeId) ?? null : null;
+
+  // ----- 单个 grid item 的内容 -----
+  const renderItemContent = (item: Item) => {
+    if (item.kind === "widget") {
+      const w = item.widget;
+      const r = WIDGET_REGISTRY[w.widget];
+      if (!r) {
+        return (
+          <div className="widget-slot widget-invalid" data-nav-item-id={w.id} data-nav-item-type="widget">
+            无效小组件
+          </div>
+        );
       }
-    });
-
-    if (changed) {
-      onReorderGroupItems(activeGroup, res);
+      const canExpand = !!r.renderDetail && !!onExpandWidget;
+      return (
+        <div
+          className={"widget-slot" + (canExpand ? " expandable" : "")}
+          data-nav-item-id={w.id}
+          data-nav-item-type="widget"
+          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onCtxTile(e, w); }}
+        >
+          <div
+            className="widget-content"
+            onClick={
+              canExpand
+                ? (e) => {
+                    if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [data-nobubble]")) return;
+                    onExpandWidget!(w);
+                  }
+                : undefined
+            }
+          >
+            {r.render(w)}
+          </div>
+        </div>
+      );
     }
+    const ic = item.icon;
+    return (
+      <div
+        className={"icon-cell-inner" + (newIconIds.has(ic.id) ? " icon-pop" : "")}
+        data-nav-item-id={ic.id}
+        data-nav-item-type="icon"
+        data-nav-item-folder={ic.isFolder ? "true" : undefined}
+      >
+        <IconTile
+          icon={ic}
+          onClick={(e, x) => onOpenIcon(e as React.MouseEvent, x)}
+          onContext={(e, x) => onCtxTile(e, x)}
+        />
+      </div>
+    );
   };
 
   return (
-    <div className="content" ref={contentRef} onWheel={onWheel}
+    <div
+      className="content nav-content"
+      ref={contentRef}
+      onWheel={onWheel}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("application/x-navhub-item") || e.dataTransfer.types.includes("application/x-folder-item")) {
+        if (
+          e.dataTransfer.types.includes("application/x-navhub-item") ||
+          e.dataTransfer.types.includes("application/x-folder-item")
+        ) {
           e.preventDefault();
         }
       }}
@@ -658,87 +588,106 @@ export const NavView = ({
         }
       }}
     >
-      <div style={{ maxWidth: (tweaks.iconAreaWidth === 0 || tweaks.iconAreaWidth === undefined) ? '100%' : tweaks.iconAreaWidth, width: '100%', height: '100%', margin: '0 auto', position: 'relative' }} className={slideDir === 1 ? "slide-in-up" : slideDir === -1 ? "slide-in-down" : ""}>
-        <ResponsiveGridLayout
-          className="layout"
-          layouts={{ lg: layout, md: layout, sm: layout, xs: layout, xxs: layout }}
-          breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-          cols={{ lg: cols, md: cols, sm: cols, xs: cols, xxs: cols }}
-          rowHeight={meshUnit}
-          margin={[24, 24]}
-          maxRows={maxRows}
-          onDragStart={handleDragStart}
-          onDrag={handleDrag}
-          onDragStop={handleDragStop}
-          onLayoutChange={handleLayoutChange}
-          compactType={null} // 允许在任意网格位置放置，不做自动堆叠
-          preventCollision={false} // 让 A 能落到 B 的位置；RGL 默认会把 B 往下推，我们在 handleDragStop 里拦截改成横向 swap
-          isDroppable={false}
-          isBounded={true} // Strict monitor height bound
-          isResizable={false} // We don't need drag-to-resize visually for now since w/h is tied to data size param
-          useCSSTransforms={true}
-        >
-          {currentWidgets.map(w => {
-            const r = WIDGET_REGISTRY[w.widget];
-            if (!r) return (
-              <div key={w.id} data-nav-item-id={w.id} data-nav-item-type="widget" className="widget-slot not-drag" style={{ padding: 8, color: "red", fontSize: 12 }}>
-                无效小组件
-              </div>
-            );
-            const canExpand = !!r.renderDetail && !!onExpandWidget && !r.floatingBar;
+      <div
+        className={
+          "nav-area" +
+          (slideDir === 1 ? " slide-in-up" : slideDir === -1 ? " slide-in-down" : "")
+        }
+        style={{
+          maxWidth:
+            tweaks.iconAreaWidth === 0 || tweaks.iconAreaWidth === undefined
+              ? "100%"
+              : tweaks.iconAreaWidth,
+        }}
+      >
+        {/* 顶部保留区：永远渲染，用 min-height 把搜索条空间撑开。
+            分类内即使没有搜索小组件，这块区域也是空白保留，不允许图标进入。 */}
+        <div className={"nav-top-reserve" + (floatingBars.length > 0 ? " has-bar" : "")}>
+          {floatingBars.map((fb) => {
+            const r = WIDGET_REGISTRY[fb.widget];
+            if (!r) return null;
             return (
-              <div key={w.id}
-                data-nav-item-id={w.id}
+              <div
+                key={fb.id}
+                className="floating-bar-slot"
+                data-nav-item-id={fb.id}
                 data-nav-item-type="widget"
-                className={"widget-slot" + (canExpand ? " expandable" : "") + (r.floatingBar ? " floating-bar-slot" : "")}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCtxTile(e, fb);
+                }}
               >
-                <div style={{width:'100%', height:'100%'}}
-                  onClick={canExpand ? (e) => {
-                    if (isDraggingRef.current) { e.preventDefault(); e.stopPropagation(); return; }
-                    if ((e.target as HTMLElement).closest('a, button, input, textarea, select, [data-nobubble]')) return;
-                    onExpandWidget!(w);
-                  } : undefined}
-                  onContextMenu={(e => { e.preventDefault(); e.stopPropagation(); onCtxTile(e, w); })}>
-                  {r.render(w)}
-                </div>
+                {r.render(fb)}
               </div>
             );
           })}
-          {currentIcons.map(it => (
-            <div key={it.id}
-              data-nav-item-id={it.id}
-              data-nav-item-type="icon"
-            >
-              <div style={{width:'100%', height:'100%', cursor:'grab'}} className={newIconIds.has(it.id) ? "icon-rgl-wrapper icon-pop" : "icon-rgl-wrapper"}>
-                <IconTile
-                  icon={it}
-                  onClick={(e, ic) => {
-                    if (isDraggingRef.current) { e.preventDefault(); e.stopPropagation(); return; }
-                    onOpenIcon(e as React.MouseEvent, ic);
-                  }}
-                  onContext={(e, ic) => onCtxTile(e, ic)}
-                />
-              </div>
+        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={onDragStart}
+          onDragMove={onDragMove}
+          onDragEnd={onDragEnd}
+          onDragCancel={onDragCancel}
+        >
+          <SortableContext items={gridItems.map((it) => it.id)} strategy={rectSortingStrategy}>
+            <div className="nav-grid">
+              {gridItems.map((item) => (
+                <SortableCell key={item.id} item={item}>
+                  {renderItemContent(item)}
+                </SortableCell>
+              ))}
+              {!tweaks.hideAddIcon && (
+                <button
+                  type="button"
+                  className="nav-cell w-1 h-1 nav-add-cell"
+                  onClick={(e) => onAddClick(e)}
+                >
+                  <span className="nav-add-square">
+                    <Icon name="plus" size={28} />
+                  </span>
+                  <span className="nav-add-label">添加</span>
+                </button>
+              )}
             </div>
-          ))}
-          {!tweaks.hideAddIcon && (
-            <div key="__add_btn">
-              <div
-                className="tile sq cursor-pointer"
-                onClick={(e) => {
-                  if (isDraggingRef.current) { e.preventDefault(); e.stopPropagation(); return; }
-                  onAddClick(e);
-                }}
-                style={{width:'100%', height:'100%'}}
-              >
-                <div className="tile-icon" style={{ background: 'rgba(255,255,255,0.1)', border: '1.5px dashed rgba(255,255,255,0.3)', boxShadow: 'none' }}><Icon name="plus" size={22} /></div>
-                <div className="tile-label" style={{ opacity: 0.7 }}>添加</div>
+          </SortableContext>
+          <DragOverlay>
+            {activeItem ? (
+              <div className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview`}>
+                {renderItemContent(activeItem)}
               </div>
-            </div>
-          )}
-        </ResponsiveGridLayout>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </div>
+    </div>
+  );
+};
 
+const SortableCell = ({
+  item,
+  children,
+}: {
+  item: Item;
+  children: React.ReactNode;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`nav-cell w-${item.span.w} h-${item.span.h}` + (isDragging ? " is-dragging" : "")}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
     </div>
   );
 };
