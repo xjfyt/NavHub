@@ -96,6 +96,11 @@ export const Sidebar = ({
                   const data = JSON.parse(e.dataTransfer.getData('application/x-navhub-item') || '{}');
                   if (data.id && data.type && onDropItemToGroup && data.groupId !== g.id) {
                     onDropItemToGroup(data.type, data.id, g.id);
+                    // 用户可能在 500ms hover 自动切换前就松手，这里兜底切到目标分类
+                    if (activeGroup !== g.id) setActiveGroup(g.id);
+                    // 接收反馈
+                    e.currentTarget.classList.add("group-receive-pulse");
+                    window.setTimeout(() => e.currentTarget?.classList.remove("group-receive-pulse"), 520);
                   }
                 } catch (err) {}
               }

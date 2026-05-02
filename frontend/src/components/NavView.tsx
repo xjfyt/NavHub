@@ -32,6 +32,7 @@ export const NavView = ({
   onMoveGroupItem,
   onExpandWidget,
   onExtractFolderItem,
+  onMoveAddBtn,
 }: {
   activeGroup: string;
   groups: GroupView[];
@@ -47,6 +48,7 @@ export const NavView = ({
   onMoveGroupItem?: (itemType: "icon" | "widget", itemId: string, targetGroupId: string, targetIndex: number) => void;
   onExpandWidget?: (w: WidgetView) => void;
   onExtractFolderItem?: (folderId: string, itemId: string) => void;
+  onMoveAddBtn?: (groupId: string, x: number, y: number) => void;
 }) => {
   const [slideDir, setSlideDir] = useState(0);
   const [meshUnit, setMeshUnit] = useState(24);
@@ -64,9 +66,9 @@ export const NavView = ({
       for (const entry of entries) {
         let w = entry.contentRect.width;
         let h = entry.contentRect.height;
-        // Rigorous geometry sync with 16px standard margins
-        const M = 16;
-        const X = 36; // Base physical layout block width. wSpan=2 means 88px physical bounding box.
+        // Rigorous geometry sync with 24px standard margins (1.5× of legacy 16px)
+        const M = 24;
+        const X = 36; // Base physical layout block width. wSpan=2 means 96px physical bounding box at M=24.
         
         // Automatically calculate maximal stable columns to completely disregard broken legacy cached gridCols.
         const colsOptimal = Math.floor((w + M) / (X + M));
@@ -190,8 +192,34 @@ export const NavView = ({
       }
     };
 
+    // Row-major index just past the last placed item — new items default to "after all elements"
+    let lastEndIdx = 0;
+    const trackEnd = (x: number, y: number, w: number, h: number) => {
+      const endIdx = (y + h - 1) * cols + (x + w - 1) + 1;
+      if (endIdx > lastEndIdx) lastEndIdx = endIdx;
+    };
+
+    const placeAfterLast = (wSpan: number, hSpan: number) => {
+      for (let idx = lastEndIdx; idx < maxRows * cols; idx++) {
+        const tx = idx % cols;
+        const ty = Math.floor(idx / cols);
+        if (tx + wSpan > cols) continue;
+        if (ty + hSpan > maxRows) return null;
+        if (isFree(tx, ty, wSpan, hSpan)) return { x: tx, y: ty };
+      }
+      return null;
+    };
+    const placeAnywhere = (wSpan: number, hSpan: number) => {
+      for (let testY = 0; testY <= maxRows - hSpan; testY++) {
+        for (let testX = 0; testX <= cols - wSpan; testX++) {
+          if (isFree(testX, testY, wSpan, hSpan)) return { x: testX, y: testY };
+        }
+      }
+      return null;
+    };
+
     const unplaced: any[] = [];
-    
+
     combined.forEach(obj => {
       const isWidget = obj.type === 'widget';
       let wSpan: number;
@@ -213,7 +241,7 @@ export const NavView = ({
         wSpan = wSpanFor(obj.item as IconView, cols);
         hSpan = hSpanFor(obj.item as IconView);
       }
-      
+
       const isFloatingBar = obj.type === 'widget'
         && WIDGET_REGISTRY[(obj.item as WidgetView).widget]?.floatingBar === true;
 
@@ -231,42 +259,47 @@ export const NavView = ({
       if (gX !== null && gY !== null && isFree(gX, gY, wSpan, hSpan)) {
         l.push({ i: obj.item.id, x: gX, y: gY, w: wSpan, h: hSpan, ...extraProps });
         markOccupied(gX, gY, wSpan, hSpan);
+        trackEnd(gX, gY, wSpan, hSpan);
       } else {
         unplaced.push({ id: obj.item.id, wSpan, hSpan, extraProps });
       }
     });
 
-    unplaced.forEach(u => {
-      let foundX = 0, foundY = 0, placed = false;
-      for (let testY = 0; testY <= maxRows - u.hSpan; testY++) {
-        for (let testX = 0; testX <= cols - u.wSpan; testX++) {
-          if (isFree(testX, testY, u.wSpan, u.hSpan)) {
-            foundX = testX; foundY = testY; placed = true; break;
-          }
-        }
-        if (placed) break;
+    // Reserve the add button's pinned slot (if any) so unplaced items don't land on it.
+    let reservedAddPos: { x: number; y: number } | null = null;
+    if (!tweaks.hideAddIcon) {
+      const saved = tweaks.addBtnPositions?.[activeGroup];
+      if (saved
+        && typeof saved.x === 'number' && typeof saved.y === 'number'
+        && saved.x >= 0 && saved.y >= 0
+        && saved.x + 2 <= cols && saved.y + 3 <= maxRows
+        && isFree(saved.x, saved.y, 2, 3)) {
+        reservedAddPos = { x: saved.x, y: saved.y };
+        markOccupied(saved.x, saved.y, 2, 3);
       }
-      l.push({ i: u.id, x: foundX, y: foundY, w: u.wSpan, h: u.hSpan, ...(u.extraProps || {}) });
-      markOccupied(foundX, foundY, u.wSpan, u.hSpan);
+    }
+
+    unplaced.forEach(u => {
+      const pos = placeAfterLast(u.wSpan, u.hSpan)
+        ?? placeAnywhere(u.wSpan, u.hSpan)
+        ?? { x: 0, y: 0 };
+      l.push({ i: u.id, x: pos.x, y: pos.y, w: u.wSpan, h: u.hSpan, ...(u.extraProps || {}) });
+      markOccupied(pos.x, pos.y, u.wSpan, u.hSpan);
+      trackEnd(pos.x, pos.y, u.wSpan, u.hSpan);
     });
 
     if (!tweaks.hideAddIcon) {
-      let foundX = 0, foundY = 0, placed = false;
-      for (let testY = 0; testY <= maxRows - 3; testY++) {
-        for (let testX = 0; testX <= cols - 2; testX++) {
-          if (isFree(testX, testY, 2, 3)) {
-            foundX = testX; foundY = testY; placed = true; break;
-          }
-        }
-        if (placed) break;
-      }
-      if (!placed) { foundX = 0; foundY = maxRows - 3; }
-      l.push({ i: "__add_btn", x: foundX, y: foundY, w: 2, h: 3, isDraggable: false });
-      markOccupied(foundX, foundY, 2, 3);
+      const pos = reservedAddPos
+        ?? placeAfterLast(2, 3)
+        ?? placeAnywhere(2, 3)
+        ?? { x: 0, y: Math.max(0, maxRows - 3) };
+      l.push({ i: "__add_btn", x: pos.x, y: pos.y, w: 2, h: 3 });
+      // (reserved positions are already marked occupied)
+      if (!reservedAddPos) markOccupied(pos.x, pos.y, 2, 3);
     }
 
     return l;
-  }, [currentIcons, currentWidgets, cols, tweaks.hideAddIcon]);
+  }, [currentIcons, currentWidgets, cols, maxRows, tweaks.hideAddIcon, tweaks.addBtnPositions, activeGroup]);
 
   const mergeTargetRef = useRef<string | null>(null);
   const mergeTargetElRef = useRef<HTMLElement | null>(null);
@@ -369,14 +402,34 @@ export const NavView = ({
   const handleDragStop = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
     setTimeout(() => { isDraggingRef.current = false; }, 100);
 
+    // Add-icon button drag: persist the new position for this group.
+    if (newItem?.i === "__add_btn") {
+      clearGroupTarget();
+      clearMergeTarget();
+      skipNextLayoutChangeRef.current = true;
+      onMoveAddBtn?.(activeGroup, newItem.x, newItem.y);
+      return;
+    }
+
     // Cross-category drop: move item to the hovered sidebar group.
     if (dragGroupTargetRef.current && newItem) {
       const targetGroupId = dragGroupTargetRef.current;
       const draggedItemType = element?.dataset.navItemType as "icon" | "widget" | undefined;
+      const targetEl = dragGroupTargetElRef.current;
       clearGroupTarget();
       clearMergeTarget();
       skipNextLayoutChangeRef.current = true;
-      if (draggedItemType) onMoveGroupItem?.(draggedItemType, newItem.i, targetGroupId, 0);
+      if (draggedItemType) {
+        onMoveGroupItem?.(draggedItemType, newItem.i, targetGroupId, 0);
+        // 命中的分类按钮做一次接收脉冲
+        if (targetEl) {
+          targetEl.classList.add("group-receive-pulse");
+          window.setTimeout(() => targetEl.classList.remove("group-receive-pulse"), 520);
+        }
+        // 切到目标分类：updateIcon/updateWidget 已乐观更新本地状态，
+        // 新分类里能立刻看到刚搬过去的元素，便于继续调整位置。
+        if (targetGroupId !== activeGroup) setActiveGroup(targetGroupId);
+      }
       return;
     }
 
@@ -455,8 +508,8 @@ export const NavView = ({
           layouts={{ lg: layout, md: layout, sm: layout, xs: layout, xxs: layout }}
           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
           cols={{ lg: cols, md: cols, sm: cols, xs: cols, xxs: cols }}
-          rowHeight={meshUnit} 
-          margin={[16, 16]} 
+          rowHeight={meshUnit}
+          margin={[24, 24]}
           maxRows={maxRows}
           onDragStart={handleDragStart}
           onDrag={handleDrag}
@@ -514,7 +567,14 @@ export const NavView = ({
           ))}
           {!tweaks.hideAddIcon && (
             <div key="__add_btn">
-              <div className="tile sq cursor-pointer" onClick={onAddClick} style={{width:'100%', height:'100%'}}>
+              <div
+                className="tile sq cursor-pointer"
+                onClick={(e) => {
+                  if (isDraggingRef.current) { e.preventDefault(); e.stopPropagation(); return; }
+                  onAddClick(e);
+                }}
+                style={{width:'100%', height:'100%'}}
+              >
                 <div className="tile-icon" style={{ background: 'rgba(255,255,255,0.1)', border: '1.5px dashed rgba(255,255,255,0.3)', boxShadow: 'none' }}><Icon name="plus" size={22} /></div>
                 <div className="tile-label" style={{ opacity: 0.7 }}>添加</div>
               </div>
