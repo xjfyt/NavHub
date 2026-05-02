@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper, MIN_IMAGE_DIMENSION};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -32,6 +32,10 @@ struct PixabayHit {
     page_url: String,
     user: String,
     tags: String,
+    #[serde(rename = "imageWidth", default)]
+    image_width: u32,
+    #[serde(rename = "imageHeight", default)]
+    image_height: u32,
 }
 
 #[async_trait::async_trait]
@@ -54,13 +58,16 @@ impl Scraper for PixabayScraper {
         let results = resp
             .hits
             .into_iter()
+            .filter(|hit| {
+                let min_side = hit.image_width.min(hit.image_height);
+                min_side == 0 || min_side >= MIN_IMAGE_DIMENSION
+            })
             .take(batch_size)
             .map(|hit| {
-                let title = if hit.tags.is_empty() {
-                    None
-                } else {
-                    Some(hit.tags)
-                };
+                let title = truncate_title(
+                    if hit.tags.is_empty() { None } else { Some(hit.tags) },
+                    80,
+                );
 
                 ScrapedWallpaper {
                     title,

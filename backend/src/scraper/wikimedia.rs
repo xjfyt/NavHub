@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -142,7 +142,7 @@ impl Scraper for WikimediaScraper {
                             if let Some(url) = &info.url {
                                 let media_type = infer_media_type(url);
                                 results.push(ScrapedWallpaper {
-                                    title: Some(name),
+                                    title: truncate_title(Some(name), 80),
                                     video_url: url.clone(),
                                     thumbnail_url: info.thumburl.clone(),
                                     page_url: info.description_url.clone(),

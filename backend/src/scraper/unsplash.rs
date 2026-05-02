@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -65,10 +65,13 @@ impl Scraper for UnsplashScraper {
             .into_iter()
             .take(batch_size)
             .map(|p| {
-                let title = p.description
-                    .filter(|s| !s.is_empty())
-                    .or(p.alt_description)
-                    .filter(|s| !s.is_empty());
+                let title = truncate_title(
+                    p.description
+                        .filter(|s| !s.is_empty())
+                        .or(p.alt_description)
+                        .filter(|s| !s.is_empty()),
+                    80,
+                );
 
                 // Append size params to raw URL for a proper 1920px wallpaper
                 let full_url = format!("{}&w=1920&q=85&fm=jpg&fit=crop", p.urls.raw);

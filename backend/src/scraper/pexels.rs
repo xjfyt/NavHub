@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper, MIN_IMAGE_DIMENSION};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -28,6 +28,10 @@ struct PexelsPhoto {
     photographer: String,
     alt: Option<String>,
     src: PexelsSrc,
+    #[serde(default)]
+    width: u32,
+    #[serde(default)]
+    height: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,9 +65,13 @@ impl Scraper for PexelsScraper {
         let results = resp
             .photos
             .into_iter()
+            .filter(|photo| {
+                let min_side = photo.width.min(photo.height);
+                min_side == 0 || min_side >= MIN_IMAGE_DIMENSION
+            })
             .take(batch_size)
             .map(|photo| ScrapedWallpaper {
-                title: photo.alt.filter(|s| !s.is_empty()),
+                title: truncate_title(photo.alt, 80),
                 video_url: photo.src.original,
                 thumbnail_url: Some(photo.src.medium),
                 page_url: Some(photo.url),

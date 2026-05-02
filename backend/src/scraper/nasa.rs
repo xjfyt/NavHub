@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -99,7 +99,7 @@ impl Scraper for NasaScraper {
                 .map(|id| format!("https://images.nasa.gov/details/{id}"));
 
             results.push(ScrapedWallpaper {
-                title,
+                title: truncate_title(title, 80),
                 video_url: large_url,
                 thumbnail_url: thumb_url,
                 page_url,

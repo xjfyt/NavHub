@@ -19,6 +19,26 @@ pub struct ScrapedWallpaper {
     pub media_type: String,
 }
 
+/// 截断标题至最多 max_chars 个 Unicode 字符，超出则追加省略号。
+pub fn truncate_title(title: Option<String>, max_chars: usize) -> Option<String> {
+    title.and_then(|t| {
+        let trimmed = t.trim().to_string();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let count = trimmed.chars().count();
+        if count <= max_chars {
+            Some(trimmed)
+        } else {
+            let truncated: String = trimmed.chars().take(max_chars).collect();
+            Some(format!("{truncated}…"))
+        }
+    })
+}
+
+/// 高清判定：图像最短边阈值（像素）。
+pub const MIN_IMAGE_DIMENSION: u32 = 1080;
+
 #[async_trait::async_trait]
 pub trait Scraper: Send + Sync {
     async fn scrape(&self, site_url: &str, batch_size: usize) -> Result<Vec<ScrapedWallpaper>>;

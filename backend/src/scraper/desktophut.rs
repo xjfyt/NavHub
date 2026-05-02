@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper};
 use anyhow::{Context, Result};
 use scraper::{Html, Selector};
 
@@ -153,7 +153,7 @@ impl DesktopHutScraper {
             .map(|u| resolve_url(&u, page_url));
 
         Some(ScrapedWallpaper {
-            title: title.map(|t| clean_title(&t)),
+            title: truncate_title(title.map(|t| clean_title(&t)), 80),
             video_url,
             thumbnail_url,
             page_url: Some(page_url.to_string()),

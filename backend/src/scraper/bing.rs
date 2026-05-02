@@ -1,4 +1,4 @@
-use super::{Scraper, ScrapedWallpaper};
+use super::{truncate_title, Scraper, ScrapedWallpaper};
 use anyhow::Result;
 use serde::Deserialize;
 
@@ -68,7 +68,7 @@ impl Scraper for BingScraper {
                 let author = img.copyright.as_deref().and_then(parse_copyright_author);
 
                 results.push(ScrapedWallpaper {
-                    title: Some(img.title),
+                    title: truncate_title(Some(img.title), 80),
                     video_url: full_url,
                     thumbnail_url: Some(thumb_url),
                     page_url: img.copyright_link,

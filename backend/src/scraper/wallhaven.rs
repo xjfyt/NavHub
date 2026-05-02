@@ -1,4 +1,4 @@
-use super::{ScrapedWallpaper, Scraper};
+use super::{truncate_title, ScrapedWallpaper, Scraper, MIN_IMAGE_DIMENSION};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -29,6 +29,10 @@ struct WallhavenItem {
     file_type: String,
     thumbs: WallhavenThumbs,
     tags: Option<Vec<WallhavenTag>>,
+    #[serde(default)]
+    dimension_x: u32,
+    #[serde(default)]
+    dimension_y: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,16 +72,19 @@ impl Scraper for WallhavenScraper {
         let results = resp
             .data
             .into_iter()
+            .filter(|item| {
+                let min_side = item.dimension_x.min(item.dimension_y);
+                min_side == 0 || min_side >= MIN_IMAGE_DIMENSION
+            })
             .take(batch_size)
             .map(|item| {
-                let title = item.tags.and_then(|tags| {
-                    let names: Vec<_> = tags.into_iter().take(3).map(|t| t.name).collect();
-                    if names.is_empty() {
-                        None
-                    } else {
-                        Some(names.join(", "))
-                    }
-                });
+                let title = truncate_title(
+                    item.tags.and_then(|tags| {
+                        let names: Vec<_> = tags.into_iter().take(3).map(|t| t.name).collect();
+                        if names.is_empty() { None } else { Some(names.join(", ")) }
+                    }),
+                    80,
+                );
 
                 let media_type = if item.file_type.starts_with("video") {
                     "video".to_string()
