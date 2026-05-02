@@ -254,7 +254,8 @@ export const NavView = ({
         gX = null;
       }
 
-      const extraProps = isFloatingBar ? { isDraggable: false } : {};
+      // 悬浮条（搜索）组件设为 static：自己不可拖、也不会被别的元素推开
+      const extraProps = isFloatingBar ? { isDraggable: false, isResizable: false, static: true } : {};
 
       if (gX !== null && gY !== null && isFree(gX, gY, wSpan, hSpan)) {
         l.push({ i: obj.item.id, x: gX, y: gY, w: wSpan, h: hSpan, ...extraProps });
@@ -312,6 +313,13 @@ export const NavView = ({
    *  跨分类拖拽落地、活动分类切换都会触发多次重渲染，单次 skip 标志兜不住，
    *  这里用一个时间窗口统一吸收所有 spurious 的 layoutChange，避免请求风暴 + 后端死锁。 */
   const suppressReorderUntilRef = useRef<number>(0);
+  /** dragStop 时打开、200ms 后关闭。只有该窗口期内的 layoutChange 视作用户操作触发；
+   *  其它来源（props 同步 / 窗口 resize / activeGroup 切换）一律忽略，避免请求风暴。 */
+  const justDraggedRef = useRef(false);
+  /** 拖拽开始时拍下当前 layout 快照（{id -> {x,y,w,h}}），用于 dragStop 时
+   *  精确判定哪些元素被 RGL 推走 —— 比 currentIcons.gridX 更可靠，
+   *  因为后者对从未拖过、gridX/gridY 仍为 null 的元素无能为力。 */
+  const preDragLayoutRef = useRef<Map<string, { x: number; y: number; w: number; h: number }>>(new Map());
 
   // 切换活动分类时短暂抑制 reorder：layout 重算会触发 layoutChange，但实际上没有用户操作。
   useEffect(() => {
@@ -338,6 +346,10 @@ export const NavView = ({
 
   const handleDragStart = () => {
     isDraggingRef.current = true;
+    // 拍下拖拽前的 layout 快照
+    const snap = new Map<string, { x: number; y: number; w: number; h: number }>();
+    layout.forEach((it) => snap.set(it.i, { x: it.x, y: it.y, w: it.w, h: it.h }));
+    preDragLayoutRef.current = snap;
   };
 
   const handleDrag = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
@@ -411,6 +423,10 @@ export const NavView = ({
 
   const handleDragStop = (ly: Layout, oldItem: LayoutItem | null, newItem: LayoutItem | null, placeholder: LayoutItem | null, e: Event, element: HTMLElement | null) => {
     setTimeout(() => { isDraggingRef.current = false; }, 100);
+    // 打开短暂的「刚刚 dragStop」窗口；handleLayoutChange 仅在该窗口内允许把 layout 写回服务端。
+    // 这样可阻断 props 同步 / 窗口 resize / setWorkspace 等非用户操作触发的 layoutChange 引发的请求循环。
+    justDraggedRef.current = true;
+    setTimeout(() => { justDraggedRef.current = false; }, 200);
 
     // Add-icon button drag: persist the new position for this group.
     if (newItem?.i === "__add_btn") {
@@ -468,44 +484,38 @@ export const NavView = ({
     }
     clearMergeTarget();
 
-    // 横向 swap：preventCollision=false 时 RGL 会把被压到的元素往「下」挤，
-    // 这通常不是用户期望的（截图就是这样）。如果落点造成位移，我们用「把
-    // 被位移的元素挪到 A 原位置」的 swap 替代，体验上就像「往旁边让位」。
+    // 横向 swap：preventCollision=false 时 RGL 默认会把被压到的元素往「下」挤，
+    // 这通常不是用户期望的。我们改用「把被位移的元素挪到 A 原位置」的 swap，
+    // 体验上就像「往旁边让位」。
     if (newItem && oldItem && (oldItem.x !== newItem.x || oldItem.y !== newItem.y)) {
-      // 找出在这次拖拽里 gridX/gridY 发生变化的其他元素（即被 RGL 推走的）
-      const findOrig = (id: string) =>
-        currentIcons.find((ic) => ic.id === id) ?? currentWidgets.find((w) => w.id === id);
+      // 用拖拽前的 layout 快照判断哪些元素被 RGL 推走（不依赖 db gridX/gridY）
+      const pre = preDragLayoutRef.current;
       const displaced = ly.filter((it) => {
         if (it.i === newItem.i || it.i === "__add_btn") return false;
-        const orig = findOrig(it.i);
-        if (!orig || orig.gridX === null || orig.gridY === null) return false;
-        return orig.gridX !== it.x || orig.gridY !== it.y;
+        const p = pre.get(it.i);
+        if (!p) return false;
+        return p.x !== it.x || p.y !== it.y;
       });
       if (displaced.length > 0) {
-        // 候选 swap 布局：把所有被位移的元素全部还原到原位置，
-        // 再让 newItem 落在它现在被分配到的位置；最常见的 1↔1 swap：
-        // 被位移的那个去 A 的原位置，A 去它原本的位置。
-        const adjusted: LayoutItem[] = ly.map((it) => {
+        // 候选 swap：把所有被推走的元素还原到拖拽前位置，再把第一个挪到 A 的原位置
+        const swapLayout: LayoutItem[] = ly.map((it) => {
           if (it.i === newItem.i || it.i === "__add_btn") return it;
-          const orig = findOrig(it.i);
-          if (orig && orig.gridX !== null && orig.gridY !== null) {
-            return { ...it, x: orig.gridX, y: orig.gridY };
-          }
+          const p = pre.get(it.i);
+          if (p) return { ...it, x: p.x, y: p.y };
           return it;
         });
-        // 把第一个被位移的元素挪到 A 原位置（swap）
         const head = displaced[0];
-        const swapLayout = adjusted.map((it) =>
+        const final = swapLayout.map((it) =>
           it.i === head.i ? { ...it, x: oldItem.x, y: oldItem.y } : it,
         );
-        // 校验 swap 后无重叠且都在 maxRows 内
+        // 校验：所有元素无重叠、不越界
         const overlapOk = (() => {
-          for (let i = 0; i < swapLayout.length; i++) {
-            const a = swapLayout[i];
+          for (let i = 0; i < final.length; i++) {
+            const a = final[i];
             if (a.i === "__add_btn") continue;
             if (a.y + a.h > maxRows || a.x + a.w > cols || a.x < 0 || a.y < 0) return false;
-            for (let j = i + 1; j < swapLayout.length; j++) {
-              const b = swapLayout[j];
+            for (let j = i + 1; j < final.length; j++) {
+              const b = final[j];
               if (b.i === "__add_btn") continue;
               if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) return false;
             }
@@ -513,9 +523,10 @@ export const NavView = ({
           return true;
         })();
         if (overlapOk) {
-          // 直接走 reorder，handleLayoutChange 不必再处理这次 layout
+          // swap 成功：直接落库，handleLayoutChange 不必再处理这次 layout
           skipNextLayoutChangeRef.current = true;
-          const res = swapLayout
+          suppressReorderUntilRef.current = Date.now() + 1500;
+          const res = final
             .filter((it) => it.i !== "__add_btn")
             .map((it) => ({
               id: it.i,
@@ -524,8 +535,15 @@ export const NavView = ({
               y: it.y,
             }));
           onReorderGroupItems(activeGroup, res);
+        } else {
+          // swap 不可行（尺寸不匹配 / A 原位被占等）→ 整体 snap back，不接受 RGL 的下推。
+          // 不调用 onReorderGroupItems，本地状态保持不变；同时屏蔽 handleLayoutChange，
+          // 让 RGL 在下一帧按 props 把视觉同步回拖拽前。
+          skipNextLayoutChangeRef.current = true;
+          suppressReorderUntilRef.current = Date.now() + 600;
         }
-        // 校验失败时，让 handleLayoutChange 按原样处理（垂直推或拒绝）
+        // 进入了 displaced 分支后必然走 swap 或 snap-back，handleLayoutChange 不再处理
+        return;
       }
     }
   };
@@ -535,6 +553,12 @@ export const NavView = ({
     // 处于抑制窗口（跨分类移动 / 切换分类导致的重渲染）时直接忽略，
     // 否则会出现一次拖拽放大成多个 reorder 请求并发，引发后端死锁。
     if (Date.now() < suppressReorderUntilRef.current) return;
+    // 仅在 dragStop 之后 200ms 内允许把 layout 写回服务端：
+    // - props 同步、setWorkspace、窗口 resize 等同样会触发 onLayoutChange，
+    //   但都不是用户操作，不应产生 reorder 请求；
+    // - 不加这个 gate 就会出现自循环：reorder → setWorkspace → re-render
+    //   → onLayoutChange → reorder ...，最终 ERR_INSUFFICIENT_RESOURCES。
+    if (!justDraggedRef.current) return;
 
     // 防御：极少数情况下 RGL 在 compactType=null 时无法找到合适位置安置被挤开的
     // 图标，会给出一个仍带重叠的 layout。这种 layout 一旦写回，下一帧布局重算
