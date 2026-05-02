@@ -8,7 +8,7 @@ COPY frontend .
 RUN npm run build
 
 # Backend Build Stage
-FROM rust:1.79-bullseye AS backend-builder
+FROM rust:1.85-bullseye AS backend-builder
 WORKDIR /app
 COPY backend ./backend
 WORKDIR /app/backend
