@@ -2627,6 +2627,67 @@ html[data-mode="dark"] .tw-dd-menu { background: #2a2b30; border-color: rgba(255
   font-size: 14px;
   font-weight: 700;
   line-height: 1.4;
+  min-width: 0;
+}
+.tw-wallpaper-name-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.tw-wallpaper-detail-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.tw-wallpaper-detail {
+  background: var(--surface-bg, #fff);
+  border: 1px solid var(--surface-border, rgba(0,0,0,0.08));
+  border-radius: 16px;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+.tw-wallpaper-detail-img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  display: block;
+}
+.tw-wallpaper-detail-body {
+  padding: 20px;
+  overflow: auto;
+}
+.tw-wallpaper-detail-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.tw-wallpaper-detail-meta {
+  font-size: 12px;
+  color: #8e8e93;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.tw-wallpaper-detail-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+html[data-mode="dark"] .tw-wallpaper-detail {
+  background: #1c1c1e;
+  border-color: rgba(255,255,255,0.08);
 }
 .tw-wallpaper-badges {
   display: flex;

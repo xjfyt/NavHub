@@ -268,14 +268,49 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
   }),
 ];
 
-export const DEFAULT_SHUFFLE_INTERVAL_SEC = 5;
+export const DEFAULT_SHUFFLE_INTERVAL_SEC = 60;
 export const MIN_SHUFFLE_INTERVAL_SEC = 2;
-export const MAX_SHUFFLE_INTERVAL_SEC = 300;
+/** 30 days */
+export const MAX_SHUFFLE_INTERVAL_SEC = 30 * 24 * 60 * 60;
 
 export function normalizeShuffleInterval(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return DEFAULT_SHUFFLE_INTERVAL_SEC;
   return Math.max(MIN_SHUFFLE_INTERVAL_SEC, Math.min(MAX_SHUFFLE_INTERVAL_SEC, Math.round(n)));
+}
+
+export type ShuffleIntervalUnit = "s" | "m" | "h" | "d";
+
+const UNIT_SECONDS: Record<ShuffleIntervalUnit, number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400,
+};
+
+/** 把秒拆成最大整除的（数值，单位）展示形式 */
+export function decomposeShuffleInterval(totalSec: number): { value: number; unit: ShuffleIntervalUnit } {
+  const sec = normalizeShuffleInterval(totalSec);
+  const units: ShuffleIntervalUnit[] = ["d", "h", "m", "s"];
+  for (const u of units) {
+    const factor = UNIT_SECONDS[u];
+    if (sec >= factor && sec % factor === 0) {
+      return { value: sec / factor, unit: u };
+    }
+  }
+  return { value: sec, unit: "s" };
+}
+
+export function composeShuffleInterval(value: number, unit: ShuffleIntervalUnit): number {
+  const factor = UNIT_SECONDS[unit];
+  const total = Math.max(1, Math.round(value)) * factor;
+  return normalizeShuffleInterval(total);
+}
+
+export function formatShuffleInterval(totalSec: number): string {
+  const { value, unit } = decomposeShuffleInterval(totalSec);
+  const label: Record<ShuffleIntervalUnit, string> = { s: "秒", m: "分钟", h: "小时", d: "天" };
+  return `${value} ${label[unit]}`;
 }
 
 export function findWallpaperPreset(id?: string | null) {

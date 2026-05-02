@@ -7,10 +7,12 @@ import { toast } from "sonner";
 import type { UserMessage, CustomEngine, RemoteWallpaperItem } from "../types";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import {
+  composeShuffleInterval,
+  decomposeShuffleInterval,
   DEFAULT_SHUFFLE_INTERVAL_SEC,
-  MAX_SHUFFLE_INTERVAL_SEC,
-  MIN_SHUFFLE_INTERVAL_SEC,
+  formatShuffleInterval,
   normalizeShuffleInterval,
+  type ShuffleIntervalUnit,
 } from "../constants/wallpapers";
 
 // ---------- Reusable rows ----------
@@ -150,10 +152,12 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const [messages, setMessages] = useState<UserMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [remoteWallpapers, setRemoteWallpapers] = useState<RemoteWallpaperItem[]>([]);
+  const [remoteWallpaperTotal, setRemoteWallpaperTotal] = useState(0);
   const [remoteWallpapersLoading, setRemoteWallpapersLoading] = useState(false);
   const [wallpaperSearch, setWallpaperSearch] = useState("");
   const [wallpaperMediaFilter, setWallpaperMediaFilter] = useState<"" | "image" | "video">("");
   const [wallpaperPage, setWallpaperPage] = useState(0);
+  const [detailWallpaper, setDetailWallpaper] = useState<RemoteWallpaperItem | null>(null);
 
   const set = (k: string, v: any) => {
     updateTweaks({ [k]: v });
@@ -172,8 +176,16 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         mediaType: wallpaperMediaFilter || undefined,
         q: wallpaperSearch || undefined,
       })
-        .then((rows) => { if (alive) setRemoteWallpapers(rows); })
-        .catch(() => { if (alive) setRemoteWallpapers([]); })
+        .then((resp) => {
+          if (!alive) return;
+          setRemoteWallpapers(resp.items);
+          setRemoteWallpaperTotal(resp.total);
+        })
+        .catch(() => {
+          if (!alive) return;
+          setRemoteWallpapers([]);
+          setRemoteWallpaperTotal(0);
+        })
         .finally(() => { if (alive) setRemoteWallpapersLoading(false); });
     }, delay);
     return () => { alive = false; clearTimeout(timer); };
@@ -327,17 +339,55 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
 
   const renderWallpaper = () => {
     if (sub === "shuffleInterval") {
-      return <SliderPopover title="随机轮换间隔" onClose={() => setSub(null)} items={[
-        {
-          label: "切换间隔",
-          value: normalizeShuffleInterval(s.wallpaperShuffleInterval),
-          min: MIN_SHUFFLE_INTERVAL_SEC,
-          max: MAX_SHUFFLE_INTERVAL_SEC,
-          step: 1,
-          format: (v: number) => v + "s",
-          onChange: (v: number) => set("wallpaperShuffleInterval", normalizeShuffleInterval(v)),
-        },
-      ]} />;
+      const currentSec = normalizeShuffleInterval(s.wallpaperShuffleInterval);
+      const { value: curValue, unit: curUnit } = decomposeShuffleInterval(currentSec);
+      const unitOptions: { id: ShuffleIntervalUnit; name: string; max: number }[] = [
+        { id: "s", name: "秒", max: 3600 },
+        { id: "m", name: "分钟", max: 1440 },
+        { id: "h", name: "小时", max: 720 },
+        { id: "d", name: "天", max: 30 },
+      ];
+      return (
+        <div className="tw-content">
+          <div className="tw-section">
+            <div className="tw-section-title">随机轮换间隔</div>
+            <div className="tw-section-card">
+              <div className="tw-row">
+                <div className="tw-row-label">切换间隔</div>
+                <div className="tw-row-ctrl" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="number"
+                    aria-label="切换间隔数值"
+                    title="切换间隔数值"
+                    placeholder="1"
+                    min={1}
+                    max={unitOptions.find((u) => u.id === curUnit)?.max ?? 999}
+                    value={curValue}
+                    onChange={(e) => {
+                      const v = Math.max(1, Number(e.target.value) || 1);
+                      set("wallpaperShuffleInterval", composeShuffleInterval(v, curUnit));
+                    }}
+                    style={{ width: 80, padding: "4px 8px", textAlign: "right",
+                      background: "var(--admin-bg, transparent)", border: "1px solid var(--admin-border-str, rgba(255,255,255,0.1))",
+                      borderRadius: 6, color: "var(--text)", fontSize: 13 }}
+                  />
+                  <Dropdown
+                    value={curUnit}
+                    options={unitOptions.map((u) => ({ id: u.id, name: u.name }))}
+                    onChange={(v) => set("wallpaperShuffleInterval", composeShuffleInterval(curValue, v as ShuffleIntervalUnit))}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="tw-custom-hint">
+              当前：每 {formatShuffleInterval(currentSec)}从壁纸库中随机切换；最短 2 秒，最长 30 天。
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <button className="tw-action-btn primary" onClick={() => setSub(null)}>完成</button>
+            </div>
+          </div>
+        </div>
+      );
     }
     const currentTheme = themeOpts.find((item) => item.id === ((s.theme as string) || "dawn")) || themeOpts[0];
     const wallpaperUrl = s.wallpaperUrl as string | undefined;
@@ -386,7 +436,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               url={activePreviewUrl}
               posterUrl={activePreviewPoster}
               className={"tw-wallpaper-preview" + ((active || themeActive) ? " active" : "")}
-              emptyText={shuffleOn ? `随机壁纸 · 每 ${shuffleInterval}s 切换` : `当前使用 ${currentTheme.name} 主题`}
+              emptyText={shuffleOn ? `随机壁纸 · 每 ${formatShuffleInterval(shuffleInterval)}切换` : `当前使用 ${currentTheme.name} 主题`}
             />
             <div className="tw-wallpaper-summary">
               <div className="tw-wallpaper-head">
@@ -400,7 +450,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                   </div>
                   <div className="tw-wallpaper-meta">
                     {shuffleOn
-                      ? `每 ${shuffleInterval} 秒随机切换，选中具体壁纸或主题后自动关闭。`
+                      ? `每 ${formatShuffleInterval(shuffleInterval)}从壁纸库随机切换，选中具体壁纸或主题后自动关闭。`
                       : wallpaperActive
                         ? [
                             wallpaperMediaType === "video" ? "动态壁纸" : "静态壁纸",
@@ -456,7 +506,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               />
             </Row>
             <Row label="切换间隔" onClick={() => setSub("shuffleInterval")}>
-              <Chevron value={shuffleInterval + "s"} />
+              <Chevron value={formatShuffleInterval(shuffleInterval)} />
             </Row>
           </div>
           <div className="tw-custom-hint">
@@ -508,7 +558,8 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                     key={w.id}
                     type="button"
                     className={"tw-wallpaper-card" + (isActive ? " active" : "")}
-                    onClick={() => applyRemoteWallpaper(w)}
+                    onClick={() => setDetailWallpaper(w)}
+                    title={w.title ?? "壁纸"}
                   >
                     {w.thumbnailUrl ? (
                       <div className={"tw-wallpaper-thumb" + (w.mediaType === "video" ? " tw-wallpaper-thumb-video" : "")}>
@@ -528,13 +579,13 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                     )}
                     <div className="tw-wallpaper-card-body">
                       <div className="tw-wallpaper-card-top">
-                        <div className="tw-wallpaper-card-name">{w.title ?? "壁纸"}</div>
+                        <div className="tw-wallpaper-card-name tw-wallpaper-name-truncate">{w.title ?? "壁纸"}</div>
                         <div className="tw-wallpaper-badges">
                           {w.mediaType === "video" && <span className="tw-wallpaper-kind">动态</span>}
                           {isActive && <span className="tw-wallpaper-tag">当前</span>}
                         </div>
                       </div>
-                      {w.author && <div className="tw-wallpaper-card-meta">{w.author}</div>}
+                      {w.author && <div className="tw-wallpaper-card-meta tw-wallpaper-name-truncate">{w.author}</div>}
                     </div>
                   </button>
                 );
@@ -543,28 +594,96 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
           )}
 
           {/* Pagination */}
-          {(wallpaperPage > 0 || remoteWallpapers.length >= 24) && (
-            <div className="tw-wallpaper-pager">
-              <button
-                type="button"
-                className="tw-action-btn"
-                disabled={wallpaperPage === 0}
-                onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
-              >
-                上一页
-              </button>
-              <span className="tw-pager-label">第 {wallpaperPage + 1} 页</span>
-              <button
-                type="button"
-                className="tw-action-btn"
-                disabled={remoteWallpapers.length < 24}
-                onClick={() => setWallpaperPage((p) => p + 1)}
-              >
-                下一页
-              </button>
-            </div>
-          )}
+          {remoteWallpaperTotal > 0 && (() => {
+            const totalPages = Math.max(1, Math.ceil(remoteWallpaperTotal / 24));
+            return (
+              <div className="tw-wallpaper-pager">
+                <button
+                  type="button"
+                  className="tw-action-btn"
+                  disabled={wallpaperPage === 0}
+                  onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
+                >
+                  上一页
+                </button>
+                <span className="tw-pager-label">
+                  第 {wallpaperPage + 1} / {totalPages} 页 · 共 {remoteWallpaperTotal} 张
+                </span>
+                <button
+                  type="button"
+                  className="tw-action-btn"
+                  disabled={wallpaperPage + 1 >= totalPages}
+                  onClick={() => setWallpaperPage((p) => p + 1)}
+                >
+                  下一页
+                </button>
+              </div>
+            );
+          })()}
         </div>
+
+        {/* Wallpaper detail modal (read-only with apply) */}
+        {detailWallpaper && (
+          <div
+            className="tw-wallpaper-detail-mask"
+            onClick={() => setDetailWallpaper(null)}
+          >
+            <div className="tw-wallpaper-detail" onClick={(e) => e.stopPropagation()}>
+              {detailWallpaper.thumbnailUrl ? (
+                <img
+                  className="tw-wallpaper-detail-img"
+                  src={detailWallpaper.thumbnailUrl}
+                  alt={detailWallpaper.title ?? ""}
+                />
+              ) : (
+                <div className="tw-wallpaper-detail-img tw-wallpaper-thumb-empty">
+                  <Icon name={detailWallpaper.mediaType === "video" ? "play" : "image"} size={24} />
+                </div>
+              )}
+              <div className="tw-wallpaper-detail-body">
+                <div className="tw-wallpaper-detail-name">{detailWallpaper.title ?? "未命名壁纸"}</div>
+                <div className="tw-wallpaper-detail-meta">
+                  {[
+                    detailWallpaper.mediaType === "video" ? "动态壁纸" : "静态壁纸",
+                    detailWallpaper.sourceName,
+                    detailWallpaper.author,
+                  ].filter(Boolean).join(" · ")}
+                </div>
+                {detailWallpaper.fetchedAt && (
+                  <div className="tw-wallpaper-detail-meta">
+                    抓取时间：{new Date(detailWallpaper.fetchedAt).toLocaleString("zh-CN")}
+                  </div>
+                )}
+                {detailWallpaper.pageUrl && (
+                  <div className="tw-wallpaper-detail-meta">
+                    <a href={detailWallpaper.pageUrl} target="_blank" rel="noreferrer">
+                      查看来源页面
+                    </a>
+                  </div>
+                )}
+                <div className="tw-wallpaper-detail-actions">
+                  <button
+                    type="button"
+                    className="tw-action-btn"
+                    onClick={() => setDetailWallpaper(null)}
+                  >
+                    关闭
+                  </button>
+                  <button
+                    type="button"
+                    className="tw-action-btn primary"
+                    onClick={() => {
+                      applyRemoteWallpaper(detailWallpaper);
+                      setDetailWallpaper(null);
+                    }}
+                  >
+                    应用此壁纸
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
