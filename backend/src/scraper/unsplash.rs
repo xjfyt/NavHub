@@ -29,7 +29,6 @@ struct UnsplashPhoto {
 #[derive(Debug, Deserialize)]
 struct UnsplashUrls {
     raw: String,
-    thumb: String,
 }
 
 #[derive(Debug, Deserialize)]

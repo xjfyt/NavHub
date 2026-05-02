@@ -442,7 +442,6 @@ export const NavView = ({
           const data = JSON.parse(dataStr);
           if (data.type === "folder-item" && data.folderId && onExtractFolderItem) {
             e.preventDefault();
-            console.log("EXTRACT FOLDER ITEM", data.id);
             onExtractFolderItem(data.folderId, data.id);
           }
         } catch (err) {

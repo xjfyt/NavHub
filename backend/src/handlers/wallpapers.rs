@@ -36,13 +36,13 @@ pub async fn list_wallpapers(
     State(state): State<Arc<AppState>>,
     Query(q): Query<ListQuery>,
 ) -> AppResult<Json<Vec<WallpaperItem>>> {
-    let limit = q.limit.unwrap_or(24).max(1).min(100);
+    let limit = q.limit.unwrap_or(24).clamp(1, 100);
     let offset = q.offset.unwrap_or(0).max(0);
 
-    let search = q.q.as_deref().map(|s| {
+    let search = q.q.as_deref().and_then(|s| {
         let t = s.trim();
         if t.is_empty() { None } else { Some(format!("%{t}%")) }
-    }).flatten();
+    });
 
     let rows: Vec<RemoteWallpaper> = sqlx::query_as(
         "SELECT * FROM remote_wallpapers

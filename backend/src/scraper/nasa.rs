@@ -45,7 +45,6 @@ struct NasaItemData {
 struct NasaLink {
     href: String,
     rel: Option<String>,
-    render: Option<String>,
 }
 
 #[async_trait::async_trait]
