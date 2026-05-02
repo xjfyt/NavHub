@@ -475,10 +475,10 @@ export const NavView = ({
     // 否则会出现一次拖拽放大成多个 reorder 请求并发，引发后端死锁。
     if (Date.now() < suppressReorderUntilRef.current) return;
 
-    // 防御：preventCollision=true + compactType=null 仍可能让 RGL 落下一个与其它块
-    // 部分重叠的 layout，若放任不管会经 reorderGroupItems 写回，下一帧布局重算时
-    // 被挤出的图标走到 placeAfterLast/placeAnywhere 的兜底，最终塌到左上角和别的
-    // 图标重叠。直接丢弃该次 layoutChange，让 RGL 在下一次渲染按 props 回弹原位。
+    // 防御：极少数情况下 RGL 在 compactType=null 时无法找到合适位置安置被挤开的
+    // 图标，会给出一个仍带重叠的 layout。这种 layout 一旦写回，下一帧布局重算
+    // 会让被挤的图标走到 placeAfterLast/placeAnywhere 兜底，可能塌到左上角。
+    // 直接丢弃该次 layoutChange，RGL 下一帧按 props 回弹到原位置。
     for (let i = 0; i < newLayout.length; i++) {
       const a = newLayout[i];
       if (a.i === "__add_btn") continue;
@@ -548,8 +548,8 @@ export const NavView = ({
           onDrag={handleDrag}
           onDragStop={handleDragStop}
           onLayoutChange={handleLayoutChange}
-          compactType={null} // allows items to be placed anywhere without auto-packing! 随意留白!
-          preventCollision={true} // prevents pushing or overlapping other grid items
+          compactType={null} // 允许在任意网格位置放置，不做自动堆叠
+          preventCollision={false} // 拖到别的图标上时让被压到的图标主动挪开（push aside）
           isDroppable={false}
           isBounded={true} // Strict monitor height bound
           isResizable={false} // We don't need drag-to-resize visually for now since w/h is tied to data size param
