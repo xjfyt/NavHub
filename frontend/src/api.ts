@@ -279,6 +279,12 @@ export const api = {
       method: "POST",
     });
   },
+  async reorderFolderItems(folderId: string, order: string[]): Promise<void> {
+    await request(`/api/icons/${folderId}/reorder-folder-items`, {
+      method: "POST",
+      body: JSON.stringify({ order }),
+    });
+  },
 
   // ---------- Widgets ----------
   async createWidget(body: {

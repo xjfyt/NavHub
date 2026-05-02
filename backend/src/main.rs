@@ -96,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
             post(handlers::icons::extract_item),
         )
         .route("/icons/reorder", post(handlers::icons::reorder))
+        .route("/icons/:id/reorder-folder-items", post(handlers::icons::reorder_folder_items))
 
         .route("/widgets", post(handlers::widgets::create))
         .route(

@@ -30,6 +30,7 @@ interface WorkspaceContextProps {
   reorderGroupItems: (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => void;
   mergeIcon: (sourceId: string, targetId: string) => Promise<void>;
   extractFolderItem: (folderId: string, itemId: string) => Promise<void>;
+  reorderFolderItems: (folderId: string, order: string[]) => Promise<void>;
   /** 图标/组件 的本地状态更新 + API 调用 */
 
   updateIcon: (id: string, patch: Partial<IconView>) => Promise<void>;
@@ -239,6 +240,36 @@ export function WorkspaceProvider({
     [isGuest],
   );
 
+  const reorderFolderItems = useCallback(
+    async (folderId: string, order: string[]) => {
+      if (isGuest) return;
+      // optimistic local update
+      setWorkspace((ws) => {
+        const nextIcons = ws.icons.map((i) => {
+          if (i.id !== folderId || !i.isFolder) return i;
+          const items = i.folderItems || [];
+          const byId = new Map(items.map((it) => [it.id, it] as const));
+          const reordered = order
+            .map((id, idx) => {
+              const it = byId.get(id);
+              return it ? { ...it, sortOrder: idx } : null;
+            })
+            .filter((x): x is NonNullable<typeof x> => x !== null);
+          return { ...i, folderItems: reordered };
+        });
+        return { ...ws, icons: nextIcons };
+      });
+      try {
+        await api.reorderFolderItems(folderId, order);
+      } catch (e) {
+        console.error("reorderFolderItems failed", e);
+        toast.error("文件夹排序保存失败");
+        if (onReload) onReload();
+      }
+    },
+    [isGuest, onReload],
+  );
+
   const extractFolderItem = useCallback(
     async (folderId: string, itemId: string) => {
       if (isGuest) return;
@@ -438,6 +469,7 @@ export function WorkspaceProvider({
       reorderGroupItems,
       mergeIcon,
       extractFolderItem,
+      reorderFolderItems,
       updateIcon,
 
       deleteIcon,
@@ -466,6 +498,7 @@ export function WorkspaceProvider({
       reorderGroupItems,
       mergeIcon,
       extractFolderItem,
+      reorderFolderItems,
       updateIcon,
 
       deleteIcon,

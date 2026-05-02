@@ -10,12 +10,14 @@ export const FolderOverlay = ({
   onClose,
   onExtract,
   onRename,
+  onReorder,
   onItemContext,
 }: {
   folder: IconView;
   onClose: () => void;
   onExtract?: (itemId: string) => void;
   onRename?: (newName: string) => void;
+  onReorder?: (order: string[]) => void;
   onItemContext?: (e: React.MouseEvent, item: import("../types").FolderItemView) => void;
 }) => {
   const [anim, setAnim] = useState(false);
@@ -26,13 +28,16 @@ export const FolderOverlay = ({
   const [gridRef] = useAutoAnimate<HTMLDivElement>({ duration: 250, easing: 'ease-in-out' });
 
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dropId, setDropId] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState(folder.folderItems || []);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(folder.name || "");
+  const initialOrderRef = React.useRef<string>(
+    (folder.folderItems || []).map((i) => i.id).join(","),
+  );
 
   useEffect(() => {
     setLocalItems(folder.folderItems || []);
+    initialOrderRef.current = (folder.folderItems || []).map((i) => i.id).join(",");
   }, [folder.folderItems]);
 
   useEffect(() => {
@@ -239,13 +244,20 @@ export const FolderOverlay = ({
                       e.stopPropagation();
                       clearOutTimer();
                       setDragId(null);
-                      setDropId(null);
-                      // drop is already handled visually by localItems state.
-                      // If there's an extraction, the background onDrop handles it.
+                      // Persist the new order if it actually changed
+                      const nextOrder = localItems.map((i) => i.id).join(",");
+                      if (onReorder && nextOrder !== initialOrderRef.current) {
+                        onReorder(localItems.map((i) => i.id));
+                        initialOrderRef.current = nextOrder;
+                      }
                     }}
                     onDragEnd={() => {
                       setDragId(null);
-                      setDropId(null);
+                      const nextOrder = localItems.map((i) => i.id).join(",");
+                      if (onReorder && nextOrder !== initialOrderRef.current) {
+                        onReorder(localItems.map((i) => i.id));
+                        initialOrderRef.current = nextOrder;
+                      }
                     }}
                     onClick={() => { if (it.url && it.url !== "#") window.open(it.url, "_blank"); }}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onItemContext?.(e, it); }}>

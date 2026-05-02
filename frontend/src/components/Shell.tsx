@@ -48,6 +48,7 @@ export const Shell = ({
     reorderGroupItems,
     mergeIcon,
     extractFolderItem,
+    reorderFolderItems,
     updateIcon,
     deleteIcon,
     updateWidget,
@@ -475,6 +476,9 @@ export const Shell = ({
               updateIcon(openedFolder.id, { name: newName.trim() });
               setOpenedFolder({ ...openedFolder, name: newName.trim() });
             }
+          } : undefined}
+          onReorder={canEditGroup(openedFolder.groupId) ? (order) => {
+            void reorderFolderItems(openedFolder.id, order);
           } : undefined}
           onItemContext={(e, item) => {
             const x = e.clientX;

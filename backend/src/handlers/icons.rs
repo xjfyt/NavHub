@@ -350,6 +350,39 @@ pub async fn merge_into(
     Ok(Json(view))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct FolderItemReorderRequest {
+    pub order: Vec<Uuid>,
+}
+
+pub async fn reorder_folder_items(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<SessionUser>,
+    Path(folder_id): Path<Uuid>,
+    Json(body): Json<FolderItemReorderRequest>,
+) -> AppResult<StatusCode> {
+    let folder: Icon = sqlx::query_as("SELECT * FROM icons WHERE id = $1 AND is_folder = TRUE")
+        .bind(folder_id)
+        .fetch_optional(&state.pg)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let g = load_group(&state, folder.group_id).await?;
+    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+        return Err(AppError::Forbidden("not_owner"));
+    }
+    let mut tx = state.pg.begin().await?;
+    for (i, iid) in body.order.iter().enumerate() {
+        sqlx::query("UPDATE folder_items SET sort_order = $1 WHERE id = $2 AND folder_icon_id = $3")
+            .bind(i as i32)
+            .bind(iid)
+            .bind(folder_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn extract_item(
     State(state): State<Arc<AppState>>,
     Extension(user): Extension<SessionUser>,
