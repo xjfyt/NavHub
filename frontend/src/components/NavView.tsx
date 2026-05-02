@@ -261,7 +261,7 @@ export const NavView = ({
         markOccupied(gX, gY, wSpan, hSpan);
         trackEnd(gX, gY, wSpan, hSpan);
       } else {
-        unplaced.push({ id: obj.item.id, wSpan, hSpan, extraProps });
+        unplaced.push({ id: obj.item.id, wSpan, hSpan, extraProps, origX: gX, origY: gY });
       }
     });
 
@@ -280,9 +280,10 @@ export const NavView = ({
     }
 
     unplaced.forEach(u => {
+      // 兜底顺序：列表末尾 → 任意空位 → 保留原 (gridX, gridY)（即使会重叠，也好过强制粘到左上角）
       const pos = placeAfterLast(u.wSpan, u.hSpan)
         ?? placeAnywhere(u.wSpan, u.hSpan)
-        ?? { x: 0, y: 0 };
+        ?? (u.origX !== null && u.origY !== null ? { x: u.origX, y: u.origY } : { x: 0, y: 0 });
       l.push({ i: u.id, x: pos.x, y: pos.y, w: u.wSpan, h: u.hSpan, ...(u.extraProps || {}) });
       markOccupied(pos.x, pos.y, u.wSpan, u.hSpan);
       trackEnd(pos.x, pos.y, u.wSpan, u.hSpan);
@@ -473,6 +474,22 @@ export const NavView = ({
     // 处于抑制窗口（跨分类移动 / 切换分类导致的重渲染）时直接忽略，
     // 否则会出现一次拖拽放大成多个 reorder 请求并发，引发后端死锁。
     if (Date.now() < suppressReorderUntilRef.current) return;
+
+    // 防御：preventCollision=true + compactType=null 仍可能让 RGL 落下一个与其它块
+    // 部分重叠的 layout，若放任不管会经 reorderGroupItems 写回，下一帧布局重算时
+    // 被挤出的图标走到 placeAfterLast/placeAnywhere 的兜底，最终塌到左上角和别的
+    // 图标重叠。直接丢弃该次 layoutChange，让 RGL 在下一次渲染按 props 回弹原位。
+    for (let i = 0; i < newLayout.length; i++) {
+      const a = newLayout[i];
+      if (a.i === "__add_btn") continue;
+      for (let j = i + 1; j < newLayout.length; j++) {
+        const b = newLayout[j];
+        if (b.i === "__add_btn") continue;
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w
+                     && a.y < b.y + b.h && b.y < a.y + a.h;
+        if (overlap) return;
+      }
+    }
     const res: { id: string, type: "icon" | "widget", x: number, y: number }[] = [];
     
     // Check if anything actually changed physically relative to current state
