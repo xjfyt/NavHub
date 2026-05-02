@@ -148,34 +148,75 @@ pub async fn trigger_fetch(
     Ok(Json(serde_json::json!({ "status": "started" })))
 }
 
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminWallpaperListResponse {
+    pub items: Vec<RemoteWallpaper>,
+    pub total: i64,
+}
+
 pub async fn list_wallpapers(
     State(state): State<Arc<AppState>>,
     Extension(user): Extension<SessionUser>,
     Query(q): Query<ListWallpapersQuery>,
-) -> AppResult<Json<Vec<RemoteWallpaper>>> {
+) -> AppResult<Json<AdminWallpaperListResponse>> {
     require_at_least_admin(user.role)?;
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
 
-    let rows = if let Some(sid) = q.source_id {
-        sqlx::query_as::<_, RemoteWallpaper>(
+    let (items, total) = if let Some(sid) = q.source_id {
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_wallpapers WHERE source_id = $1")
+            .bind(sid)
+            .fetch_one(&state.pg)
+            .await?;
+        let rows = sqlx::query_as::<_, RemoteWallpaper>(
             "SELECT * FROM remote_wallpapers WHERE source_id = $1 ORDER BY fetched_at DESC LIMIT $2 OFFSET $3",
         )
         .bind(sid)
         .bind(limit)
         .bind(offset)
         .fetch_all(&state.pg)
-        .await?
+        .await?;
+        (rows, total)
     } else {
-        sqlx::query_as::<_, RemoteWallpaper>(
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_wallpapers")
+            .fetch_one(&state.pg)
+            .await?;
+        let rows = sqlx::query_as::<_, RemoteWallpaper>(
             "SELECT * FROM remote_wallpapers ORDER BY fetched_at DESC LIMIT $1 OFFSET $2",
         )
         .bind(limit)
         .bind(offset)
         .fetch_all(&state.pg)
-        .await?
+        .await?;
+        (rows, total)
     };
-    Ok(Json(rows))
+    Ok(Json(AdminWallpaperListResponse { items, total }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateWallpaperReq {
+    pub title: Option<String>,
+}
+
+pub async fn update_wallpaper(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<SessionUser>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateWallpaperReq>,
+) -> AppResult<Json<RemoteWallpaper>> {
+    require_at_least_admin(user.role)?;
+    let title = req.title.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    let row = sqlx::query_as::<_, RemoteWallpaper>(
+        "UPDATE remote_wallpapers SET title = COALESCE($2, title) WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(title)
+    .fetch_optional(&state.pg)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(Json(row))
 }
 
 pub async fn delete_wallpaper(

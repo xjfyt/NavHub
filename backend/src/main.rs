@@ -203,7 +203,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/admin/remote-wallpapers/:id",
-            axum::routing::delete(handlers::admin::wallpapers::delete_wallpaper),
+            axum::routing::patch(handlers::admin::wallpapers::update_wallpaper)
+                .delete(handlers::admin::wallpapers::delete_wallpaper),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),

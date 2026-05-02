@@ -12,7 +12,9 @@ import type {
   LibraryIconView,
   Me,
   PreferencesView,
-  RemoteWallpaperItem,
+  PaginatedWallpapers,
+  AdminPaginatedWallpapers,
+  AdminRemoteWallpaper,
   UserMessage,
   WidgetView,
   Workspace,
@@ -346,7 +348,7 @@ export const api = {
   },
 
   // ---------- Remote Wallpapers ----------
-  async wallpapers(params: { limit?: number; offset?: number; mediaType?: string; q?: string } = {}): Promise<RemoteWallpaperItem[]> {
+  async wallpapers(params: { limit?: number; offset?: number; mediaType?: string; q?: string } = {}): Promise<PaginatedWallpapers> {
     const qs = new URLSearchParams();
     if (params.limit != null) qs.set("limit", String(params.limit));
     if (params.offset != null) qs.set("offset", String(params.offset));
@@ -561,13 +563,19 @@ export const api = {
     async triggerWallpaperFetch(id: string): Promise<{ status: string }> {
       return request(`/api/admin/wallpaper-sources/${id}/fetch`, { method: "POST" });
     },
-    async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number } = {}): Promise<RemoteWallpaperItem[]> {
+    async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number } = {}): Promise<AdminPaginatedWallpapers> {
       const qs = new URLSearchParams();
       if (params.sourceId) qs.set("sourceId", params.sourceId);
       if (params.limit != null) qs.set("limit", String(params.limit));
       if (params.offset != null) qs.set("offset", String(params.offset));
       const tail = qs.toString() ? `?${qs}` : "";
       return request(`/api/admin/remote-wallpapers${tail}`);
+    },
+    async updateRemoteWallpaper(id: string, body: { title?: string }): Promise<AdminRemoteWallpaper> {
+      return request(`/api/admin/remote-wallpapers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
     },
     async deleteRemoteWallpaper(id: string): Promise<void> {
       await request(`/api/admin/remote-wallpapers/${id}`, { method: "DELETE" });

@@ -259,12 +259,43 @@ export interface GroupExportData {
 export interface RemoteWallpaperItem {
   id: string;
   sourceId: string;
+  sourceName?: string | null;
   title: string | null;
   url: string;
   thumbnailUrl: string | null;
   pageUrl: string | null;
   mediaType: "video" | "image";
   author: string | null;
+  fileSizeBytes?: number | null;
+  fetchedAt?: string;
+}
+
+export interface PaginatedWallpapers {
+  items: RemoteWallpaperItem[];
+  total: number;
+}
+
+/** Admin remote wallpaper raw row */
+export interface AdminRemoteWallpaper {
+  id: string;
+  sourceId: string;
+  title: string | null;
+  originalUrl: string;
+  pageUrl: string | null;
+  storageKey: string | null;
+  thumbnailKey: string | null;
+  thumbnailUrl: string | null;
+  mediaType: "video" | "image";
+  fileSizeBytes: number | null;
+  author: string | null;
+  fetchedAt: string;
+  expiresAt: string | null;
+  isActive: boolean;
+}
+
+export interface AdminPaginatedWallpapers {
+  items: AdminRemoteWallpaper[];
+  total: number;
 }
 
 export interface WallpaperSourceView {
