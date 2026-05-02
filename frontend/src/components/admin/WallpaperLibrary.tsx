@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../../api";
 import { toast } from "sonner";
-import { confirmDialog } from "../Dialogs";
-import type { WallpaperSourceView, RemoteWallpaperItem } from "../../types";
+import { confirmDialog, promptDialog } from "../Dialogs";
+import { Icon } from "../Icon";
+import type { WallpaperSourceView, AdminRemoteWallpaper } from "../../types";
 
 interface ScraperConfig {
   label: string;
@@ -36,7 +37,7 @@ const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
     defaultBatch: 30,
     keyParam: "client_id",
     keyRequired: true,
-    keyHint: "前往 unsplash.com/developers 注册，获取免费 Access Key",
+    keyHint: "前往 unsplash.com/developers 创建应用，复制 Access Key 填入此处（不是 Secret Key —— Secret Key 仅用于 OAuth 用户授权，抓取壁纸不需要）",
   },
   wallhaven: {
     label: "Wallhaven",
@@ -154,7 +155,8 @@ const defaultForm = (): SourceFormState => ({
 
 export const AdminWallpaperLibrary = () => {
   const [sources, setSources] = useState<WallpaperSourceView[]>([]);
-  const [wallpapers, setWallpapers] = useState<RemoteWallpaperItem[]>([]);
+  const [wallpapers, setWallpapers] = useState<AdminRemoteWallpaper[]>([]);
+  const [wallpaperTotal, setWallpaperTotal] = useState(0);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadingWallpapers, setLoadingWallpapers] = useState(false);
@@ -163,7 +165,9 @@ export const AdminWallpaperLibrary = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SourceFormState>(defaultForm());
   const [submitting, setSubmitting] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [wallpaperPage, setWallpaperPage] = useState(0);
+  const [detailWallpaper, setDetailWallpaper] = useState<AdminRemoteWallpaper | null>(null);
   const PAGE_SIZE = 24;
 
   const loadSources = useCallback(async () => {
@@ -186,7 +190,8 @@ export const AdminWallpaperLibrary = () => {
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       });
-      setWallpapers(data);
+      setWallpapers(data.items);
+      setWallpaperTotal(data.total);
     } catch {
       toast.error("加载壁纸列表失败");
     } finally {
@@ -242,12 +247,43 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleDeleteWallpaper = async (id: string) => {
+    if (!(await confirmDialog("确定删除该壁纸吗？操作不可撤销。"))) return;
     try {
       await api.admin.deleteRemoteWallpaper(id);
       setWallpapers((prev) => prev.filter((w) => w.id !== id));
+      setWallpaperTotal((t) => Math.max(0, t - 1));
+      setDetailWallpaper(null);
+      toast.success("已删除");
     } catch {
       toast.error("删除失败");
     }
+  };
+
+  const handleRenameWallpaper = async (w: AdminRemoteWallpaper) => {
+    const next = await promptDialog("修改壁纸名称：", w.title ?? "", "重命名壁纸");
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed) {
+      toast.error("名称不能为空");
+      return;
+    }
+    try {
+      const updated = await api.admin.updateRemoteWallpaper(w.id, { title: trimmed });
+      setWallpapers((prev) => prev.map((it) => (it.id === w.id ? updated : it)));
+      setDetailWallpaper(updated);
+      toast.success("已更新");
+    } catch {
+      toast.error("更新失败");
+    }
+  };
+
+  const sourceNameOf = (sid: string) => sources.find((s) => s.id === sid)?.name ?? "未知来源";
+
+  const formatBytes = (n: number | null | undefined) => {
+    if (!n || n <= 0) return "—";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(2)} MB`;
   };
 
   const openEditForm = (source: WallpaperSourceView) => {
@@ -358,51 +394,54 @@ export const AdminWallpaperLibrary = () => {
     return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
 
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>壁纸库管理</h2>
-          <p style={{ fontSize: 13, color: "var(--text-soft)" }}>
-            配置壁纸抓取来源，系统会自动拉取并缓存到 MinIO，支持定时刷新。
-          </p>
-        </div>
-        <button
-          onClick={() => { setShowAddForm(true); setEditingId(null); setForm(defaultForm()); }}
-          style={{
-            padding: "8px 16px",
-            background: "var(--accent)",
-            color: "var(--text-inv)",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 13,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          + 添加来源
-        </button>
-      </div>
+  const editingSource = editingId ? sources.find((s) => s.id === editingId) : null;
 
-      {/* Add / Edit Form */}
-      {showAddForm && (
+  if (showAddForm) {
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <button
+            onClick={() => { setShowAddForm(false); setEditingId(null); }}
+            style={{
+              background: "var(--admin-border-str)", border: "none",
+              width: 28, height: 28, borderRadius: "50%", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "var(--text)",
+            }}
+            title="返回列表"
+          >
+            <Icon name="chevron-left" size={14} />
+          </button>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+              {editingId ? "编辑壁纸来源" : "添加壁纸来源"}
+            </h2>
+            {editingSource ? (
+              <p style={{ fontSize: 13, color: "var(--text-soft)", display: "flex", alignItems: "center", gap: 8 }}>
+                正在编辑：<span style={{ color: "var(--text)", fontWeight: 500 }}>{editingSource.name}</span>
+                <span style={{ fontSize: 11, background: "var(--admin-border-str)", padding: "2px 6px", borderRadius: 4 }}>
+                  {editingSource.scraperType}
+                </span>
+              </p>
+            ) : (
+              <p style={{ fontSize: 13, color: "var(--text-soft)" }}>选择爬虫类型并填写参数，保存后立即生效。</p>
+            )}
+          </div>
+        </div>
+
         <div
           style={{
             background: "var(--admin-border-soft)",
             border: "1px solid var(--admin-border-str)",
             borderRadius: 12,
             padding: 20,
-            marginBottom: 24,
           }}
         >
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>
-            {editingId ? "编辑来源" : "添加来源"}
-          </h3>
           <form onSubmit={handleSubmitForm}>
             {/* Row 1: scraper type + name */}
             <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "0 20px" }}>
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>爬虫类型</label>
+                <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>壁纸来源</label>
                 <select
                   value={form.scraperType}
                   onChange={(e) => {
@@ -439,19 +478,33 @@ export const AdminWallpaperLibrary = () => {
                   <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>
                     API Key{cfg.keyRequired ? <span style={{ color: "#ff6b6b" }}> *</span> : <span style={{ color: "var(--text-soft)" }}> (可选)</span>}
                   </label>
-                  <input
-                    type="password"
-                    value={form.apiKey}
-                    onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-                    placeholder={cfg.keyRequired ? "请填写 API Key" : "留空则跳过认证"}
-                    autoComplete="off"
-                    style={{
-                      width: "100%", padding: "6px 10px",
-                      background: "var(--admin-bg)", border: `1px solid ${cfg.keyRequired && !form.apiKey ? "rgba(255,107,107,0.4)" : "var(--admin-border-str)"}`,
-                      borderRadius: 6, color: "var(--text)", fontSize: 13, boxSizing: "border-box",
-                      fontFamily: form.apiKey ? "monospace" : "inherit",
-                    }}
-                  />
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={form.apiKey}
+                      onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+                      placeholder={cfg.keyRequired ? "请填写 API Key" : "留空则跳过认证"}
+                      autoComplete="off"
+                      style={{
+                        width: "100%", padding: "6px 36px 6px 10px",
+                        background: "var(--admin-bg)", border: `1px solid ${cfg.keyRequired && !form.apiKey ? "rgba(255,107,107,0.4)" : "var(--admin-border-str)"}`,
+                        borderRadius: 6, color: "var(--text)", fontSize: 13, boxSizing: "border-box",
+                        fontFamily: form.apiKey ? "monospace" : "inherit",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey((v) => !v)}
+                      title={showApiKey ? "隐藏密钥" : "显示密钥"}
+                      style={{
+                        position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: "var(--text-soft)", padding: 4, display: "flex", alignItems: "center",
+                      }}
+                    >
+                      <Icon name={showApiKey ? "eye-off" : "eye"} size={14} />
+                    </button>
+                  </div>
                   {cfg.keyHint && (
                     <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 4 }}>
                       {cfg.keyHint}
@@ -517,7 +570,35 @@ export const AdminWallpaperLibrary = () => {
             </div>
           </form>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>壁纸库管理</h2>
+          <p style={{ fontSize: 13, color: "var(--text-soft)" }}>
+            配置壁纸抓取来源，系统会自动拉取并缓存到 MinIO，支持定时刷新。
+          </p>
+        </div>
+        <button
+          onClick={() => { setShowAddForm(true); setEditingId(null); setForm(defaultForm()); }}
+          style={{
+            padding: "8px 16px",
+            background: "var(--accent)",
+            color: "var(--text-inv)",
+            border: "none",
+            borderRadius: 8,
+            fontSize: 13,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          + 添加来源
+        </button>
+      </div>
 
       {/* Sources table */}
       <div style={{ background: "var(--admin-border-soft)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
@@ -636,13 +717,18 @@ export const AdminWallpaperLibrary = () => {
           {wallpapers.map((w) => (
             <div
               key={w.id}
+              onClick={() => setDetailWallpaper(w)}
               style={{
                 background: "var(--admin-border-soft)",
                 borderRadius: 10,
                 overflow: "hidden",
                 position: "relative",
                 border: "1px solid var(--admin-border-str)",
+                cursor: "pointer",
+                transition: "transform 0.15s ease",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
             >
               {w.thumbnailUrl ? (
                 <img
@@ -682,27 +768,8 @@ export const AdminWallpaperLibrary = () => {
                   {w.title ?? "未命名壁纸"}
                 </div>
                 {w.author && (
-                  <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 2 }}>{w.author}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.author}</div>
                 )}
-                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  {w.pageUrl && (
-                    <a
-                      href={w.pageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none" }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      来源
-                    </a>
-                  )}
-                  <button
-                    onClick={() => handleDeleteWallpaper(w.id)}
-                    style={{ fontSize: 11, color: "#ff6b6b", background: "none", border: "none", cursor: "pointer", padding: 0, marginLeft: "auto" }}
-                  >
-                    删除
-                  </button>
-                </div>
               </div>
             </div>
           ))}
@@ -710,23 +777,118 @@ export const AdminWallpaperLibrary = () => {
       )}
 
       {/* Pagination */}
-      {wallpapers.length > 0 && (
-        <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 20 }}>
-          <button
-            disabled={wallpaperPage === 0}
-            onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
-            style={{ padding: "6px 14px", fontSize: 13, cursor: "pointer", background: "var(--admin-border-soft)", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)", opacity: wallpaperPage === 0 ? 0.4 : 1 }}
+      {wallpaperTotal > 0 && (() => {
+        const totalPages = Math.max(1, Math.ceil(wallpaperTotal / PAGE_SIZE));
+        return (
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center", marginTop: 20 }}>
+            <button
+              disabled={wallpaperPage === 0}
+              onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
+              style={{ padding: "6px 14px", fontSize: 13, cursor: "pointer", background: "var(--admin-border-soft)", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)", opacity: wallpaperPage === 0 ? 0.4 : 1 }}
+            >
+              上一页
+            </button>
+            <span style={{ lineHeight: "30px", fontSize: 13, color: "var(--text-soft)" }}>
+              第 {wallpaperPage + 1} / {totalPages} 页 · 共 {wallpaperTotal} 张
+            </span>
+            <button
+              disabled={wallpaperPage + 1 >= totalPages}
+              onClick={() => setWallpaperPage((p) => p + 1)}
+              style={{ padding: "6px 14px", fontSize: 13, cursor: "pointer", background: "var(--admin-border-soft)", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)", opacity: wallpaperPage + 1 >= totalPages ? 0.4 : 1 }}
+            >
+              下一页
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* Detail modal */}
+      {detailWallpaper && (
+        <div
+          onClick={() => setDetailWallpaper(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--admin-card-bg, var(--admin-bg))",
+              border: "1px solid var(--admin-border-str)",
+              borderRadius: 14, width: "min(560px, 100%)", maxHeight: "calc(100vh - 48px)",
+              overflow: "auto", display: "flex", flexDirection: "column",
+            }}
           >
-            上一页
-          </button>
-          <span style={{ lineHeight: "30px", fontSize: 13, color: "var(--text-soft)" }}>第 {wallpaperPage + 1} 页</span>
-          <button
-            disabled={wallpapers.length < PAGE_SIZE}
-            onClick={() => setWallpaperPage((p) => p + 1)}
-            style={{ padding: "6px 14px", fontSize: 13, cursor: "pointer", background: "var(--admin-border-soft)", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)", opacity: wallpapers.length < PAGE_SIZE ? 0.4 : 1 }}
-          >
-            下一页
-          </button>
+            {detailWallpaper.thumbnailUrl ? (
+              <img
+                src={detailWallpaper.thumbnailUrl}
+                alt={detailWallpaper.title ?? ""}
+                style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <div style={{
+                width: "100%", height: 200,
+                background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "var(--text-soft)",
+              }}>
+                {detailWallpaper.mediaType === "video" ? "🎬 视频" : "🖼 图片"}
+              </div>
+            )}
+            <div style={{ padding: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, wordBreak: "break-word" }}>
+                {detailWallpaper.title ?? "未命名壁纸"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 16 }}>
+                {sourceNameOf(detailWallpaper.sourceId)} · {detailWallpaper.mediaType === "video" ? "动态壁纸" : "静态壁纸"}
+                {detailWallpaper.author ? ` · ${detailWallpaper.author}` : ""}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 8, columnGap: 14, fontSize: 12 }}>
+                <div style={{ color: "var(--text-soft)" }}>文件大小</div>
+                <div>{formatBytes(detailWallpaper.fileSizeBytes)}</div>
+                <div style={{ color: "var(--text-soft)" }}>抓取时间</div>
+                <div>{new Date(detailWallpaper.fetchedAt).toLocaleString("zh-CN")}</div>
+                <div style={{ color: "var(--text-soft)" }}>原始链接</div>
+                <div style={{ wordBreak: "break-all" }}>
+                  <a href={detailWallpaper.originalUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                    {detailWallpaper.originalUrl}
+                  </a>
+                </div>
+                {detailWallpaper.pageUrl && (
+                  <>
+                    <div style={{ color: "var(--text-soft)" }}>来源页</div>
+                    <div style={{ wordBreak: "break-all" }}>
+                      <a href={detailWallpaper.pageUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                        {detailWallpaper.pageUrl}
+                      </a>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+                <button
+                  onClick={() => setDetailWallpaper(null)}
+                  style={{ padding: "7px 14px", fontSize: 13, background: "transparent", border: "1px solid var(--admin-border-str)", borderRadius: 8, color: "var(--text)", cursor: "pointer" }}
+                >
+                  关闭
+                </button>
+                <button
+                  onClick={() => handleRenameWallpaper(detailWallpaper)}
+                  style={{ padding: "7px 14px", fontSize: 13, background: "var(--admin-border-str)", border: "none", borderRadius: 8, color: "var(--text)", cursor: "pointer" }}
+                >
+                  重命名
+                </button>
+                <button
+                  onClick={() => handleDeleteWallpaper(detailWallpaper.id)}
+                  style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,90,90,0.15)", border: "none", borderRadius: 8, color: "#ff6b6b", cursor: "pointer", fontWeight: 600 }}
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
