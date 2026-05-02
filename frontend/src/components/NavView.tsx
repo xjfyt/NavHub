@@ -467,6 +467,67 @@ export const NavView = ({
       return;
     }
     clearMergeTarget();
+
+    // 横向 swap：preventCollision=false 时 RGL 会把被压到的元素往「下」挤，
+    // 这通常不是用户期望的（截图就是这样）。如果落点造成位移，我们用「把
+    // 被位移的元素挪到 A 原位置」的 swap 替代，体验上就像「往旁边让位」。
+    if (newItem && oldItem && (oldItem.x !== newItem.x || oldItem.y !== newItem.y)) {
+      // 找出在这次拖拽里 gridX/gridY 发生变化的其他元素（即被 RGL 推走的）
+      const findOrig = (id: string) =>
+        currentIcons.find((ic) => ic.id === id) ?? currentWidgets.find((w) => w.id === id);
+      const displaced = ly.filter((it) => {
+        if (it.i === newItem.i || it.i === "__add_btn") return false;
+        const orig = findOrig(it.i);
+        if (!orig || orig.gridX === null || orig.gridY === null) return false;
+        return orig.gridX !== it.x || orig.gridY !== it.y;
+      });
+      if (displaced.length > 0) {
+        // 候选 swap 布局：把所有被位移的元素全部还原到原位置，
+        // 再让 newItem 落在它现在被分配到的位置；最常见的 1↔1 swap：
+        // 被位移的那个去 A 的原位置，A 去它原本的位置。
+        const adjusted: LayoutItem[] = ly.map((it) => {
+          if (it.i === newItem.i || it.i === "__add_btn") return it;
+          const orig = findOrig(it.i);
+          if (orig && orig.gridX !== null && orig.gridY !== null) {
+            return { ...it, x: orig.gridX, y: orig.gridY };
+          }
+          return it;
+        });
+        // 把第一个被位移的元素挪到 A 原位置（swap）
+        const head = displaced[0];
+        const swapLayout = adjusted.map((it) =>
+          it.i === head.i ? { ...it, x: oldItem.x, y: oldItem.y } : it,
+        );
+        // 校验 swap 后无重叠且都在 maxRows 内
+        const overlapOk = (() => {
+          for (let i = 0; i < swapLayout.length; i++) {
+            const a = swapLayout[i];
+            if (a.i === "__add_btn") continue;
+            if (a.y + a.h > maxRows || a.x + a.w > cols || a.x < 0 || a.y < 0) return false;
+            for (let j = i + 1; j < swapLayout.length; j++) {
+              const b = swapLayout[j];
+              if (b.i === "__add_btn") continue;
+              if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) return false;
+            }
+          }
+          return true;
+        })();
+        if (overlapOk) {
+          // 直接走 reorder，handleLayoutChange 不必再处理这次 layout
+          skipNextLayoutChangeRef.current = true;
+          const res = swapLayout
+            .filter((it) => it.i !== "__add_btn")
+            .map((it) => ({
+              id: it.i,
+              type: currentIcons.some((ic) => ic.id === it.i) ? ("icon" as const) : ("widget" as const),
+              x: it.x,
+              y: it.y,
+            }));
+          onReorderGroupItems(activeGroup, res);
+        }
+        // 校验失败时，让 handleLayoutChange 按原样处理（垂直推或拒绝）
+      }
+    }
   };
 
   const handleLayoutChange = (newLayout: Layout) => {
@@ -549,7 +610,7 @@ export const NavView = ({
           onDragStop={handleDragStop}
           onLayoutChange={handleLayoutChange}
           compactType={null} // 允许在任意网格位置放置，不做自动堆叠
-          preventCollision={false} // 拖到别的图标上时让被压到的图标主动挪开（push aside）
+          preventCollision={false} // 让 A 能落到 B 的位置；RGL 默认会把 B 往下推，我们在 handleDragStop 里拦截改成横向 swap
           isDroppable={false}
           isBounded={true} // Strict monitor height bound
           isResizable={false} // We don't need drag-to-resize visually for now since w/h is tied to data size param
