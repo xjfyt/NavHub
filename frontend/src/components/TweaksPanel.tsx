@@ -4,7 +4,7 @@ import { Icon } from "./Icon";
 import { DocumentModal, TermsContent, PrivacyContent } from "./DocumentModal";
 import { api } from "../api";
 import { toast } from "sonner";
-import type { UserMessage, CustomEngine, RemoteWallpaperItem } from "../types";
+import type { UserMessage, CustomEngine, RemoteWallpaperItem, PublicWallpaperSource } from "../types";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import {
   composeShuffleInterval,
@@ -156,6 +156,8 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const [remoteWallpapersLoading, setRemoteWallpapersLoading] = useState(false);
   const [wallpaperSearch, setWallpaperSearch] = useState("");
   const [wallpaperMediaFilter, setWallpaperMediaFilter] = useState<"" | "image" | "video">("");
+  const [wallpaperSourceFilter, setWallpaperSourceFilter] = useState<string>("");
+  const [wallpaperSources, setWallpaperSources] = useState<PublicWallpaperSource[]>([]);
   const [wallpaperPage, setWallpaperPage] = useState(0);
   const [detailWallpaper, setDetailWallpaper] = useState<RemoteWallpaperItem | null>(null);
 
@@ -174,6 +176,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         limit: 24,
         offset: wallpaperPage * 24,
         mediaType: wallpaperMediaFilter || undefined,
+        sourceId: wallpaperSourceFilter || undefined,
         q: wallpaperSearch || undefined,
       })
         .then((resp) => {
@@ -189,7 +192,16 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         .finally(() => { if (alive) setRemoteWallpapersLoading(false); });
     }, delay);
     return () => { alive = false; clearTimeout(timer); };
-  }, [activeNav, wallpaperSearch, wallpaperMediaFilter, wallpaperPage]);
+  }, [activeNav, wallpaperSearch, wallpaperMediaFilter, wallpaperSourceFilter, wallpaperPage]);
+
+  useEffect(() => {
+    if (activeNav !== "wallpaper") return;
+    let alive = true;
+    api.wallpaperSourcesPublic()
+      .then((rows) => { if (alive) setWallpaperSources(rows); })
+      .catch(() => { if (alive) setWallpaperSources([]); });
+    return () => { alive = false; };
+  }, [activeNav]);
 
   useEffect(() => {
     if (activeNav !== "notify" || !me) return;
@@ -542,12 +554,40 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
             </div>
           </div>
 
+          {wallpaperSources.length > 0 && (
+            <div className="tw-wallpaper-sources">
+              <button
+                type="button"
+                className={"tw-filter-btn" + (wallpaperSourceFilter === "" ? " active" : "")}
+                onClick={() => { setWallpaperSourceFilter(""); setWallpaperPage(0); }}
+              >
+                全部来源
+              </button>
+              {wallpaperSources.map((src) => (
+                <button
+                  key={src.id}
+                  type="button"
+                  className={"tw-filter-btn" + (wallpaperSourceFilter === src.id ? " active" : "")}
+                  onClick={() => { setWallpaperSourceFilter(src.id); setWallpaperPage(0); }}
+                  title={`${src.name} · ${src.totalCount} 张`}
+                >
+                  {src.name}
+                  <span className="tw-filter-badge">{src.totalCount}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Grid */}
           {remoteWallpapersLoading ? (
             <div className="tw-wallpaper-loading">加载中...</div>
           ) : remoteWallpapers.length === 0 ? (
             <div className="tw-wallpaper-loading">
-              {wallpaperSearch ? `未找到「${wallpaperSearch}」相关壁纸` : "暂无壁纸，管理员可在后台壁纸库中添加来源"}
+              {wallpaperSearch
+                ? `未找到「${wallpaperSearch}」相关壁纸`
+                : wallpaperSourceFilter
+                  ? "该来源暂无符合条件的壁纸"
+                  : "暂无壁纸，管理员可在后台壁纸库中添加来源"}
             </div>
           ) : (
             <div className="tw-wallpaper-grid">

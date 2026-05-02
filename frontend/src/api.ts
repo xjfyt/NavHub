@@ -13,6 +13,7 @@ import type {
   Me,
   PreferencesView,
   PaginatedWallpapers,
+  PublicWallpaperSource,
   AdminPaginatedWallpapers,
   AdminRemoteWallpaper,
   UserMessage,
@@ -348,14 +349,18 @@ export const api = {
   },
 
   // ---------- Remote Wallpapers ----------
-  async wallpapers(params: { limit?: number; offset?: number; mediaType?: string; q?: string } = {}): Promise<PaginatedWallpapers> {
+  async wallpapers(params: { limit?: number; offset?: number; mediaType?: string; sourceId?: string; q?: string } = {}): Promise<PaginatedWallpapers> {
     const qs = new URLSearchParams();
     if (params.limit != null) qs.set("limit", String(params.limit));
     if (params.offset != null) qs.set("offset", String(params.offset));
     if (params.mediaType) qs.set("mediaType", params.mediaType);
+    if (params.sourceId) qs.set("sourceId", params.sourceId);
     if (params.q) qs.set("q", params.q);
     const tail = qs.toString() ? `?${qs}` : "";
     return request(`/api/wallpapers${tail}`);
+  },
+  async wallpaperSourcesPublic(): Promise<PublicWallpaperSource[]> {
+    return request("/api/wallpaper-sources");
   },
 
   // ---------- Upload / favicon ----------

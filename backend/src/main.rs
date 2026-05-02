@@ -119,6 +119,7 @@ async fn main() -> anyhow::Result<()> {
 
         // Wallpapers (public list for all logged-in users)
         .route("/wallpapers", get(handlers::wallpapers::list_wallpapers))
+        .route("/wallpaper-sources", get(handlers::wallpapers::list_sources))
 
         // Admin
         .route(

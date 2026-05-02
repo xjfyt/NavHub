@@ -814,10 +814,10 @@ html[data-mode="light"] .sidebar-bottom::before {
   height: 140px;
 }
 .tile.sq .tile-icon {
-  width: 100%;
+  width: 90%;
   height: auto;
   aspect-ratio: 1 / 1;
-  font-size: 36px;
+  font-size: 32px;
   border-radius: 22%;
 }
 .tile.sq .tile-label {
@@ -2794,6 +2794,31 @@ html[data-mode="dark"] .tw-wallpaper-detail {
   border-color: var(--accent);
   color: var(--text-inv);
   font-weight: 600;
+}
+.tw-wallpaper-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.tw-wallpaper-sources .tw-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tw-filter-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.08);
+  color: inherit;
+  line-height: 1.5;
+}
+.tw-filter-btn.active .tw-filter-badge {
+  background: rgba(255,255,255,0.25);
+}
+html[data-mode="dark"] .tw-filter-badge {
+  background: rgba(255,255,255,0.1);
 }
 .tw-wallpaper-loading {
   padding: 32px 0;

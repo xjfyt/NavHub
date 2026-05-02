@@ -31,6 +31,7 @@ pub struct ListQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
     pub media_type: Option<String>,
+    pub source_id: Option<Uuid>,
     /// Free-text title search
     pub q: Option<String>,
 }
@@ -75,10 +76,12 @@ pub async fn list_wallpapers(
          WHERE is_active = true
            AND (expires_at IS NULL OR expires_at > now())
            AND ($1::text IS NULL OR media_type = $1)
-           AND ($2::text IS NULL OR title ILIKE $2)",
+           AND ($2::text IS NULL OR title ILIKE $2)
+           AND ($3::uuid IS NULL OR source_id = $3)",
     )
     .bind(q.media_type.as_deref())
     .bind(search.as_deref())
+    .bind(q.source_id)
     .fetch_one(&state.pg)
     .await?;
 
@@ -92,13 +95,15 @@ pub async fn list_wallpapers(
            AND (rw.expires_at IS NULL OR rw.expires_at > now())
            AND ($1::text IS NULL OR rw.media_type = $1)
            AND ($2::text IS NULL OR rw.title ILIKE $2)
+           AND ($3::uuid IS NULL OR rw.source_id = $3)
          ORDER BY
            CASE WHEN rw.source_id = '00000000-0000-0000-0000-000000000001'::uuid THEN 0 ELSE 1 END,
            rw.fetched_at DESC
-         LIMIT $3 OFFSET $4",
+         LIMIT $4 OFFSET $5",
     )
     .bind(q.media_type.as_deref())
     .bind(search.as_deref())
+    .bind(q.source_id)
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.pg)
@@ -145,4 +150,36 @@ pub async fn list_wallpapers(
     }
 
     Ok(Json(WallpaperListResponse { items, total }))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicWallpaperSource {
+    pub id: Uuid,
+    pub name: String,
+    pub source_type: String,
+    pub scraper_type: String,
+    pub total_count: i64,
+}
+
+/// Public list of wallpaper sources that have at least one cached wallpaper.
+/// Used by the preferences/admin UIs to populate the "filter by source" dropdown.
+pub async fn list_sources(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<Vec<PublicWallpaperSource>>> {
+    let rows: Vec<PublicWallpaperSource> = sqlx::query_as(
+        "SELECT ws.id, ws.name, ws.source_type, ws.scraper_type,
+                COUNT(rw.id)::bigint AS total_count
+         FROM wallpaper_sources ws
+         LEFT JOIN remote_wallpapers rw
+           ON rw.source_id = ws.id
+          AND rw.is_active = true
+          AND (rw.expires_at IS NULL OR rw.expires_at > now())
+         GROUP BY ws.id, ws.name, ws.source_type, ws.scraper_type, ws.created_at
+         HAVING COUNT(rw.id) > 0
+         ORDER BY ws.created_at ASC",
+    )
+    .fetch_all(&state.pg)
+    .await?;
+    Ok(Json(rows))
 }

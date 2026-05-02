@@ -618,8 +618,7 @@ export const AdminWallpaperLibrary = () => {
             ) : sources.map((src) => (
               <tr
                 key={src.id}
-                style={{ background: selectedSourceId === src.id ? "var(--admin-border-str)" : "transparent", cursor: "pointer" }}
-                onClick={() => setSelectedSourceId(selectedSourceId === src.id ? null : src.id)}
+                style={{ background: selectedSourceId === src.id ? "var(--admin-border-str)" : "transparent" }}
               >
                 <td style={cell}>
                   <a
@@ -690,22 +689,27 @@ export const AdminWallpaperLibrary = () => {
 
       {/* Wallpapers grid */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600 }}>
-          已缓存壁纸
-          {selectedSourceId && sources.find((s) => s.id === selectedSourceId) && (
-            <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-soft)", marginLeft: 8 }}>
-              · {sources.find((s) => s.id === selectedSourceId)?.name}
-            </span>
-          )}
-        </h3>
-        {selectedSourceId && (
-          <button
-            onClick={() => setSelectedSourceId(null)}
-            style={{ fontSize: 12, color: "var(--text-soft)", background: "none", border: "none", cursor: "pointer" }}
+        <h3 style={{ fontSize: 15, fontWeight: 600 }}>已缓存壁纸</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <label htmlFor="admin-wp-source-filter" style={{ fontSize: 12, color: "var(--text-soft)" }}>来源筛选</label>
+          <select
+            id="admin-wp-source-filter"
+            value={selectedSourceId ?? ""}
+            onChange={(e) => { setSelectedSourceId(e.target.value || null); setWallpaperPage(0); }}
+            style={{
+              padding: "5px 10px", fontSize: 12, borderRadius: 6,
+              background: "var(--admin-bg)", border: "1px solid var(--admin-border-str)",
+              color: "var(--text)", cursor: "pointer", minWidth: 140,
+            }}
           >
-            显示全部
-          </button>
-        )}
+            <option value="">全部来源（{wallpaperTotal} 张）</option>
+            {sources.map((src) => (
+              <option key={src.id} value={src.id}>
+                {src.name} · {src.totalFetched} 张
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loadingWallpapers ? (

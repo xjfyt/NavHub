@@ -313,3 +313,12 @@ export interface WallpaperSourceView {
   createdAt: string;
   updatedAt: string;
 }
+
+/** Public source listing (only sources with at least one cached wallpaper). */
+export interface PublicWallpaperSource {
+  id: string;
+  name: string;
+  sourceType: string;
+  scraperType: string;
+  totalCount: number;
+}
