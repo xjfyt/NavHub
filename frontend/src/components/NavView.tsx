@@ -165,18 +165,21 @@ export const NavView = ({
     return 3; // sq / circle-size: 3 rows = 140px
   };
 
-  // Convert current icons and widgets into react-grid-layout structure
+  // 将当前分类的图标和小组件转换为 react-grid-layout 结构。
+  //
+  // 设计原则：
+  // 1. 悬浮条（搜索框等 floatingBar 小组件）始终顶部对齐、独占行、static
+  //    不参与 sortOrder 的混排，也不会被任何元素推动；
+  // 2. 普通元素的 gridY 不允许落在悬浮条占用的顶部保留区，否则会被视为「位置无效」
+  //    重新分配位置；
+  // 3. 拥有有效 gridX/gridY 的元素优先占据保存位置；其余进入 unplaced；
+  // 4. unplaced 元素的兜底位置改为：从顶部保留区往下逐格扫描，避免落到 (0,0) 重叠或
+  //    依赖 lastEndIdx（删除其他元素时 lastEndIdx 改变会引起整片 null-position 元素移动）。
   const layout: LayoutItem[] = useMemo(() => {
     const l: LayoutItem[] = [];
-
-    const combined: { type: 'widget' | 'icon', item: any, sortOrder: number }[] = [
-      ...currentWidgets.map(w => ({ type: 'widget' as const, item: w, sortOrder: w.sortOrder })),
-      ...currentIcons.map(ic => ({ type: 'icon' as const, item: ic, sortOrder: ic.sortOrder }))
-    ].sort((a,b) => a.sortOrder - b.sortOrder);
-    
     const occupied = new Set<string>();
     const isFree = (tryX: number, tryY: number, w: number, h: number) => {
-      if (tryX + w > cols) return false;
+      if (tryX < 0 || tryY < 0 || tryX + w > cols) return false;
       for (let x = tryX; x < tryX + w; x++) {
         for (let y = tryY; y < tryY + h; y++) {
           if (occupied.has(`${x},${y}`)) return false;
@@ -192,116 +195,140 @@ export const NavView = ({
       }
     };
 
-    // Row-major index just past the last placed item — new items default to "after all elements"
-    let lastEndIdx = 0;
-    const trackEnd = (x: number, y: number, w: number, h: number) => {
-      const endIdx = (y + h - 1) * cols + (x + w - 1) + 1;
-      if (endIdx > lastEndIdx) lastEndIdx = endIdx;
-    };
+    // Step 1: 顶部固定区 —— 悬浮条小组件（搜索框等）。
+    let topReserved = 0;
+    const floatingBars = currentWidgets.filter((w) => WIDGET_REGISTRY[w.widget]?.floatingBar);
+    floatingBars
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .forEach((fb) => {
+        const h = 3;
+        l.push({
+          i: fb.id,
+          x: 0,
+          y: topReserved,
+          w: cols,
+          h,
+          isDraggable: false,
+          isResizable: false,
+          static: true,
+        });
+        markOccupied(0, topReserved, cols, h);
+        topReserved += h;
+      });
 
-    const placeAfterLast = (wSpan: number, hSpan: number) => {
-      for (let idx = lastEndIdx; idx < maxRows * cols; idx++) {
-        const tx = idx % cols;
-        const ty = Math.floor(idx / cols);
-        if (tx + wSpan > cols) continue;
-        if (ty + hSpan > maxRows) return null;
-        if (isFree(tx, ty, wSpan, hSpan)) return { x: tx, y: ty };
-      }
-      return null;
-    };
-    const placeAnywhere = (wSpan: number, hSpan: number) => {
-      for (let testY = 0; testY <= maxRows - hSpan; testY++) {
-        for (let testX = 0; testX <= cols - wSpan; testX++) {
-          if (isFree(testX, testY, wSpan, hSpan)) return { x: testX, y: testY };
-        }
-      }
-      return null;
-    };
-
-    const unplaced: any[] = [];
-
-    combined.forEach(obj => {
-      const isWidget = obj.type === 'widget';
-      let wSpan: number;
-      let hSpan: number;
-      if (isWidget) {
-        const widgetItem = obj.item as WidgetView;
-        const reg = WIDGET_REGISTRY[widgetItem.widget];
-        if (reg?.floatingBar) {
-          // 悬浮条组件：横跨全部列，高度固定 3 行
-          wSpan = cols;
-          hSpan = 3;
-        } else {
-          const sizeKey = snapWidgetSize(widgetItem.wSpan, widgetItem.wRow) || reg?.defaultSize || "medium";
+    // Step 2: 普通元素，按 sortOrder 排序。
+    const others: { type: 'widget' | 'icon'; item: IconView | WidgetView; wSpan: number; hSpan: number }[] = [
+      ...currentWidgets
+        .filter((w) => !WIDGET_REGISTRY[w.widget]?.floatingBar)
+        .map((w) => {
+          const reg = WIDGET_REGISTRY[w.widget];
+          const sizeKey = snapWidgetSize(w.wSpan, w.wRow) || reg?.defaultSize || "medium";
           const dim = WIDGET_SIZE_DIMENSIONS[sizeKey];
-          wSpan = Math.min(dim.wSpan, cols);
-          hSpan = dim.wRow;
-        }
-      } else {
-        wSpan = wSpanFor(obj.item as IconView, cols);
-        hSpan = hSpanFor(obj.item as IconView);
-      }
+          return { type: 'widget' as const, item: w, wSpan: Math.min(dim.wSpan, cols), hSpan: dim.wRow };
+        }),
+      ...currentIcons.map((ic) => ({
+        type: 'icon' as const,
+        item: ic,
+        wSpan: wSpanFor(ic, cols),
+        hSpan: hSpanFor(ic),
+      })),
+    ].sort((a, b) => a.item.sortOrder - b.item.sortOrder);
 
-      const isFloatingBar = obj.type === 'widget'
-        && WIDGET_REGISTRY[(obj.item as WidgetView).widget]?.floatingBar === true;
-
-      let gX = isFloatingBar ? 0 : obj.item.gridX;
+    const unplaced: { id: string; wSpan: number; hSpan: number }[] = [];
+    others.forEach((obj) => {
+      let gX = obj.item.gridX;
       let gY = obj.item.gridY;
-
-      // Auto-recover items floating below the screen height
-      if (gY !== null && (gY + hSpan > maxRows || gY < 0)) {
-        gY = null;
+      // 落在顶部保留区或越界 → 视为无效位置
+      if (gY !== null && (gY < topReserved || gY + obj.hSpan > maxRows || gY < 0)) {
         gX = null;
+        gY = null;
       }
-
-      // 悬浮条（搜索）组件设为 static：自己不可拖、也不会被别的元素推开
-      const extraProps = isFloatingBar ? { isDraggable: false, isResizable: false, static: true } : {};
-
-      if (gX !== null && gY !== null && isFree(gX, gY, wSpan, hSpan)) {
-        l.push({ i: obj.item.id, x: gX, y: gY, w: wSpan, h: hSpan, ...extraProps });
-        markOccupied(gX, gY, wSpan, hSpan);
-        trackEnd(gX, gY, wSpan, hSpan);
+      if (gX !== null && gY !== null && isFree(gX, gY, obj.wSpan, obj.hSpan)) {
+        l.push({ i: obj.item.id, x: gX, y: gY, w: obj.wSpan, h: obj.hSpan });
+        markOccupied(gX, gY, obj.wSpan, obj.hSpan);
       } else {
-        unplaced.push({ id: obj.item.id, wSpan, hSpan, extraProps, origX: gX, origY: gY });
+        unplaced.push({ id: obj.item.id, wSpan: obj.wSpan, hSpan: obj.hSpan });
       }
     });
 
-    // Reserve the add button's pinned slot (if any) so unplaced items don't land on it.
+    // Step 3: 加号按钮的固定锚点（如果用户拖动过）。
     let reservedAddPos: { x: number; y: number } | null = null;
     if (!tweaks.hideAddIcon) {
       const saved = tweaks.addBtnPositions?.[activeGroup];
-      if (saved
-        && typeof saved.x === 'number' && typeof saved.y === 'number'
-        && saved.x >= 0 && saved.y >= 0
-        && saved.x + 2 <= cols && saved.y + 3 <= maxRows
-        && isFree(saved.x, saved.y, 2, 3)) {
+      if (
+        saved &&
+        typeof saved.x === 'number' && typeof saved.y === 'number' &&
+        saved.x >= 0 && saved.y >= topReserved &&
+        saved.x + 2 <= cols && saved.y + 3 <= maxRows &&
+        isFree(saved.x, saved.y, 2, 3)
+      ) {
         reservedAddPos = { x: saved.x, y: saved.y };
         markOccupied(saved.x, saved.y, 2, 3);
       }
     }
 
-    unplaced.forEach(u => {
-      // 兜底顺序：列表末尾 → 任意空位 → 保留原 (gridX, gridY)（即使会重叠，也好过强制粘到左上角）
-      const pos = placeAfterLast(u.wSpan, u.hSpan)
-        ?? placeAnywhere(u.wSpan, u.hSpan)
-        ?? (u.origX !== null && u.origY !== null ? { x: u.origX, y: u.origY } : { x: 0, y: 0 });
-      l.push({ i: u.id, x: pos.x, y: pos.y, w: u.wSpan, h: u.hSpan, ...(u.extraProps || {}) });
-      markOccupied(pos.x, pos.y, u.wSpan, u.hSpan);
-      trackEnd(pos.x, pos.y, u.wSpan, u.hSpan);
+    // Step 4: unplaced 元素从顶部保留区往下扫描第一个可放下的位置。
+    // 不再依赖 lastEndIdx —— 删除其他元素后 lastEndIdx 改变会引起整片 null-position 元素移动。
+    const findFirstFree = (wSpan: number, hSpan: number) => {
+      for (let y = topReserved; y + hSpan <= maxRows; y++) {
+        for (let x = 0; x + wSpan <= cols; x++) {
+          if (isFree(x, y, wSpan, hSpan)) return { x, y };
+        }
+      }
+      return null;
+    };
+    unplaced.forEach((u) => {
+      const pos = findFirstFree(u.wSpan, u.hSpan);
+      if (pos) {
+        l.push({ i: u.id, x: pos.x, y: pos.y, w: u.wSpan, h: u.hSpan });
+        markOccupied(pos.x, pos.y, u.wSpan, u.hSpan);
+      }
+      // 找不到位置则不放（不会回退到 (0,0) 造成重叠）
     });
 
+    // Step 5: 加号按钮。
     if (!tweaks.hideAddIcon) {
-      const pos = reservedAddPos
-        ?? placeAfterLast(2, 3)
-        ?? placeAnywhere(2, 3)
-        ?? { x: 0, y: Math.max(0, maxRows - 3) };
+      const pos = reservedAddPos ?? findFirstFree(2, 3) ?? { x: 0, y: Math.max(topReserved, maxRows - 3) };
       l.push({ i: "__add_btn", x: pos.x, y: pos.y, w: 2, h: 3 });
-      // (reserved positions are already marked occupied)
       if (!reservedAddPos) markOccupied(pos.x, pos.y, 2, 3);
     }
 
     return l;
   }, [currentIcons, currentWidgets, cols, maxRows, tweaks.hideAddIcon, tweaks.addBtnPositions, activeGroup]);
+
+  // 自动持久化 layout 分配出来的位置：当某个图标 / 小组件在 db 里 gridX/gridY 还是 null
+  // 但 layout 已经给它分配了具体坐标时，把这份坐标写回服务端。
+  // 这是"删除一个图标导致其他图标位置变化"问题的根因修复 —— 让所有元素都拥有显式
+  // 的 gridX/gridY，避免每次重渲染都重新依据当前 occupied 集合分配位置。
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    if (Date.now() < suppressReorderUntilRef.current) return;
+    const stale = layout.some((it) => {
+      if (it.i === "__add_btn") return false;
+      const icon = currentIcons.find((i) => i.id === it.i);
+      const widget = currentWidgets.find((w) => w.id === it.i);
+      const orig = icon ?? widget;
+      if (!orig) return false;
+      // 悬浮条由 layout 函数硬编码定位，无需持久化
+      if (widget && WIDGET_REGISTRY[widget.widget]?.floatingBar) return false;
+      return orig.gridX !== it.x || orig.gridY !== it.y;
+    });
+    if (!stale) return;
+    const t = setTimeout(() => {
+      if (isDraggingRef.current) return;
+      const res = layout
+        .filter((it) => it.i !== "__add_btn")
+        .map((it) => ({
+          id: it.i,
+          type: currentIcons.some((ic) => ic.id === it.i) ? ("icon" as const) : ("widget" as const),
+          x: it.x,
+          y: it.y,
+        }));
+      onReorderGroupItems(activeGroup, res);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [layout, currentIcons, currentWidgets, activeGroup, onReorderGroupItems]);
 
   const mergeTargetRef = useRef<string | null>(null);
   const mergeTargetElRef = useRef<HTMLElement | null>(null);
@@ -536,11 +563,22 @@ export const NavView = ({
             }));
           onReorderGroupItems(activeGroup, res);
         } else {
-          // swap 不可行（尺寸不匹配 / A 原位被占等）→ 整体 snap back，不接受 RGL 的下推。
-          // 不调用 onReorderGroupItems，本地状态保持不变；同时屏蔽 handleLayoutChange，
-          // 让 RGL 在下一帧按 props 把视觉同步回拖拽前。
+          // swap 不可行（尺寸不匹配 / A 原位被占等）→ 整体 snap back。
+          // RGL 在 dragStop 时已把内部 state 改成「带下推」的 layout，仅靠 skip 不会让 RGL
+          // 重新对齐到 props（它走 deep-equal 比较）。把当前 layout（拖拽前位置）作为
+          // reorder 提交一次，迫使 props.layouts 与 RGL 内部 state 不一致 → RGL 主动同步
+          // 内部 state 回拖拽前位置 → 视觉回弹。同样的位置写回服务端是无感的。
           skipNextLayoutChangeRef.current = true;
-          suppressReorderUntilRef.current = Date.now() + 600;
+          suppressReorderUntilRef.current = Date.now() + 1500;
+          const restoreRes = layout
+            .filter((it) => it.i !== "__add_btn")
+            .map((it) => ({
+              id: it.i,
+              type: currentIcons.some((ic) => ic.id === it.i) ? ("icon" as const) : ("widget" as const),
+              x: it.x,
+              y: it.y,
+            }));
+          onReorderGroupItems(activeGroup, restoreRes);
         }
         // 进入了 displaced 分支后必然走 swap 或 snap-back，handleLayoutChange 不再处理
         return;
