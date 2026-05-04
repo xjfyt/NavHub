@@ -3,6 +3,7 @@ pub mod desktophut;
 pub mod nasa;
 pub mod pexels;
 pub mod pixabay;
+pub mod iconify;
 pub mod unsplash;
 pub mod wallhaven;
 pub mod wikimedia;
@@ -66,5 +67,24 @@ pub fn get_scraper(scraper_type: &str) -> Box<dyn Scraper> {
         "pexels" => Box::new(pexels::PexelsScraper::new()),
         "pixabay" => Box::new(pixabay::PixabayScraper::new()),
         _ => Box::new(desktophut::DesktopHutScraper::new()),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScrapedIconAsset {
+    pub title: Option<String>,
+    pub svg_url: String,
+    pub author: Option<String>,
+}
+
+#[async_trait::async_trait]
+pub trait IconScraper: Send + Sync {
+    async fn scrape(&self, site_url: &str, batch_size: usize) -> Result<Vec<ScrapedIconAsset>>;
+}
+
+pub fn get_icon_scraper(scraper_type: &str) -> Box<dyn IconScraper> {
+    match scraper_type {
+        "iconify" => Box::new(iconify::IconifyScraper::new()),
+        _ => Box::new(iconify::IconifyScraper::new()),
     }
 }

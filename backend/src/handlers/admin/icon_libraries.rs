@@ -109,6 +109,7 @@ pub async fn delete_library(
 pub struct ListIconsQuery {
     pub library_id: Option<Uuid>,
     pub user_uploads_only: Option<bool>,
+    pub search: Option<String>,
 }
 
 pub async fn list_icons(
@@ -118,48 +119,33 @@ pub async fn list_icons(
 ) -> AppResult<Json<Vec<LibraryIcon>>> {
     // (Admin check removed: accessible to all logged-in users)
 
+    let search_pattern = query.search.as_deref().map(|s| format!("%{}%", s.to_lowercase()));
+    let base_sql = "SELECT li.id, li.library_id, li.sha256, li.name, li.url, li.uploader_id, li.size, li.content_type, li.created_at, li.updated_at, u.display_name as uploader_name FROM library_icons li LEFT JOIN users u ON u.id = li.uploader_id";
+
     let icons = if let Some(lib_id) = query.library_id {
-        sqlx::query_as::<_, LibraryIcon>(
-            r#"
-            SELECT li.id, li.library_id, li.sha256, li.name, li.url, li.uploader_id, li.size, li.content_type, li.created_at, li.updated_at,
-                   u.display_name as uploader_name
-            FROM library_icons li
-            LEFT JOIN users u ON u.id = li.uploader_id
-            WHERE li.library_id = $1
-            ORDER BY li.created_at DESC
-            "#
-        )
-        .bind(lib_id)
-        .fetch_all(&state.pg)
-        .await
-        .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?
+        if let Some(pat) = &search_pattern {
+            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id = $1 AND LOWER(li.name) LIKE $2 ORDER BY li.created_at DESC, li.id DESC", base_sql))
+                .bind(lib_id).bind(pat).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+        } else {
+            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id = $1 ORDER BY li.created_at DESC, li.id DESC", base_sql))
+                .bind(lib_id).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+        }
     } else if query.user_uploads_only.unwrap_or(false) {
-        sqlx::query_as::<_, LibraryIcon>(
-            r#"
-            SELECT li.id, li.library_id, li.sha256, li.name, li.url, li.uploader_id, li.size, li.content_type, li.created_at, li.updated_at,
-                   u.display_name as uploader_name
-            FROM library_icons li
-            LEFT JOIN users u ON u.id = li.uploader_id
-            WHERE li.library_id IS NULL
-            ORDER BY li.created_at DESC
-            "#
-        )
-        .fetch_all(&state.pg)
-        .await
-        .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?
+        if let Some(pat) = &search_pattern {
+            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id IS NULL AND LOWER(li.name) LIKE $1 ORDER BY li.created_at DESC, li.id DESC", base_sql))
+                .bind(pat).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+        } else {
+            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id IS NULL ORDER BY li.created_at DESC, li.id DESC", base_sql))
+                .fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+        }
     } else {
-        sqlx::query_as::<_, LibraryIcon>(
-            r#"
-            SELECT li.id, li.library_id, li.sha256, li.name, li.url, li.uploader_id, li.size, li.content_type, li.created_at, li.updated_at,
-                   u.display_name as uploader_name
-            FROM library_icons li
-            LEFT JOIN users u ON u.id = li.uploader_id
-            ORDER BY li.created_at DESC
-            "#
-        )
-        .fetch_all(&state.pg)
-        .await
-        .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?
+        if let Some(pat) = &search_pattern {
+            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE LOWER(li.name) LIKE $1 ORDER BY li.created_at DESC, li.id DESC", base_sql))
+                .bind(pat).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+        } else {
+            sqlx::query_as::<_, LibraryIcon>(&format!("{} ORDER BY li.created_at DESC, li.id DESC", base_sql))
+                .fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+        }
     };
 
     Ok(Json(icons))
@@ -309,4 +295,34 @@ pub async fn import_library(
     tx.commit().await.map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
     
     Ok(StatusCode::CREATED)
+}
+
+#[derive(serde::Deserialize)]
+pub struct UpdateIconRequest {
+    pub name: String,
+}
+
+pub async fn update_icon(
+    State(state): State<Arc<AppState>>,
+    Extension(_user): Extension<SessionUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateIconRequest>,
+) -> AppResult<Json<LibraryIcon>> {
+    let row = sqlx::query_as::<_, LibraryIcon>(
+        r#"
+        UPDATE library_icons
+        SET name = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING id, library_id, sha256, name, url, uploader_id, size, content_type, created_at, updated_at, NULL as uploader_name
+        "#
+    )
+    .bind(body.name)
+    .bind(id)
+    .fetch_one(&state.pg)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => AppError::NotFound,
+        _ => AppError::Internal(e.to_string()),
+    })?;
+    Ok(Json(row))
 }

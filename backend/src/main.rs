@@ -181,7 +181,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route(
             "/admin/icons/:id",
-            axum::routing::delete(handlers::admin::icon_libraries::delete_icon),
+            axum::routing::patch(handlers::admin::icon_libraries::update_icon)
+                .delete(handlers::admin::icon_libraries::delete_icon),
         )
         // Wallpaper sources & remote wallpapers admin
         .route(
@@ -206,6 +207,33 @@ async fn main() -> anyhow::Result<()> {
             "/admin/remote-wallpapers/:id",
             axum::routing::patch(handlers::admin::wallpapers::update_wallpaper)
                 .delete(handlers::admin::wallpapers::delete_wallpaper),
+        )
+        // Icon asset sources & remote icons admin
+        .route(
+            "/admin/icon-asset-sources",
+            get(handlers::admin::icon_asset_sources::list_sources)
+                .post(handlers::admin::icon_asset_sources::create_source),
+        )
+        .route(
+            "/admin/icon-asset-sources/:id",
+            patch(handlers::admin::icon_asset_sources::update_source)
+                .delete(handlers::admin::icon_asset_sources::delete_source),
+        )
+        .route(
+            "/admin/icon-asset-sources/:id/fetch",
+            post(handlers::admin::icon_asset_sources::trigger_fetch),
+        )
+        .route(
+            "/admin/icon-asset-sources/:id/icons",
+            post(handlers::admin::icon_asset_sources::add_manual_icons),
+        )
+        .route(
+            "/admin/remote-icon-assets",
+            get(handlers::admin::icon_asset_sources::list_icons),
+        )
+        .route(
+            "/admin/remote-icon-assets/:id",
+            axum::routing::delete(handlers::admin::icon_asset_sources::delete_icon),
         )
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -367,6 +395,43 @@ async fn main() -> anyhow::Result<()> {
             .await;
         }
     });
+
+    // Icon fetch background task — runs every hour
+    let state_icon = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            tracing::info!("checking icon sources for scheduled fetch...");
+            let sources: Result<Vec<crate::models::IconAssetSource>, _> = sqlx::query_as(
+                "SELECT * FROM icon_asset_sources WHERE enabled = true
+                 AND (last_fetched_at IS NULL OR last_fetched_at < now() - (fetch_interval_hours || ' hours')::interval)",
+            )
+            .fetch_all(&state_icon.pg)
+            .await;
+            match sources {
+                Ok(srcs) => {
+                    for src in srcs {
+                        tracing::info!("scheduled fetch for icon source '{}'", src.name);
+                        let s = state_icon.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = crate::handlers::admin::icon_asset_sources::run_fetch(&s, &src).await {
+                                tracing::error!("icon fetch error '{}': {e}", src.name);
+                            }
+                        });
+                    }
+                }
+                Err(e) => tracing::warn!("icon source query failed: {e}"),
+            }
+            // Clean up expired icons
+            let _ = sqlx::query(
+                "DELETE FROM remote_icon_assets WHERE expires_at IS NOT NULL AND expires_at < now()",
+            )
+            .execute(&state_icon.pg)
+            .await;
+        }
+    });
+
 
     let state_links = state.clone();
     tokio::spawn(async move {

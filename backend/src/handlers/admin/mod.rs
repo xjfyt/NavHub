@@ -7,4 +7,4 @@ pub mod settings;
 pub mod sso;
 pub mod users;
 pub mod wallpapers;
-
+pub mod icon_asset_sources;
