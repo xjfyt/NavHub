@@ -16,8 +16,9 @@ import type {
   MessageLevel,
   MessageTargetType,
 } from "../../types";
-import { ROLES, PERMISSIONS, ROLE_MATRIX } from "../../constants/design";
+import { ROLE_MATRIX, PERMISSIONS, ROLES } from "../../constants/design";
 import { AdminWallpaperLibrary } from "./WallpaperLibrary";
+import { AdminIconAssetLibrary } from "./IconAssetLibrary";
 
 const MESSAGE_LEVELS: { id: MessageLevel; name: string }[] = [
   { id: "info", name: "普通" },
@@ -123,9 +124,9 @@ export const AdminShell = ({ onClose, initialTab }: { onClose: () => void, initi
     { id: "roles", name: "角色 / 权限", icon: "shield" },
     { id: "messages", name: "消息推送", icon: "bell" },
     { id: "push", name: "推送分类", icon: "send" },
-    { id: "icons", name: "图标管理", icon: "image" },
     { id: "visibility", name: "图标可见性", icon: "eye" },
     { id: "wallpapers", name: "壁纸库", icon: "image" },
+    { id: "iconAssets", name: "图标库", icon: "image" },
     ...(isSuper ? [{ id: "sso", name: "SSO 接入", icon: "key", super: true }] : []),
     { id: "audit", name: "审计日志", icon: "activity" },
     { id: "settings", name: "系统设置", icon: "settings" },
@@ -156,9 +157,9 @@ export const AdminShell = ({ onClose, initialTab }: { onClose: () => void, initi
         {tab === "roles" && <AdminRoles />}
         {tab === "messages" && <AdminMessages />}
         {tab === "push" && <AdminPush groups={workspace.groups} />}
-        {tab === "icons" && <AdminIcons />}
         {tab === "visibility" && <AdminVisibility groups={workspace.groups} icons={workspace.icons} />}
         {tab === "wallpapers" && <AdminWallpaperLibrary />}
+        {tab === "iconAssets" && <AdminIconAssetLibrary />}
         {tab === "sso" && isSuper && <AdminSSO />}
         {tab === "audit" && <AdminAudit />}
         {tab === "settings" && <AdminSettings />}
@@ -1014,226 +1015,3 @@ const AdminSSO = () => {
   );
 };
 
-export function AdminIcons() {
-  const userUploadsLib = {
-    id: "user_uploads",
-    name: "用户上传图库",
-    description: "全站用户自主上传的所有图片与图标",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  const [libraries, setLibraries] = useState<IconLibraryView[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeLib, setActiveLib] = useState<IconLibraryView | null>(null);
-  const [libIcons, setLibIcons] = useState<LibraryIconView[]>([]);
-
-  const loadLibraries = async () => {
-    setLoading(true);
-    try { setLibraries(await api.admin.iconLibraries()); } catch (e: any) { toast.error(e.message); }
-    setLoading(false);
-  };
-
-  const loadLibIcons = async (id: string) => {
-    setLoading(true);
-    try { 
-      if (id === "user_uploads") {
-        setLibIcons(await api.admin.getUserUploads());
-      } else {
-        setLibIcons(await api.admin.getLibraryIcons(id)); 
-      }
-    } catch(e:any) { toast.error(e.message); }
-    setLoading(false);
-  }
-
-  useEffect(() => { loadLibraries(); }, []);
-
-  const createLibrary = async () => {
-    const name = await promptDialog("请输入图标库名称：", "", "新建图标库");
-    if (!name) return;
-    try {
-      await api.admin.createIconLibrary({ name });
-      loadLibraries();
-    } catch(e:any) { toast.error(e.message); }
-  };
-
-  const deleteLibrary = async (id: string) => {
-    if (id === "user_uploads") return;
-    if (!(await confirmDialog("确定删除该图标库吗？内部图标关系将被连带删除（文件本身不会删除）。"))) return;
-    try {
-      await api.admin.deleteIconLibrary(id);
-      if (activeLib?.id === id) setActiveLib(null);
-      loadLibraries();
-    } catch(e:any) { alert(e.message); }
-  }
-
-  const exportLibrary = async (lib: IconLibraryView) => {
-    if (lib.id === "user_uploads") return;
-    try {
-      const data = await api.admin.exportIconLibrary(lib.id);
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `IconLibrary_${lib.name}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e: any) { toast.error("Export failed: " + e.message); }
-  };
-
-  const importLibrary = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const data = JSON.parse(ev.target?.result as string);
-        setLoading(true);
-        await api.admin.importIconLibrary(data);
-        loadLibraries();
-      } catch (err: any) { toast.error("Import failed: " + err.message); setLoading(false); }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
-
-  const batchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!activeLib || activeLib.id === "user_uploads") return;
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    setLoading(true);
-    let items = [];
-    for (let i = 0; i < files.length; i++) {
-        try {
-           const res = await api.upload(files[i]);
-           items.push({
-               sha256: res.sha256 || res.filename.split('.')[0].replace('icons/',''),
-               name: files[i].name,
-               url: res.url,
-               size: res.size,
-               contentType: files[i].type || "application/octet-stream"
-           });
-        } catch(err:any) {
-           console.error("Upload failed for " + files[i].name, err);
-        }
-    }
-    
-    if (items.length > 0) {
-       try {
-          await api.admin.addIconsToLibrary(activeLib.id, items);
-          loadLibIcons(activeLib.id);
-       } catch(err:any) { toast.error(err.message); }
-    }
-    
-    setLoading(false);
-    e.target.value = "";
-  }
-
-  const allLibs = [userUploadsLib, ...libraries];
-
-  return (
-    <>
-      <div className="admin-head" style={{ marginBottom: 30, display: "flex", justifyContent: "space-between" }}>
-        <div>
-           <h2 style={{ fontSize: 24, margin: '0 0 6px 0' }}>图标管理</h2>
-           <div style={{ fontSize: 13, color: 'var(--text-soft)' }}>集中管理图标库及全站用户上传的图片文件，统一采用 SHA256 去重。</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="pill-btn primary" onClick={createLibrary}>创建图标库</button>
-          <label className="pill-btn" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-             <Icon name="download" size={12}/> 导入图标库
-             <input type="file" accept=".json" style={{ display: "none" }} onChange={importLibrary} disabled={loading} />
-          </label>
-        </div>
-      </div>
-
-      {!activeLib && (
-         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-            {allLibs.map((lib, i) => (
-               <div key={lib.id} className="widget glass-strong" style={{ padding: 20, borderRadius: 16, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-                  {lib.id === "user_uploads" && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--accent)' }} />
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                     <div style={{ fontWeight: 600, fontSize: 16 }}>{lib.name}</div>
-                     <div style={{ display: 'flex', gap: 8 }}>
-                        {lib.id !== "user_uploads" && (
-                          <>
-                            <button onClick={() => exportLibrary(lib as any)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-soft)' }} title="导出图标库"><Icon name="upload" size={14} /></button>
-                            <button onClick={() => deleteLibrary(lib.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff9b9b' }} title="删除图标库"><Icon name="trash" size={14} /></button>
-                          </>
-                        )}
-                     </div>
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-soft)', flex: 1, marginBottom: 16 }}>
-                    {lib.description || `创建时间：${new Date(lib.createdAt).toLocaleDateString()}`}
-                  </div>
-                  <button className="pill-btn primary" style={{ justifyContent: 'center' }} onClick={() => { setActiveLib(lib as any); loadLibIcons(lib.id); }}>进入图标库</button>
-               </div>
-            ))}
-            {allLibs.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-soft)' }}>暂无图标库，点击上方创建。</div>}
-         </div>
-      )}
-
-      {activeLib && (
-         <div className="widget glass-strong" style={{ padding: 20, borderRadius: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button onClick={() => setActiveLib(null)} style={{ background: 'var(--admin-border-str)', border: 'none', width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)' }}><Icon name="chevron-left" size={14}/></button>
-                  <h3 style={{ margin: 0, fontSize: 18 }}>{activeLib.name}</h3>
-               </div>
-               {activeLib.id !== "user_uploads" && (
-                 <label className="pill-btn primary" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <Icon name="plus" size={12}/> 批量上传图标
-                    <input type="file" multiple accept="image/*,.svg" style={{ display: "none" }} onChange={batchUpload} disabled={loading} />
-                 </label>
-               )}
-            </div>
-            
-            <table className="admin-table" style={{ width: "100%", background: "var(--admin-card-bg)", borderRadius: 12, overflow: "hidden", opacity: loading ? 0.5 : 1 }}>
-               <thead style={{ background: "var(--admin-hover-soft)" }}>
-                 <tr>
-                   <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>长相</th>
-                   <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>详情</th>
-                   <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>上传者</th>
-                   <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>链接 / SHA256</th>
-                   <th style={{ padding: 12, textAlign: "right", fontSize: 13, color: "var(--text-soft)" }}>操作</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 {libIcons.map((icon, idx) => (
-                    <tr key={icon.id + idx} style={{ borderBottom: "1px solid var(--admin-border-slight)" }}>
-                       <td style={{ padding: 12, width: 60 }}>
-                          <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--admin-border-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                             <img src={icon.url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                          </div>
-                       </td>
-                       <td style={{ padding: 12 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{icon.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>{(icon.size / 1024).toFixed(1)} KB · {icon.contentType}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-soft)' }}>{new Date(icon.createdAt).toLocaleString()}</div>
-                       </td>
-                       <td style={{ padding: 12, fontSize: 13 }}>{icon.uploaderName || "未知/游客"}</td>
-                       <td style={{ padding: 12, fontSize: 12, color: 'var(--text-soft)', wordBreak: 'break-all', maxWidth: 200 }} className="mono">
-                         <div style={{ color: 'var(--text)' }}>{icon.url}</div>
-                         <div style={{ marginTop: 4, fontSize: 10 }}>{icon.sha256}</div>
-                       </td>
-                       <td style={{ padding: 12, textAlign: "right" }}>
-                          <button className="pill-btn" onClick={async () => {
-                             if(!window.confirm("这仅仅是在数据库层面中清除这条记录，并不删除实际的文件。继续吗？")) return;
-                             try { await api.admin.deleteIcon(icon.id); loadLibIcons(activeLib.id); } catch(e:any){alert(e.message);}
-                          }} style={{ color: "#ffb3b3", display: "inline-flex" }}>
-                             <Icon name="trash" size={12}/> 删除
-                          </button>
-                       </td>
-                    </tr>
-                 ))}
-                 {libIcons.length === 0 && <tr><td colSpan={5} style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--text-soft)' }}>暂无图标</td></tr>}
-               </tbody>
-            </table>
-         </div>
-      )}
-    </>
-  );
-};

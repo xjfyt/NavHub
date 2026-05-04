@@ -20,6 +20,9 @@ import type {
   WidgetView,
   Workspace,
   WallpaperSourceView,
+  IconAssetSourceView,
+  AdminRemoteIconAsset,
+  AdminPaginatedIconAssets,
 } from "./types";
 
 export interface WeatherHour {
@@ -364,7 +367,7 @@ export const api = {
   },
 
   // ---------- Upload / favicon ----------
-  async upload(file: File, purpose: 'icon' | 'wallpaper' | 'avatar' = 'icon'): Promise<{ url: string; filename: string; size: number; sha256?: string }> {
+  async upload(file: File, purpose: string = 'icon'): Promise<{ url: string; filename: string; size: number; sha256?: string }> {
     const fd = new FormData();
     fd.append("file", file);
     return request(`/api/upload?purpose=${purpose}`, { method: "POST", body: fd });
@@ -521,8 +524,16 @@ export const api = {
     async getLibraryIcons(libraryId: string): Promise<LibraryIconView[]> {
       return request(`/api/admin/icons?libraryId=${libraryId}`);
     },
-    async getUserUploads(): Promise<LibraryIconView[]> {
-      return request(`/api/admin/icons?userUploadsOnly=true`);
+    async getUserUploads(search?: string): Promise<LibraryIconView[]> {
+      const q = new URLSearchParams({ userUploadsOnly: "true" });
+      if (search) q.append("search", search);
+      return request(`/api/admin/icons?${q.toString()}`);
+    },
+    async updateLibraryIcon(id: string, name: string): Promise<LibraryIconView> {
+      return request(`/api/admin/icons/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      });
     },
     async deleteIcon(id: string): Promise<void> {
       await request(`/api/admin/icons/${id}`, { method: "DELETE" });
@@ -568,7 +579,7 @@ export const api = {
     async triggerWallpaperFetch(id: string): Promise<{ status: string }> {
       return request(`/api/admin/wallpaper-sources/${id}/fetch`, { method: "POST" });
     },
-    async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number } = {}): Promise<AdminPaginatedWallpapers> {
+    async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number; search?: string } = {}): Promise<AdminPaginatedWallpapers> {
       const qs = new URLSearchParams();
       if (params.sourceId) qs.set("sourceId", params.sourceId);
       if (params.limit != null) qs.set("limit", String(params.limit));
@@ -584,6 +595,65 @@ export const api = {
     },
     async deleteRemoteWallpaper(id: string): Promise<void> {
       await request(`/api/admin/remote-wallpapers/${id}`, { method: "DELETE" });
+    },
+
+    // Icon asset sources
+    async iconAssetSources(): Promise<IconAssetSourceView[]> {
+      return request("/api/admin/icon-asset-sources");
+    },
+    async createIconAssetSource(body: {
+      name: string;
+      siteUrl: string;
+      enabled?: boolean;
+      fetchBatchSize?: number;
+      cacheTtlHours?: number;
+      fetchIntervalHours?: number;
+      sourceType?: string;
+      scraperType?: string;
+    }): Promise<IconAssetSourceView> {
+      return request("/api/admin/icon-asset-sources", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    async updateIconAssetSource(id: string, body: Partial<{
+      name: string;
+      siteUrl: string;
+      enabled: boolean;
+      fetchBatchSize: number;
+      cacheTtlHours: number;
+      fetchIntervalHours: number;
+      sourceType: string;
+      scraperType: string;
+    }>): Promise<IconAssetSourceView> {
+      return request(`/api/admin/icon-asset-sources/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    async deleteIconAssetSource(id: string): Promise<void> {
+      await request(`/api/admin/icon-asset-sources/${id}`, { method: "DELETE" });
+    },
+    async triggerIconAssetFetch(id: string): Promise<{ status: string }> {
+      return request(`/api/admin/icon-asset-sources/${id}/fetch`, { method: "POST" });
+    },
+    async addManualIconsToSource(sourceId: string, items: { title?: string, originalUrl: string, storageKey: string, fileSizeBytes: number }[]): Promise<void> {
+      await request(`/api/admin/icon-asset-sources/${sourceId}/icons`, {
+        method: "POST",
+        body: JSON.stringify(items),
+      });
+    },
+    async remoteIconAssets(params: { sourceId?: string; limit?: number; offset?: number; search?: string } = {}): Promise<AdminPaginatedIconAssets> {
+      const qs = new URLSearchParams();
+      if (params.sourceId) qs.set("sourceId", params.sourceId);
+      if (params.limit != null) qs.set("limit", String(params.limit));
+      if (params.offset != null) qs.set("offset", String(params.offset));
+      if (params.search != null) qs.set("search", params.search);
+      const tail = qs.toString() ? `?${qs}` : "";
+      return request(`/api/admin/remote-icon-assets${tail}`);
+    },
+    async deleteRemoteIconAsset(id: string): Promise<void> {
+      await request(`/api/admin/remote-icon-assets/${id}`, { method: "DELETE" });
     },
   },
 };

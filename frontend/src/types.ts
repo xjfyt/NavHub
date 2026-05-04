@@ -324,3 +324,39 @@ export interface PublicWallpaperSource {
   scraperType: string;
   totalCount: number;
 }
+
+// ---------- Remote Icons ----------
+export interface IconAssetSourceView {
+  id: string;
+  name: string;
+  siteUrl: string;
+  enabled: boolean;
+  fetchBatchSize: number;
+  cacheTtlHours: number;
+  fetchIntervalHours: number;
+  sourceType: string;
+  scraperType: string;
+  lastFetchedAt: string | null;
+  totalFetched: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRemoteIconAsset {
+  id: string;
+  sourceId: string;
+  title: string | null;
+  originalUrl: string;
+  storageKey: string | null;
+  mediaType: string;
+  fileSizeBytes: number | null;
+  author: string | null;
+  fetchedAt: string;
+  expiresAt: string | null;
+  isActive: boolean;
+}
+
+export interface AdminPaginatedIconAssets {
+  items: AdminRemoteIconAsset[];
+  total: number;
+}

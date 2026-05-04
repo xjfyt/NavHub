@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   GroupView,
   IconFontSize,
@@ -131,7 +131,7 @@ export function AddIconModal({
     (parseBuiltinIconUrl(initialIcon?.imageUrl) as any) || "globe"
   );
   const [librarySelectedUrl, setLibrarySelectedUrl] = useState<string | null>(sourceMode === "library" ? (initialIcon?.imageUrl || null) : null);
-  const [libraries, setLibraries] = useState<IconLibraryView[]>([]);
+  const [libraries, setLibraries] = useState<any[]>([]);
   const [libraryIcons, setLibraryIcons] = useState<LibraryIconView[]>([]);
   const [activeLibraryId, setActiveLibraryId] = useState<string>("user_uploads");
   const [librariesLoaded, setLibrariesLoaded] = useState(false);
@@ -141,34 +141,63 @@ export function AddIconModal({
   const [imageRadius, setImageRadius] = useState<IconImageRadius>(initialIcon?.imageRadius || "rounded");
   const [fontSize, setFontSize] = useState<IconFontSize>(initialIcon?.fontSize || "md");
   const [textAlign, setTextAlign] = useState<IconTextAlign>(initialIcon?.textAlign || "center");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const loadLibraryIcons = (id: string) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadLibraryIcons = useCallback((id: string, search: string) => {
     if (id === "user_uploads") {
-      api.admin.getUserUploads().then(setLibraryIcons).catch(console.error);
+      api.admin.getUserUploads(search).then(setLibraryIcons).catch(console.error);
     } else {
-      api.admin.getLibraryIcons(id).then(setLibraryIcons).catch(console.error);
+      api.admin.remoteIconAssets({ sourceId: id, limit: 1000, search: search || undefined }).then(res => {
+        setLibraryIcons(res.items.map(r => ({
+          id: r.id,
+          libraryId: r.sourceId,
+          name: r.title || 'icon',
+          url: r.storageKey ? `/uploads/${r.storageKey}` : r.originalUrl,
+          sha256: "",
+          uploaderId: null,
+          uploaderName: null,
+          size: 0,
+          contentType: "image/svg+xml",
+          createdAt: r.fetchedAt,
+          updatedAt: r.fetchedAt
+        })));
+      }).catch(console.error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (sourceMode === "library" && !librariesLoaded && !fetchingLibs) {
       setFetchingLibs(true);
-      api.admin.iconLibraries()
+      api.admin.iconAssetSources()
         .then(res => {
           setLibraries(res);
           setLibrariesLoaded(true);
           setFetchingLibs(false);
-          loadLibraryIcons(activeLibraryId);
+          loadLibraryIcons(activeLibraryId, debouncedSearchQuery);
         })
         .catch(() => setFetchingLibs(false));
     }
-  }, [sourceMode, librariesLoaded, fetchingLibs, activeLibraryId]);
+  }, [sourceMode, librariesLoaded, fetchingLibs, activeLibraryId, loadLibraryIcons, debouncedSearchQuery]);
+
+  useEffect(() => {
+    if (sourceMode === "library" && librariesLoaded) {
+      loadLibraryIcons(activeLibraryId, debouncedSearchQuery);
+    }
+  }, [debouncedSearchQuery, activeLibraryId, sourceMode, librariesLoaded, loadLibraryIcons]);
 
   const handleLibClick = (id: string) => {
     if (id === activeLibraryId) return;
     setActiveLibraryId(id);
-    loadLibraryIcons(id);
+    loadLibraryIcons(id, debouncedSearchQuery);
   };
 
   const normalizedUrl = normalizeSiteUrl(url);
@@ -446,6 +475,15 @@ export function AddIconModal({
                         {lib.name}
                       </button>
                     ))}
+                  </div>
+                  <div className="search-box" style={{ display: "flex", alignItems: "center", background: "var(--panel-bg)", border: "1px solid var(--border-color)", borderRadius: 6, padding: "2px 8px", marginTop: 12 }}>
+                    <Icon name="search" size={14} color="var(--text-soft)" />
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="搜索图标..."
+                      style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, padding: "6px 8px", width: "100%", color: "var(--text)" }}
+                    />
                   </div>
                   <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
                     {libraryIcons.map(icon => (

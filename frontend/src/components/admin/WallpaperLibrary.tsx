@@ -734,9 +734,9 @@ export const AdminWallpaperLibrary = () => {
               onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
               onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
             >
-              {w.thumbnailUrl ? (
+              {w.thumbnailUrl || w.thumbnailKey || w.storageKey ? (
                 <img
-                  src={w.thumbnailUrl}
+                  src={w.thumbnailKey ? `/uploads/${w.thumbnailKey}` : w.mediaType === "image" && w.storageKey ? `/uploads/${w.storageKey}` : w.thumbnailUrl ?? undefined}
                   alt={w.title ?? "wallpaper"}
                   style={{ width: "100%", height: 112, objectFit: "cover", display: "block" }}
                   onError={(e) => {
@@ -825,9 +825,9 @@ export const AdminWallpaperLibrary = () => {
               overflow: "auto", display: "flex", flexDirection: "column",
             }}
           >
-            {detailWallpaper.thumbnailUrl ? (
+            {detailWallpaper.thumbnailUrl || detailWallpaper.thumbnailKey || detailWallpaper.storageKey ? (
               <img
-                src={detailWallpaper.thumbnailUrl}
+                src={detailWallpaper.thumbnailKey ? `/uploads/${detailWallpaper.thumbnailKey}` : detailWallpaper.mediaType === "image" && detailWallpaper.storageKey ? `/uploads/${detailWallpaper.storageKey}` : detailWallpaper.thumbnailUrl ?? undefined}
                 alt={detailWallpaper.title ?? ""}
                 style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block" }}
               />
