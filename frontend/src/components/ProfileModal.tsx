@@ -42,9 +42,9 @@ export const ProfileModal = ({ onClose }: { onClose: () => void }) => {
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <label style={{ cursor: uploading ? 'not-allowed' : 'pointer', display: 'inline-block', position: 'relative' }}>
             <div className="side-avatar" style={{ 
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.05) 100%)', 
+              background: 'linear-gradient(135deg, var(--glass-bg-strong) 0%, var(--glass-bg) 100%)', 
               border: '1px solid var(--glass-border)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.2)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15), inset 0 1px 1px var(--glass-border-soft)',
               width: 86, height: 86, fontSize: 36, fontWeight: 700, margin: '0 auto 16px', color: 'var(--text)',
               backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
@@ -74,7 +74,7 @@ export const ProfileModal = ({ onClose }: { onClose: () => void }) => {
           <span className={`role-badge role-${role}`} style={{ padding: '6px 14px', fontSize: 12, borderRadius: 20 }}>{roleLabel}</span>
         </div>
         
-        <div style={{ background: 'var(--glass-bg)', padding: 18, borderRadius: 16, border: '1px solid var(--glass-border-soft)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+        <div style={{ background: 'var(--glass-bg)', padding: 18, borderRadius: 16, border: '1px solid var(--glass-border-soft)', boxShadow: 'inset 0 1px 0 var(--glass-border-soft)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14, fontSize: 13, alignItems: 'center' }}>
             <span style={{ color: 'var(--text-mute)' }}>账户状态</span>
             <span style={{ color: 'var(--ok)', fontWeight: 600, background: 'rgba(62,190,120,0.15)', padding: '4px 10px', borderRadius: 8 }}>活跃</span>

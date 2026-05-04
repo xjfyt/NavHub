@@ -3230,6 +3230,9 @@ html[data-mode="light"] .w-calendar .cal-nav button:hover { color: #1c1a17; back
 html[data-mode="light"] .w-music .ctrls button { color: #1c1a17; background: rgba(0,0,0,0.06); }
 html[data-mode="light"] .widget-title { color: rgba(28,26,23,0.48); }
 html[data-mode="light"] .tile-label { text-shadow: 0 1px 3px rgba(255,255,255,0.6), 0 2px 8px rgba(255,255,255,0.3); }
+html[data-mode="light"] .modal { background: rgba(255,255,255,0.85); border-color: rgba(0,0,0,0.1); box-shadow: 0 40px 100px rgba(0,0,0,0.15); color: var(--text); }
+html[data-mode="light"] .modal-head { border-bottom-color: rgba(0,0,0,0.08); }
+html[data-mode="light"] .modal-foot { border-top-color: rgba(0,0,0,0.08); }
 /* ===== WIDGET CATALOG MODAL ===== */
 .wcc-backdrop {
   position: fixed; inset: 0; z-index: 1000;
