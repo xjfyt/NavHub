@@ -203,9 +203,9 @@ pub async fn reorder_items(
         .fetch_one(&state.pg)
         .await?;
     let expected_total = (expected_icons + expected_widgets) as usize;
-    if body.order.len() != expected_total {
+    if body.order.len() > expected_total {
         return Err(AppError::BadRequest(format!(
-            "invalid reorder payload size: expected {expected_total} items, got {}",
+            "invalid reorder payload size: expected at most {expected_total} items, got {}",
             body.order.len()
         )));
     }
