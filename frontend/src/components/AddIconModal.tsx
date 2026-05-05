@@ -145,6 +145,11 @@ export function AddIconModal({
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const [autoImageUrls, setAutoImageUrls] = useState<{url: string, source: string}[]>([]);
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+  const [selectedAutoImageUrl, setSelectedAutoImageUrl] = useState<string | null>(null);
+  const [isSearchingUrl, setIsSearchingUrl] = useState(false);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
@@ -202,13 +207,28 @@ export function AddIconModal({
 
   const normalizedUrl = normalizeSiteUrl(url);
   const inferredName = inferNameFromUrl(url);
-  const autoImageUrl = normalizedUrl ? api.faviconUrl(normalizedUrl, 128) : null;
+
+  useEffect(() => {
+    if (!normalizedUrl || sourceMode !== "url") return;
+    setIsSearchingUrl(true);
+    let isCancelled = false;
+    api.faviconSearch(normalizedUrl).then((res) => {
+      if (isCancelled) return;
+      setAutoImageUrls(res);
+      setFailedImageUrls(new Set());
+      if (res.length > 0) setSelectedAutoImageUrl(res[0].url);
+      else setSelectedAutoImageUrl(null);
+    }).catch(console.error).finally(() => {
+      if (!isCancelled) setIsSearchingUrl(false);
+    });
+    return () => { isCancelled = true; };
+  }, [normalizedUrl, sourceMode]);
   const effectiveName = name.trim() || inferredName;
   const effectiveImageUrl =
     sourceMode === "upload" ? uploadedImageUrl
     : sourceMode === "builtin" ? buildBuiltinIconUrl(builtinIcon)
     : sourceMode === "library" ? librarySelectedUrl
-    : sourceMode === "url" ? autoImageUrl
+    : sourceMode === "url" ? selectedAutoImageUrl
     : null;
 
   useEffect(() => {
@@ -246,7 +266,7 @@ export function AddIconModal({
     !!groupId &&
     !uploading &&
     (sourceMode !== "upload" || !!uploadedImageUrl) &&
-    (sourceMode !== "url" || !!autoImageUrl) &&
+    (sourceMode !== "url" || !!selectedAutoImageUrl) &&
     (sourceMode !== "library" || !!librarySelectedUrl);
 
   const submit = () => {
@@ -425,13 +445,29 @@ export function AddIconModal({
               </div>
 
               {sourceMode === "url" && (
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, display: "grid", placeItems: "center", background: "var(--panel-bg)", border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                    {autoImageUrl ? <img src={autoImageUrl} alt="" style={{ width: "70%", height: "70%", objectFit: "contain" }} /> : <Icon name="globe" size={18} color="var(--text-soft)" />}
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, display: "grid", placeItems: "center", background: "var(--panel-bg)", border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                      {selectedAutoImageUrl ? <img src={selectedAutoImageUrl} alt="" style={{ width: "70%", height: "70%", objectFit: "contain" }} /> : <Icon name={isSearchingUrl ? "activity" : "globe"} size={18} color="var(--text-soft)" />}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--text-mute)", lineHeight: 1.6 }}>
+                      {normalizedUrl ? (isSearchingUrl ? "正在深度检索站点图标..." : "已检索到图标候选，点击下方选择。") : "输入有效连结后，将自动尝试获取对应官方图标。"}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, color: "var(--text-mute)", lineHeight: 1.6 }}>
-                    {normalizedUrl ? "已自动检测并捕获站点的 favicon 图标。" : "输入有效连结后，将自动尝试获取对应官方图标。"}
-                  </div>
+                  {autoImageUrls.filter(ic => !failedImageUrls.has(ic.url)).length > 0 && (
+                    <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
+                      {autoImageUrls.filter(ic => !failedImageUrls.has(ic.url)).map((icon, i) => (
+                        <div key={i} 
+                             className={"builtin-opt " + (selectedAutoImageUrl === icon.url ? "active" : "")} 
+                             onClick={() => setSelectedAutoImageUrl(icon.url)}
+                             title={icon.source}
+                             style={{ background: selectedAutoImageUrl === icon.url ? 'var(--accent)' : 'var(--panel-bg)', borderColor: 'var(--border-color)', width: '100%', aspectRatio: '1', borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                          <img src={icon.url} style={{ maxWidth: 24, maxHeight: 24, objectFit: 'contain' }} onError={() => setFailedImageUrls(prev => new Set(prev).add(icon.url))} />
+                          <span style={{ fontSize: 9, position: 'absolute', bottom: 2, color: 'var(--text-mute)' }}>{icon.source}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -375,6 +375,9 @@ export const api = {
   faviconUrl(url: string, size = 64): string {
     return `/api/favicon?url=${encodeURIComponent(url)}&sz=${size}`;
   },
+  async faviconSearch(url: string): Promise<{url: string; source: string}[]> {
+    return request(`/api/favicon/search?url=${encodeURIComponent(url)}`);
+  },
 
   // ---------- Admin ----------
   admin: {

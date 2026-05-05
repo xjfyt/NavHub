@@ -20,8 +20,121 @@ pub struct FaviconQuery {
     pub sz: u16,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct FaviconSearchQuery {
+    pub url: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct FaviconSearchCandidate {
+    pub url: String,
+    pub source: String,
+}
+
 fn default_size() -> u16 {
     64
+}
+
+pub async fn search(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<FaviconSearchQuery>,
+) -> AppResult<axum::Json<Vec<FaviconSearchCandidate>>> {
+    let host = extract_host(&q.url).unwrap_or_default();
+    let mut candidates = Vec::new();
+
+    candidates.push(FaviconSearchCandidate {
+        url: format!("/api/favicon?url={}&sz=128", urlencoding::encode(&q.url)),
+        source: "智能抓取/生成".into(),
+    });
+
+    // Strategy 1: Parse HTML
+    let mut url_with_scheme = q.url.clone();
+    if !url_with_scheme.starts_with("http") {
+        url_with_scheme = format!("https://{}", url_with_scheme);
+    }
+    
+    if let Ok(resp) = state.reqwest_client.get(&url_with_scheme).timeout(std::time::Duration::from_secs(5)).send().await {
+        if let Ok(html) = resp.text().await {
+            let document = scraper::Html::parse_document(&html);
+            let selector = scraper::Selector::parse("link[rel='apple-touch-icon'], link[rel='icon'], link[rel='shortcut icon']").unwrap();
+            for element in document.select(&selector) {
+                if let Some(href) = element.value().attr("href") {
+                    let full_url = if href.starts_with("http") {
+                        href.to_string()
+                    } else if href.starts_with("//") {
+                        format!("https:{}", href)
+                    } else if href.starts_with('/') {
+                        let parsed = url::Url::parse(&url_with_scheme).ok();
+                        if let Some(mut parsed) = parsed {
+                            parsed.set_path(href);
+                            parsed.to_string()
+                        } else {
+                            format!("https://{}{}", host, href)
+                        }
+                    } else {
+                        format!("{}/{}", url_with_scheme.trim_end_matches('/'), href)
+                    };
+                    candidates.push(FaviconSearchCandidate {
+                        url: full_url,
+                        source: "HTML解析".into(),
+                    });
+                }
+            }
+        }
+    }
+
+    if !host.is_empty() {
+        // Direct
+        candidates.push(FaviconSearchCandidate {
+            url: format!("https://{}/favicon.ico", host),
+            source: "直接访问".into(),
+        });
+        
+        // DuckDuckGo
+        candidates.push(FaviconSearchCandidate {
+            url: format!("https://icons.duckduckgo.com/ip3/{}.ico", host),
+            source: "DuckDuckGo".into(),
+        });
+        
+        // Google
+        candidates.push(FaviconSearchCandidate {
+            url: format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=128", host),
+            source: "Google".into(),
+        });
+    }
+
+    // deduplicate
+    let mut seen = std::collections::HashSet::new();
+    candidates.retain(|c| seen.insert(c.url.clone()));
+
+    let client = state.reqwest_client.clone();
+    let mut tasks = Vec::new();
+    for c in candidates {
+        let client = client.clone();
+        tasks.push(tokio::spawn(async move {
+            if c.url.starts_with('/') {
+                return Some(c);
+            }
+            if let Ok(resp) = client.get(&c.url).timeout(std::time::Duration::from_secs(3)).send().await {
+                if resp.status().is_success() {
+                    let ct = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("");
+                    if ct.starts_with("image/") || ct.contains("icon") || ct.contains("octet-stream") {
+                        return Some(c);
+                    }
+                }
+            }
+            None
+        }));
+    }
+
+    let mut valid_candidates = Vec::new();
+    for task in tasks {
+        if let Ok(Some(c)) = task.await {
+            valid_candidates.push(c);
+        }
+    }
+
+    Ok(axum::Json(valid_candidates))
 }
 
 pub async fn proxy(
@@ -70,13 +183,12 @@ pub async fn proxy(
     let direct_url = format!("https://{host}/favicon.ico");
     if let Some(bytes) = try_fetch(client, &direct_url).await {
         if is_valid_icon(&bytes) {
-            cache_and_return(&state, &cache_key, bytes).await
-        } else {
-            try_remaining_strategies(client, &state, &cache_key, &host, sz).await
+            return cache_and_return(&state, &cache_key, bytes).await;
         }
-    } else {
-        try_remaining_strategies(client, &state, &cache_key, &host, sz).await
     }
+
+    // Fallbacks
+    try_remaining_strategies(client, &state, &cache_key, &host, sz).await
 }
 
 async fn try_remaining_strategies(
@@ -112,8 +224,8 @@ async fn try_remaining_strategies(
         }
     }
 
-    // All strategies failed — return a transparent placeholder so the UI doesn't break
-    Ok(placeholder_response())
+    // All strategies failed — return a fallback letter avatar so the UI doesn't break
+    Ok(placeholder_response(host))
 }
 
 async fn try_fetch(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
@@ -183,24 +295,26 @@ fn image_response(bytes: Vec<u8>, mime: &'static str) -> Response {
         .unwrap()
 }
 
-// 1×1 transparent PNG as fallback so img tags don't show broken icons
-fn placeholder_response() -> Response {
-    const TRANSPARENT_1X1_PNG: &[u8] = &[
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-        0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
-        0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41,
-        0x54, 0x78, 0x9c, 0x62, 0x00, 0x01, 0x00, 0x00,
-        0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00,
-        0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
-        0x42, 0x60, 0x82,
+// Letter avatar SVG fallback
+fn placeholder_response(host: &str) -> Response {
+    let letter = host.chars().find(|c| c.is_ascii_alphabetic()).unwrap_or('?').to_ascii_uppercase();
+    let hash = host.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
+    let colors = [
+        "#E57373", "#F06292", "#BA68C8", "#9575CD", "#7986CB", "#64B5F6", "#4FC3F7", "#4DD0E1",
+        "#4DB6AC", "#81C784", "#AED581", "#DCE775", "#FFF176", "#FFD54F", "#FFB74D", "#FF8A65",
     ];
+    let color = colors[(hash as usize) % colors.len()];
+    
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="{}"/><text x="50%" y="50%" font-family="sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
+        color, letter
+    );
+
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "image/png")
+        .header(header::CONTENT_TYPE, "image/svg+xml")
         .header(header::CACHE_CONTROL, "public, max-age=3600")
-        .body(Body::from(TRANSPARENT_1X1_PNG))
+        .body(Body::from(svg))
         .unwrap()
 }
 

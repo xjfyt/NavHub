@@ -110,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
             )),
         )
         .route("/favicon", get(handlers::favicon::proxy))
+        .route("/favicon/search", get(handlers::favicon::search))
         .route("/widgets/weather", get(handlers::widgets::weather))
         .route("/widgets/hot", get(handlers::widgets::hot))
 
