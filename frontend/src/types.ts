@@ -124,6 +124,8 @@ export interface Tweaks {
   wallpaperPosterUrl?: string;
   wallpaperShuffle?: boolean;
   wallpaperShuffleInterval?: number;
+  wallpaperShuffleMediaType?: "" | "image" | "video";
+  wallpaperShuffleSource?: string;
   [key: string]: unknown;
 }
 

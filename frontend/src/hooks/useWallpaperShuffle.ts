@@ -35,11 +35,18 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     tweaks.wallpaperShuffle !== false && tweaks.backgroundMode !== "theme";
   const shuffleIntervalSec = normalizeShuffleInterval(tweaks.wallpaperShuffleInterval);
 
+  const mediaType = (tweaks.wallpaperShuffleMediaType as "" | "image" | "video") || "";
+  const sourceId = tweaks.wallpaperShuffleSource || "";
+
   // 拉取一次远程壁纸池（最多 100 张），缓存到 ref。
   useEffect(() => {
     if (!shuffleEnabled) return;
     let alive = true;
-    api.wallpapers({ limit: 100 })
+    api.wallpapers({ 
+      limit: 100,
+      mediaType: mediaType || undefined,
+      sourceId: sourceId || undefined,
+    })
       .then((resp) => {
         if (!alive) return;
         poolRef.current = resp.items.map(remoteToPreset);
@@ -49,7 +56,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
         poolRef.current = [];
       });
     return () => { alive = false; };
-  }, [shuffleEnabled]);
+  }, [shuffleEnabled, mediaType, sourceId]);
 
   const hasInitialPicked = useRef(false);
 

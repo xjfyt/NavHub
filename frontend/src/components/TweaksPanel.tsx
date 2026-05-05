@@ -426,21 +426,6 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         </div>
 
         <div className="tw-section">
-          <div className="tw-section-title">背景主题</div>
-          <div className="tw-theme-grid">
-            {themeOpts.map((t) => (
-              <button
-                key={t.id}
-                className={"tw-theme-swatch theme-" + t.id + (s.theme === t.id ? " active" : "")}
-                onClick={() => updateTweaks({ theme: t.id, backgroundMode: "theme", wallpaperShuffle: false })}
-              >
-                <span className="tw-theme-name">{t.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="tw-section">
           <div className="tw-section-title">当前背景</div>
           <div className="tw-wallpaper-hero">
             <WallpaperPreview
@@ -448,7 +433,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               url={activePreviewUrl}
               posterUrl={activePreviewPoster}
               className={"tw-wallpaper-preview" + ((active || themeActive) ? " active" : "")}
-              emptyText={shuffleOn ? `随机壁纸 · 每 ${formatShuffleInterval(shuffleInterval)}切换` : `当前使用 ${currentTheme.name} 主题`}
+              emptyText={shuffleOn ? `随机壁纸 · 每 ${formatShuffleInterval(shuffleInterval)}切换` : `当前未设置壁纸`}
             />
             <div className="tw-wallpaper-summary">
               <div className="tw-wallpaper-head">
@@ -458,11 +443,11 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                       ? "随机壁纸轮换中"
                       : wallpaperActive
                         ? ((s.wallpaperName as string) || "壁纸")
-                        : `${currentTheme.name} 背景主题`}
+                        : `默认背景`}
                   </div>
                   <div className="tw-wallpaper-meta">
                     {shuffleOn
-                      ? `每 ${formatShuffleInterval(shuffleInterval)}从壁纸库随机切换，选中具体壁纸或主题后自动关闭。`
+                      ? `每 ${formatShuffleInterval(shuffleInterval)}从壁纸库随机切换，选中具体壁纸后自动关闭。`
                       : wallpaperActive
                         ? [
                             wallpaperMediaType === "video" ? "动态壁纸" : "静态壁纸",
@@ -471,18 +456,18 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                           ]
                             .filter(Boolean)
                             .join(" · ")
-                        : "当前背景由背景主题控制，与壁纸互斥。"}
+                        : "当前为默认背景，可在下方壁纸库中挑选喜欢的壁纸。"}
                   </div>
                 </div>
                 <span className={"tw-wallpaper-state" + ((active || themeActive) ? " on" : "")}>
-                  {shuffleOn ? "轮换中" : wallpaperActive ? "壁纸中" : "主题中"}
+                  {shuffleOn ? "轮换中" : wallpaperActive ? "壁纸中" : "默认"}
                 </span>
               </div>
               <div className="tw-wallpaper-actions">
                 <button className="tw-action-btn primary" onClick={enableShuffle}>
                   {shuffleOn ? "已开启随机" : "随机壁纸"}
                 </button>
-                <button className="tw-action-btn" onClick={restoreGradient}>恢复渐变</button>
+                <button className="tw-action-btn" onClick={restoreGradient}>清除壁纸</button>
                 {wallpaperActive && (s.wallpaperSourceUrl as string) ? (
                   <a
                     className="tw-action-btn link"
@@ -520,9 +505,30 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
             <Row label="切换间隔" onClick={() => setSub("shuffleInterval")}>
               <Chevron value={formatShuffleInterval(shuffleInterval)} />
             </Row>
+            <Row label="壁纸类型">
+              <Dropdown
+                value={(s.wallpaperShuffleMediaType as string) || ""}
+                options={[
+                  { id: "", name: "混合随机" },
+                  { id: "image", name: "仅静态壁纸" },
+                  { id: "video", name: "仅动态壁纸" },
+                ]}
+                onChange={(v) => set("wallpaperShuffleMediaType", v)}
+              />
+            </Row>
+            <Row label="壁纸来源">
+              <Dropdown
+                value={(s.wallpaperShuffleSource as string) || ""}
+                options={[
+                  { id: "", name: "全部来源" },
+                  ...wallpaperSources.map(src => ({ id: src.id, name: src.name }))
+                ]}
+                onChange={(v) => set("wallpaperShuffleSource", v)}
+              />
+            </Row>
           </div>
           <div className="tw-custom-hint">
-            开启后按设定间隔自动随机切换壁纸库中的壁纸；选中具体壁纸或背景主题后自动关闭。
+            开启后按设定间隔及筛选条件，自动轮换壁纸库中的在线壁纸；选中具体壁纸后自动关闭。
           </div>
         </div>
 
