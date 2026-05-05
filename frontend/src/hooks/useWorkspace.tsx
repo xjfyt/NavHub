@@ -193,7 +193,7 @@ export function WorkspaceProvider({
           const expected = items.map((x) => `${x.type}:${x.id}`);
           const latestGroupItems = [
             ...latest.widgets
-              .filter((w) => w.groupId === groupId)
+              .filter((w) => w.groupId === groupId && !WIDGET_REGISTRY[w.widget]?.floatingBar)
               .map((w) => ({ type: "widget" as const, id: w.id, sortOrder: w.sortOrder })),
             ...latest.icons
               .filter((i) => i.groupId === groupId)
