@@ -216,7 +216,49 @@ server {
 }
 ```
 
-> **提示**：NavHub 也提供了 `ghcr.io/xjfyt/navhub:v0.1.1` 一体化镜像，该镜像下的 Rust 后端可以直接同时托管 API 和静态页面。如果您觉得分别启动两个容器比较繁琐，您可以只启动一体化镜像，然后让外部 Nginx 直接把所有请求反代给它的 8088 端口即可。
+> **提示**：下面将介绍如何只使用 `ghcr.io/xjfyt/navhub:v0.1.1` 一体化镜像完成更简单的单容器部署。
+
+### 方式五：纯 Docker 命令一体化部署（推荐，适用于已有外部数据库与网关）
+
+如果您希望尽量减少容器数量，且同样拥有外部数据库与外部 Nginx，这是**最推荐且最简单**的部署方式。
+由于 `ghcr.io/xjfyt/navhub:v0.1.1` 一体化镜像内的 Rust 后端自带了静态页面托管功能，因此您只需要启动 **1 个容器**。
+
+**1. 准备 `config.toml`**
+
+与方式四完全一致，在 `config.toml` 中填入您的外部数据库、Redis 以及 SSO 认证等配置项。
+
+**2. 启动一体化容器**
+
+直接使用 `navhub` 一体化镜像启动：
+
+```bash
+docker run -d \
+  --name navhub \
+  --restart unless-stopped \
+  -p 8088:8088 \
+  -v $(pwd)/config.toml:/app/config.toml:ro \
+  -v $(pwd)/uploads:/app/uploads \
+  ghcr.io/xjfyt/navhub:v0.1.1
+```
+
+**3. 配置您的外部 Nginx**
+
+在您的外部 Nginx 中，不再需要区分 `/api` 和 `/` 路由，直接把**所有**请求无脑反向代理给这个单一容器即可（由容器内部的 Rust 程序自行区分是 API 还是静态文件）。
+
+```nginx
+server {
+    listen 80;
+    server_name navhub.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8088;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 默认超级管理员账号：`superadmin` / `superadmin`（首次登录强制修改密码）。
 
