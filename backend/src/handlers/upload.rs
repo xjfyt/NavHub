@@ -56,8 +56,23 @@ pub async fn upload(
             )));
         }
         
-        let kind = infer::get(&data).ok_or_else(|| AppError::BadRequest("Unknown file type or invalid magic bytes".into()))?;
-        let mime = kind.mime_type();
+        let mut mime = "application/octet-stream".to_string();
+        let mut ext = ".bin".to_string();
+
+        if let Some(kind) = infer::get(&data) {
+            mime = kind.mime_type().to_string();
+            ext = format!(".{}", kind.extension());
+        }
+
+        // SVG fallback detection since infer might return text/xml or fail to detect
+        if mime == "application/octet-stream" || mime == "text/xml" || mime == "application/xml" || mime == "text/plain" {
+            let text = String::from_utf8_lossy(&data);
+            if filename.to_lowercase().ends_with(".svg") && (text.trim().starts_with("<?xml") || text.trim().starts_with("<svg") || text.contains("<svg")) {
+                mime = "image/svg+xml".to_string();
+                ext = ".svg".to_string();
+            }
+        }
+
         if !mime.starts_with("image/") && !mime.starts_with("video/") {
             return Err(AppError::BadRequest("Only images and videos are allowed".into()));
         }
@@ -70,7 +85,6 @@ pub async fn upload(
         }
         
         let ct = mime.to_string();
-        let ext = format!(".{}", kind.extension());
 
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
