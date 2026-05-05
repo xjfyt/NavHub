@@ -13,7 +13,21 @@ import { api } from "../api";
  * 若缓存为空再回退到本地内置 WALLPAPER_PRESETS。
  */
 export function useWallpaperShuffle(tweaks: Tweaks) {
-  const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(null);
+  const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(() => {
+    try {
+      const cached = window.localStorage.getItem("navhub_last_wallpaper");
+      if (cached) return JSON.parse(cached);
+    } catch (e) {}
+    return null;
+  });
+
+  useEffect(() => {
+    if (shufflePreset) {
+      try {
+        window.localStorage.setItem("navhub_last_wallpaper", JSON.stringify(shufflePreset));
+      } catch (e) {}
+    }
+  }, [shufflePreset]);
   const poolRef = useRef<WallpaperPreset[]>([]);
   const lastIdRef = useRef<string | null>(null);
 
@@ -37,6 +51,8 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     return () => { alive = false; };
   }, [shuffleEnabled]);
 
+  const hasInitialPicked = useRef(false);
+
   useEffect(() => {
     if (!shuffleEnabled) {
       setShufflePreset(null);
@@ -48,7 +64,16 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
       lastIdRef.current = next.id;
       setShufflePreset(next);
     };
-    pick();
+    
+    // Only pick immediately if we don't have a cached preset, or if it's not the first run
+    if (!hasInitialPicked.current && shufflePreset) {
+      hasInitialPicked.current = true;
+      lastIdRef.current = shufflePreset.id;
+    } else {
+      pick();
+      hasInitialPicked.current = true;
+    }
+    
     const timer = window.setInterval(pick, shuffleIntervalSec * 1000);
     return () => window.clearInterval(timer);
   }, [shuffleEnabled, shuffleIntervalSec]);
