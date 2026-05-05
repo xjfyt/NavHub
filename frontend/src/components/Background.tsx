@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+
 export function Background({
   theme,
   wallpaperUrl,
@@ -11,15 +13,34 @@ export function Background({
   wallpaperPosterUrl?: string;
   showWallpaper?: boolean;
 }) {
+  const [loadedUrl, setLoadedUrl] = useState<string | undefined>(wallpaperUrl);
+
+  useEffect(() => {
+    if (!wallpaperUrl) {
+      setLoadedUrl(undefined);
+      return;
+    }
+    if (wallpaperMediaType === "video") {
+      setLoadedUrl(wallpaperUrl);
+      return;
+    }
+    
+    // Check if it's already loaded or wait for it
+    const img = new window.Image();
+    img.onload = () => setLoadedUrl(wallpaperUrl);
+    img.onerror = () => setLoadedUrl(wallpaperUrl); // fallback
+    img.src = wallpaperUrl;
+  }, [wallpaperUrl, wallpaperMediaType]);
+
   return (
     <>
       <div className={`bg-layer bg-${theme}`} key={`theme-${theme}`} />
-      {showWallpaper && wallpaperUrl ? (
-        <div className="bg-wallpaper-frame" key={`wallpaper-${wallpaperUrl}`}>
-          {wallpaperMediaType === "video" ? (
+      {showWallpaper && loadedUrl ? (
+        <div className="bg-wallpaper-frame" key={`wallpaper-${loadedUrl}`}>
+          {wallpaperMediaType === "video" && loadedUrl === wallpaperUrl ? (
             <video
               className="bg-wallpaper-video"
-              src={wallpaperUrl}
+              src={loadedUrl}
               poster={wallpaperPosterUrl}
               autoPlay
               muted
@@ -31,7 +52,7 @@ export function Background({
             <div
               className="bg-wallpaper"
               style={{
-                backgroundImage: `url("${wallpaperUrl}")`,
+                backgroundImage: `url("${loadedUrl}")`,
               }}
             />
           )}

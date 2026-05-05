@@ -60,6 +60,11 @@ input, textarea { outline: none; }
 .bg-wallpaper-frame {
   position: fixed; inset: 0; z-index: 1;
   overflow: hidden;
+  animation: bgFadeIn 800ms ease-out;
+}
+@keyframes bgFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .bg-wallpaper {
   position: absolute; inset: 0;
