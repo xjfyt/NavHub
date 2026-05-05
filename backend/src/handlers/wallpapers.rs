@@ -1,5 +1,5 @@
 use crate::{
-    config::StorageBackend,
+
     error::AppResult,
     state::AppState,
 };
@@ -109,26 +109,16 @@ pub async fn list_wallpapers(
     .fetch_all(&state.pg)
     .await?;
 
-    let use_presign = matches!(state.storage.backend(), StorageBackend::S3);
-
     let mut items = Vec::with_capacity(rows.len());
     for row in rows {
         let url = if let Some(ref key) = row.storage_key {
-            if use_presign {
-                state.storage.presign_get_url(key).await.unwrap_or_else(|_| format!("/uploads/{key}"))
-            } else {
-                format!("/uploads/{key}")
-            }
+            state.storage.presign_get_url(key).await.unwrap_or_else(|_| format!("/uploads/{key}"))
         } else {
             row.original_url.clone()
         };
 
         let thumbnail_url = if let Some(ref tkey) = row.thumbnail_key {
-            let tu = if use_presign {
-                state.storage.presign_get_url(tkey).await.unwrap_or_else(|_| format!("/uploads/{tkey}"))
-            } else {
-                format!("/uploads/{tkey}")
-            };
+            let tu = state.storage.presign_get_url(tkey).await.unwrap_or_else(|_| format!("/uploads/{tkey}"));
             Some(tu)
         } else {
             row.thumbnail_url.clone()

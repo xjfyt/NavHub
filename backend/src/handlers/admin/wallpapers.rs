@@ -7,7 +7,7 @@ use crate::{
     },
     scraper::get_scraper,
     state::AppState,
-    storage::StorageBackendState,
+    storage::Storage,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -366,7 +366,7 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
 
 async fn download_to_storage(
     client: &reqwest::Client,
-    storage: &StorageBackendState,
+    storage: &Storage,
     url: &str,
     prefix: &str,
     max_bytes: u64,

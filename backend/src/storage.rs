@@ -2,7 +2,7 @@ use crate::{
     config::AppConfig,
     error::{AppError, AppResult},
 };
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use aws_config::BehaviorVersion;
 use aws_credential_types::Credentials;
 use aws_sdk_s3::{config::Region, presigning::PresigningConfig, primitives::ByteStream, Client};
