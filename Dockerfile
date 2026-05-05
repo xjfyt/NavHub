@@ -8,11 +8,12 @@ RUN npm run build
 
 # ── Stage 2: Backend Builder ─────────────────────────────────────────────────
 FROM rust:1.95.0-bullseye AS backend-builder
+ARG TARGETARCH
 WORKDIR /app
 COPY backend ./backend
 WORKDIR /app/backend
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/backend/target \
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/usr/local/cargo/registry \
+    --mount=type=cache,id=cargo-target-${TARGETARCH},target=/app/backend/target \
     cargo build --release && \
     cp target/release/navhub /tmp/navhub
 
