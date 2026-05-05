@@ -137,8 +137,6 @@ fn default_scopes() -> Vec<String> {
 pub struct GeneralConfig {
     #[serde(default = "default_retention")]
     pub audit_retention_days: i64,
-    #[serde(default = "default_uploads_dir")]
-    pub uploads_dir: PathBuf,
     #[serde(default = "default_session_ttl")]
     pub session_ttl_days: i64,
     #[serde(default = "default_upload_max")]
@@ -158,9 +156,6 @@ pub struct GeneralConfig {
 fn default_retention() -> i64 {
     90
 }
-fn default_uploads_dir() -> PathBuf {
-    PathBuf::from("./uploads")
-}
 fn default_session_ttl() -> i64 {
     7
 }
@@ -177,17 +172,7 @@ fn default_site_name() -> String {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct StorageConfig {
     #[serde(default)]
-    pub backend: StorageBackend,
-    #[serde(default)]
     pub s3: S3StorageConfig,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum StorageBackend {
-    #[default]
-    Local,
-    S3,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -280,9 +265,6 @@ impl AppConfig {
             if !parent.as_os_str().is_empty() {
                 if cfg.frontend.dist_dir.is_relative() {
                     cfg.frontend.dist_dir = parent.join(&cfg.frontend.dist_dir);
-                }
-                if cfg.app.uploads_dir.is_relative() {
-                    cfg.app.uploads_dir = parent.join(&cfg.app.uploads_dir);
                 }
             }
         }

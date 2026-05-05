@@ -47,17 +47,13 @@ scopes = ["openid", "profile", "email"]
 
 [app]
 audit_retention_days = 90
-uploads_dir = "./uploads"
+
 session_ttl_days = 7
 upload_max_mb = 2
 log_level = "info"
 # 关闭后端出站 HTTPS 证书校验,仅在调试自签名证书时开启,生产环境严禁开启
 # tls_accept_invalid_certs = false
 
-[storage]
-# local: 写入本地 uploads_dir
-# s3: 写入兼容 S3 协议的对象存储，通过后端签发临时访问链接
-backend = "local"
 
 [storage.s3]
 endpoint = "https://minio.example.com"

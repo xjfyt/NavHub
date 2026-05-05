@@ -62,7 +62,7 @@ services:
       - NAVHUB__REDIS__HOST=redis
     volumes:
       - ./config.toml:/app/config.toml:ro
-      - uploads:/app/uploads
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,7 +98,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  uploads:
 ```
 
 ### 方式三：前后端分离部署
@@ -119,7 +118,7 @@ services:
       - NAVHUB__REDIS__HOST=redis
     volumes:
       - ./config.toml:/app/config.toml:ro
-      - uploads:/app/uploads
+
 
   navhub-frontend:
     image: ghcr.io/xjfyt/navhub-frontend:v0.1.1
@@ -174,7 +173,6 @@ docker run -d \
   --restart unless-stopped \
   -p 8088:8088 \
   -v $(pwd)/config.toml:/app/config.toml:ro \
-  -v $(pwd)/uploads:/app/uploads \
   ghcr.io/xjfyt/navhub-backend:v0.1.1
 ```
 
@@ -237,7 +235,6 @@ docker run -d \
   --restart unless-stopped \
   -p 8088:8088 \
   -v $(pwd)/config.toml:/app/config.toml:ro \
-  -v $(pwd)/uploads:/app/uploads \
   ghcr.io/xjfyt/navhub:v0.1.1
 ```
 

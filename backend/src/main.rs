@@ -25,7 +25,7 @@ use tower_http::{
 };
 use tracing_subscriber::EnvFilter;
 
-use crate::{config::StorageBackend, state::AppState};
+use crate::state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -249,12 +249,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/status", get(handlers::auth::status))
         .route("/api/config/public", get(handlers::auth::public_config));
 
-    let uploads = match state.storage.backend() {
-        StorageBackend::Local => {
-            Router::new().nest_service("/uploads", ServeDir::new(&state.cfg.app.uploads_dir))
-        }
-        StorageBackend::S3 => Router::new().route("/uploads/*path", get(handlers::upload::serve)),
-    };
+    let uploads = Router::new().route("/uploads/*path", get(handlers::upload::serve));
 
     let mut app = Router::new().merge(public).merge(uploads).nest("/api", api);
 
