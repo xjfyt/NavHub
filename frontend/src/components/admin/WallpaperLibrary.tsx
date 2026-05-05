@@ -712,12 +712,30 @@ export const AdminWallpaperLibrary = () => {
         </div>
       </div>
 
+      <style>{`
+        .wallpaper-grid {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(4, 1fr);
+        }
+        @media (min-width: 1300px) {
+          .wallpaper-grid {
+            grid-template-columns: repeat(6, 1fr);
+          }
+        }
+        @media (min-width: 1700px) {
+          .wallpaper-grid {
+            grid-template-columns: repeat(8, 1fr);
+          }
+        }
+      `}</style>
+
       {loadingWallpapers ? (
         <EmptyCell text="加载中..." />
       ) : wallpapers.length === 0 ? (
         <EmptyCell text="暂无壁纸。选择来源并点击「立即抓取」开始下载。" />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+        <div className="wallpaper-grid">
           {wallpapers.map((w) => (
             <div
               key={w.id}

@@ -602,12 +602,35 @@ export const AdminIconAssetLibrary = () => {
         </div>
       </div>
 
+      <style>{`
+        .icon-admin-grid {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(6, 1fr);
+        }
+        @media (min-width: 1000px) {
+          .icon-admin-grid {
+            grid-template-columns: repeat(8, 1fr);
+          }
+        }
+        @media (min-width: 1400px) {
+          .icon-admin-grid {
+            grid-template-columns: repeat(12, 1fr);
+          }
+        }
+        @media (min-width: 1800px) {
+          .icon-admin-grid {
+            grid-template-columns: repeat(16, 1fr);
+          }
+        }
+      `}</style>
+
       {loadingIcons ? (
         <EmptyCell text="加载中..." />
       ) : icons.length === 0 && libIcons.length === 0 ? (
         <EmptyCell text="暂无图标。选择来源并点击「立即抓取」或「上传」开始下载。" />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 12 }}>
+        <div className="icon-admin-grid">
           {selectedSourceId === "user_uploads" ? libIcons.map((w) => (
             <div
               key={w.id}
