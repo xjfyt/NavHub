@@ -7,15 +7,30 @@ COPY frontend .
 RUN npm run build
 
 # ── Stage 2: Backend Builder ─────────────────────────────────────────────────
-FROM rust:1.95.0-bullseye AS backend-builder
+FROM --platform=$BUILDPLATFORM rust:1.95.0-bullseye AS backend-builder
 ARG TARGETARCH
 WORKDIR /app
 COPY backend ./backend
 WORKDIR /app/backend
+
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        apt-get update && \
+        apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
+        rustup target add aarch64-unknown-linux-gnu; \
+    fi
+
 RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/usr/local/cargo/registry \
     --mount=type=cache,id=cargo-target-${TARGETARCH},target=/app/backend/target \
-    cargo build --release && \
-    cp target/release/navhub /tmp/navhub
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc && \
+        export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc && \
+        export CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ && \
+        cargo build --release --target aarch64-unknown-linux-gnu && \
+        cp target/aarch64-unknown-linux-gnu/release/navhub /tmp/navhub; \
+    else \
+        cargo build --release && \
+        cp target/release/navhub /tmp/navhub; \
+    fi
 
 # ── Final Target: all-in-one ────────────────────────────────────────────────
 FROM debian:bullseye-slim
