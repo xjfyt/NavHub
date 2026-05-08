@@ -939,7 +939,17 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         {/* Left nav */}
         <aside className="tw-nav">
           <div className="tw-nav-user">
-            <div className="tw-avatar" style={{ background: "linear-gradient(135deg, #ffd7a5, #c98a68)" }}>{userInitial}</div>
+            {me?.avatarUrl ? (
+              <div className="tw-avatar" style={{ background: "transparent", padding: 0, overflow: "hidden" }}>
+                <img
+                  src={me.avatarUrl}
+                  alt=""
+                  style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                />
+              </div>
+            ) : (
+              <div className="tw-avatar">{userInitial}</div>
+            )}
             <div className="tw-user-name">{userName}</div>
           </div>
           <nav className="tw-nav-list">
