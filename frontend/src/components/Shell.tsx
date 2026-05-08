@@ -8,16 +8,15 @@ import { NavView } from "./NavView";
 import { UserMenu } from "./UserMenu";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
 import { IconView, WidgetView } from "../types";
-import {
-  WIDGET_REGISTRY,
-  WIDGET_SIZE_DIMENSIONS,
-  WIDGET_SIZE_LABEL,
-  WIDGET_SIZE_ORDER,
-  snapWidgetSize,
-  type WidgetSizeId,
-} from "../widgets";
-import { confirmDialog, promptDialog } from "./Dialogs";
+import { confirmDialog } from "./Dialogs";
 import { toast } from "sonner";
+import {
+  buildBlankCtx,
+  buildGroupCtx,
+  buildSideCtx,
+  buildTileCtx,
+  type ShellMenuCtx,
+} from "./Shell.menus";
 
 // Heavy / rarely-used surfaces are split out so they don't block first paint.
 // Each one is only fetched when the user actually opens it.
@@ -212,194 +211,38 @@ export const Shell = ({
     if (ic.url && ic.url !== "#") window.open(ic.url, "_blank");
   };
 
-  const blankCtx = (e: React.MouseEvent) => {
-    const x = e.clientX;
-    const y = e.clientY;
-    if (isGuest) {
-      openCtx(x, y, [
-        { icon: "sparkle", label: "随机壁纸", onClick: randomWallpaper },
-        { icon: "search", label: "搜索图标", shortcut: "⌘+F", onClick: () => setIconSearchOpen(true) },
-      ]);
-      return;
-    }
-    const editable = canEditGroup(activeGroup);
-    const items: CtxItem[] = [];
-    if (editable) {
-      items.push({
-        icon: "plus",
-        label: "添加图标",
-        onClick: () => setAddIconOpen(true),
-      });
-      items.push({
-        icon: "grid",
-        label: "添加小组件...",
-        onClick: () => setCatalogOpen(true),
-      });
-    }
-    items.push({ icon: "sparkle", label: "随机壁纸", onClick: randomWallpaper });
-    if (editable) items.push({ icon: "edit", label: "编辑主页", onClick: () => setTweaksOpen(true) });
-    items.push({ divider: true });
-    items.push({
-      icon: "search",
-      label: "搜索图标",
-      shortcut: "⌘+F",
-      onClick: () => setIconSearchOpen(true),
-    });
-    openCtx(x, y, items);
+  // Context-menu builders live in Shell.menus.tsx; this bag is the only thing
+  // they need from Shell. Keeping the dep list explicit here makes it obvious
+  // when a menu starts depending on new state.
+  const menuCtx: ShellMenuCtx = {
+    isGuest,
+    activeGroup,
+    groups: workspace.groups,
+    sidebarMode,
+    canEditGroup,
+    openCtx,
+    openIcon,
+    randomWallpaper,
+    setAddIconOpen,
+    setCatalogOpen,
+    setTweaksOpen,
+    setIconSearchOpen,
+    setEditingWidgetId,
+    setAddCatOpen,
+    updateIcon,
+    deleteIcon,
+    updateWidget,
+    deleteWidget,
+    updateGroup,
+    deleteGroup,
+    updateTweaks,
   };
-
-  const widgetSizeToConfig = (sz: WidgetSizeId) => WIDGET_SIZE_DIMENSIONS[sz];
-  const widgetConfigToSize = (span?: number | null, row?: number | null): WidgetSizeId =>
-    snapWidgetSize(span, row);
-  const WIDGET_SIZE_OPTIONS = WIDGET_SIZE_ORDER.map((id) => ({ id, label: WIDGET_SIZE_LABEL[id] }));
-
-  const tileCtx = (e: React.MouseEvent, item: IconView | WidgetView) => {
-    const x = e.clientX;
-    const y = e.clientY;
-    if (isGuest) {
-      if ("widget" in item) {
-        // null
-      } else {
-        openCtx(x, y, [
-          { icon: "external", label: "打开", onClick: () => openIcon(item as IconView) },
-        ]);
-      }
-      return;
-    }
-    const editable = canEditGroup(item.groupId);
-    if ("widget" in item) {
-      const w = item as WidgetView;
-      const items: CtxItem[] = [];
-      if (editable) {
-        if (WIDGET_REGISTRY[w.widget]?.editable) {
-          items.push({
-            icon: "settings",
-            label: "编辑",
-            onClick: () => setEditingWidgetId(w.id),
-          });
-          items.push({ divider: true });
-        }
-        items.push({
-          kind: "size",
-          current: widgetConfigToSize(w.wSpan, w.wRow),
-          sizes: WIDGET_SIZE_OPTIONS,
-          onPick: (sz) =>
-            void updateWidget(w.id, widgetSizeToConfig(sz as WidgetSizeId)),
-        });
-        items.push({ divider: true });
-        items.push({
-          icon: "trash",
-          label: "删除组件",
-          danger: true,
-          onClick: () => void deleteWidget(w.id),
-        });
-      }
-      if (items.length > 0) openCtx(x, y, items);
-      return;
-    }
-    const ic = item as IconView;
-    if (ic.isFolder) {
-      if (!editable) {
-        return;
-      }
-      openCtx(x, y, [
-        {
-          label: "小",
-          onClick: () => void updateIcon(ic.id, { size: "sq" }),
-        },
-        {
-          label: "四宫格",
-          onClick: () => void updateIcon(ic.id, { size: "lg-4" }),
-        },
-        {
-          label: "九宫格",
-          onClick: () => void updateIcon(ic.id, { size: "lg-9" }),
-        },
-        { divider: true },
-        {
-          label: "删除",
-          danger: true,
-          onClick: async () => {
-            if (await confirmDialog(`删除文件夹"${ic.name}"?`)) void deleteIcon(ic.id);
-          },
-        },
-      ]);
-      return;
-    }
-    const items: CtxItem[] = [
-      { icon: "arrow-right", label: "当前页面打开", onClick: () => { if (ic.url && ic.url !== "#") window.location.href = ic.url; } },
-      { icon: "external", label: "新标签页打开", onClick: () => openIcon(ic) },
-    ];
-    if (editable) {
-      items.push({
-        icon: "edit",
-        label: "编辑图标",
-        onClick: () => setAddIconOpen(ic),
-      });
-      items.push({
-        icon: "trash",
-        label: "删除图标",
-        danger: true,
-        onClick: async () => {
-          if (await confirmDialog(`删除"${ic.name}"?`)) void deleteIcon(ic.id);
-        },
-      });
-    }
-    if (items.length > 0) openCtx(x, y, items);
-  };
-
-  const groupCtx = (e: React.MouseEvent, groupId: string) => {
-    if (isGuest) return;
-    const g = workspace.groups.find((x) => x.id === groupId);
-    if (!g) return;
-    const editable = canEditGroup(groupId);
-    const items: CtxItem[] = [];
-    if (editable) {
-      items.push({
-        icon: "edit",
-        label: "重命名",
-        onClick: async () => {
-          const next = await promptDialog("分组名称", g.name, "重命名前");
-          if (next && next.trim() && next !== g.name)
-            void updateGroup(groupId, { name: next.trim() });
-        },
-      });
-      items.push({ divider: true });
-      items.push({
-        icon: "trash",
-        label: "删除分组",
-        danger: true,
-        onClick: async () => {
-          if (await confirmDialog(`删除"${g.name}"及其所有图标/组件?`)) void deleteGroup(groupId);
-        },
-      });
-    }
-    if (items.length > 0) openCtx(e.clientX, e.clientY, items);
-  };
-
-  const sideCtx = (e: React.MouseEvent) => {
-    const items: CtxItem[] = [];
-    if (!isGuest) {
-      items.push({ icon: "plus", label: "新建分组", onClick: () => setAddCatOpen(true) });
-      items.push({ divider: true });
-    }
-    items.push({
-      icon: sidebarMode === "pinned" ? "check" : "blank",
-      label: "长期驻留",
-      onClick: () => void updateTweaks({ sidebar: "pinned" }),
-    });
-    items.push({
-      icon: sidebarMode === "autohide" ? "check" : "blank",
-      label: "自动隐藏",
-      onClick: () => void updateTweaks({ sidebar: "autohide" }),
-    });
-    items.push({
-      icon: sidebarMode === "hidden" ? "check" : "blank",
-      label: "一直隐藏",
-      onClick: () => void updateTweaks({ sidebar: "hidden" }),
-    });
-    openCtx(e.clientX, e.clientY, items);
-  };
+  const blankCtx = (e: React.MouseEvent) => buildBlankCtx(menuCtx, e);
+  const tileCtx = (e: React.MouseEvent, item: IconView | WidgetView) =>
+    buildTileCtx(menuCtx, e, item);
+  const groupCtx = (e: React.MouseEvent, groupId: string) =>
+    buildGroupCtx(menuCtx, e, groupId);
+  const sideCtx = (e: React.MouseEvent) => buildSideCtx(menuCtx, e);
 
   return (
     <>
