@@ -1,35 +1,56 @@
-import React from "react";
+import { lazy, Suspense } from "react";
 import type { WidgetView } from "../types";
-import { ClockWidget, ClockDetail } from "./ClockWidget";
-import { WeatherWidget, WeatherDetail } from "./WeatherWidget";
-import { CountdownWidget, CountdownDetail } from "./CountdownWidget";
-import { TodoWidget, TodoDetail } from "./TodoWidget";
-import { NotesWidget, NotesDetail } from "./NotesWidget";
-import { CalendarWidget, CalendarDetail } from "./CalendarWidget";
-import { RssWidget, RssDetail } from "./RssWidget";
-import { MusicWidget, MusicDetail } from "./MusicWidget";
-import { CalculatorWidget } from "./CalculatorWidget";
-import { IframeWidget } from "./IframeWidget";
-import { PomodoroWidget, PomodoroDetail } from "./PomodoroWidget";
-import { YearProgressWidget, YearProgressDetail } from "./YearProgressWidget";
-import { HitokotoWidget, HitokotoDetail } from "./HitokotoWidget";
-import { MarkdownWidget, MarkdownDetail } from "./MarkdownWidget";
 import { SearchWidget } from "./SearchWidget";
 
-export { ClockWidget } from "./ClockWidget";
-export { WeatherWidget } from "./WeatherWidget";
-export { CountdownWidget } from "./CountdownWidget";
-export { TodoWidget } from "./TodoWidget";
-export { NotesWidget } from "./NotesWidget";
-export { CalendarWidget } from "./CalendarWidget";
-export { RssWidget } from "./RssWidget";
-export { MusicWidget } from "./MusicWidget";
-export { CalculatorWidget } from "./CalculatorWidget";
-export { IframeWidget } from "./IframeWidget";
-export { PomodoroWidget } from "./PomodoroWidget";
-export { YearProgressWidget } from "./YearProgressWidget";
-export { HitokotoWidget } from "./HitokotoWidget";
-export { MarkdownWidget } from "./MarkdownWidget";
+// Search lives on every page (floating bar) so it must NOT be lazy.
+// Everything else only renders when the user has actually placed it on a
+// dashboard, so we lazy-import per-component.
+
+const ClockWidget = lazy(() => import("./ClockWidget").then((m) => ({ default: m.ClockWidget })));
+const ClockDetail = lazy(() => import("./ClockWidget").then((m) => ({ default: m.ClockDetail })));
+const WeatherWidget = lazy(() => import("./WeatherWidget").then((m) => ({ default: m.WeatherWidget })));
+const WeatherDetail = lazy(() => import("./WeatherWidget").then((m) => ({ default: m.WeatherDetail })));
+const CountdownWidget = lazy(() => import("./CountdownWidget").then((m) => ({ default: m.CountdownWidget })));
+const CountdownDetail = lazy(() => import("./CountdownWidget").then((m) => ({ default: m.CountdownDetail })));
+const TodoWidget = lazy(() => import("./TodoWidget").then((m) => ({ default: m.TodoWidget })));
+const TodoDetail = lazy(() => import("./TodoWidget").then((m) => ({ default: m.TodoDetail })));
+const NotesWidget = lazy(() => import("./NotesWidget").then((m) => ({ default: m.NotesWidget })));
+const NotesDetail = lazy(() => import("./NotesWidget").then((m) => ({ default: m.NotesDetail })));
+const CalendarWidget = lazy(() => import("./CalendarWidget").then((m) => ({ default: m.CalendarWidget })));
+const CalendarDetail = lazy(() => import("./CalendarWidget").then((m) => ({ default: m.CalendarDetail })));
+const RssWidget = lazy(() => import("./RssWidget").then((m) => ({ default: m.RssWidget })));
+const RssDetail = lazy(() => import("./RssWidget").then((m) => ({ default: m.RssDetail })));
+const MusicWidget = lazy(() => import("./MusicWidget").then((m) => ({ default: m.MusicWidget })));
+const MusicDetail = lazy(() => import("./MusicWidget").then((m) => ({ default: m.MusicDetail })));
+const CalculatorWidget = lazy(() => import("./CalculatorWidget").then((m) => ({ default: m.CalculatorWidget })));
+const IframeWidget = lazy(() => import("./IframeWidget").then((m) => ({ default: m.IframeWidget })));
+const PomodoroWidget = lazy(() => import("./PomodoroWidget").then((m) => ({ default: m.PomodoroWidget })));
+const PomodoroDetail = lazy(() => import("./PomodoroWidget").then((m) => ({ default: m.PomodoroDetail })));
+const YearProgressWidget = lazy(() => import("./YearProgressWidget").then((m) => ({ default: m.YearProgressWidget })));
+const YearProgressDetail = lazy(() => import("./YearProgressWidget").then((m) => ({ default: m.YearProgressDetail })));
+const HitokotoWidget = lazy(() => import("./HitokotoWidget").then((m) => ({ default: m.HitokotoWidget })));
+const HitokotoDetail = lazy(() => import("./HitokotoWidget").then((m) => ({ default: m.HitokotoDetail })));
+const MarkdownWidget = lazy(() => import("./MarkdownWidget").then((m) => ({ default: m.MarkdownWidget })));
+const MarkdownDetail = lazy(() => import("./MarkdownWidget").then((m) => ({ default: m.MarkdownDetail })));
+
+/** Wraps a widget tile so its chunk can stream in without crashing the dashboard. */
+function tile(node: React.ReactNode) {
+  return <Suspense fallback={<div className="widget-tile-fallback" aria-hidden />}>{node}</Suspense>;
+}
+
+/** Detail modals already render inside a modal shell; let it look loading. */
+function detail(node: React.ReactNode) {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ padding: 32, textAlign: "center", color: "var(--text-soft)" }}>加载中 …</div>
+      }
+    >
+      {node}
+    </Suspense>
+  );
+}
+
 export { SearchWidget } from "./SearchWidget";
 
 /**
@@ -59,11 +80,9 @@ export function snapWidgetSize(wSpan?: number | null, wRow?: number | null): Wid
   const w = wSpan ?? 0;
   const r = wRow ?? 0;
   if (w <= 0 || r <= 0) return "medium";
-  // 精确匹配新方案
   if (w === 6 && r === 3) return "small";
   if (w === 6 && r === 6) return "medium";
   if (w === 12 && r === 5) return "large";
-  // 按宽高比 + 面积推断
   const area = w * r;
   const aspect = w / r;
   if (aspect >= 1.7) {
@@ -112,8 +131,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "时钟",
     description: "世界时钟与本地问候，时刻保持时间敏感度。",
     defaultSize: "small",
-    render: (w) => <ClockWidget w={w} />,
-    renderDetail: (w) => <ClockDetail w={w} />,
+    render: (w) => tile(<ClockWidget w={w} />),
+    renderDetail: (w) => detail(<ClockDetail w={w} />),
   },
   weather: {
     id: "weather",
@@ -122,8 +141,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "24小时预报、未来7天预报、城市查询，随时关注天气变化状况。",
     defaultSize: "large",
     editable: true,
-    render: (w) => <WeatherWidget w={w} />,
-    renderDetail: (w) => <WeatherDetail w={w} />,
+    render: (w) => tile(<WeatherWidget w={w} />),
+    renderDetail: (w) => detail(<WeatherDetail w={w} />),
   },
   countdown: {
     id: "countdown",
@@ -132,8 +151,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "重要日子倒计时记录，如纪念日、高考、下班等。",
     defaultSize: "small",
     editable: true,
-    render: (w) => <CountdownWidget w={w} />,
-    renderDetail: (w) => <CountdownDetail w={w} />,
+    render: (w) => tile(<CountdownWidget w={w} />),
+    renderDetail: (w) => detail(<CountdownDetail w={w} />),
   },
   todo: {
     id: "todo",
@@ -141,8 +160,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "待办",
     description: "通过待办事项来列出需要处理的事物，包括生活、工作或其它事项。",
     defaultSize: "medium",
-    render: (w) => <TodoWidget w={w} />,
-    renderDetail: (w) => <TodoDetail w={w} />,
+    render: (w) => tile(<TodoWidget w={w} />),
+    renderDetail: (w) => detail(<TodoDetail w={w} />),
   },
   notes: {
     id: "notes",
@@ -150,8 +169,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "便签",
     description: "极简便笺，随时随地记录灵感与思路。",
     defaultSize: "medium",
-    render: (w) => <NotesWidget w={w} />,
-    renderDetail: (w) => <NotesDetail w={w} />,
+    render: (w) => tile(<NotesWidget w={w} />),
+    renderDetail: (w) => detail(<NotesDetail w={w} />),
   },
   calendar: {
     id: "calendar",
@@ -159,8 +178,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "日历",
     description: "使用日历来跟踪倒数日、节假日、法定节假日、纪念日，不错过每一个重要的日子。",
     defaultSize: "medium",
-    render: (w) => <CalendarWidget w={w} />,
-    renderDetail: (w) => <CalendarDetail w={w} />,
+    render: (w) => tile(<CalendarWidget w={w} />),
+    renderDetail: (w) => detail(<CalendarDetail w={w} />),
   },
   rss: {
     id: "rss",
@@ -169,8 +188,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "热搜资讯，轻松获知全网动态。",
     defaultSize: "medium",
     editable: true,
-    render: (w) => <RssWidget w={w} />,
-    renderDetail: (w) => <RssDetail w={w} />,
+    render: (w) => tile(<RssWidget w={w} />),
+    renderDetail: (w) => detail(<RssDetail w={w} />),
   },
   music: {
     id: "music",
@@ -179,8 +198,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "沉浸式音乐播放器组件，极简美观。",
     defaultSize: "medium",
     editable: true,
-    render: (w) => <MusicWidget w={w} />,
-    renderDetail: (w) => <MusicDetail w={w} />,
+    render: (w) => tile(<MusicWidget w={w} />),
+    renderDetail: (w) => detail(<MusicDetail w={w} />),
   },
   calc: {
     id: "calc",
@@ -188,7 +207,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "计算器",
     description: "桌面快捷四则运算辅助，即用即走。",
     defaultSize: "medium",
-    render: (w) => <CalculatorWidget w={w} />,
+    render: (w) => tile(<CalculatorWidget w={w} />),
   },
   iframe: {
     id: "iframe",
@@ -197,7 +216,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "无缝嵌入其他网页面板或仪表盘。",
     defaultSize: "large",
     editable: true,
-    render: (w) => <IframeWidget w={w} />,
+    render: (w) => tile(<IframeWidget w={w} />),
   },
   pomodoro: {
     id: "pomodoro",
@@ -206,8 +225,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "经典番茄工作法计时器，专注 25 分钟、休息 5 分钟。",
     defaultSize: "small",
     editable: true,
-    render: (w) => <PomodoroWidget w={w} />,
-    renderDetail: (w) => <PomodoroDetail w={w} />,
+    render: (w) => tile(<PomodoroWidget w={w} />),
+    renderDetail: (w) => detail(<PomodoroDetail w={w} />),
   },
   "year-progress": {
     id: "year-progress",
@@ -215,8 +234,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "年进度",
     description: "直观展示本年度已过进度，让时间感更具象。",
     defaultSize: "small",
-    render: (w) => <YearProgressWidget w={w} />,
-    renderDetail: (w) => <YearProgressDetail w={w} />,
+    render: (w) => tile(<YearProgressWidget w={w} />),
+    renderDetail: (w) => detail(<YearProgressDetail w={w} />),
   },
   hitokoto: {
     id: "hitokoto",
@@ -225,8 +244,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     description: "随机一句话，抚慰碎片时间；支持动漫 / 文学 / 诗词等多种来源。",
     defaultSize: "medium",
     editable: true,
-    render: (w) => <HitokotoWidget w={w} />,
-    renderDetail: (w) => <HitokotoDetail w={w} />,
+    render: (w) => tile(<HitokotoWidget w={w} />),
+    renderDetail: (w) => detail(<HitokotoDetail w={w} />),
   },
   search: {
     id: "search",
@@ -246,8 +265,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     defaultSize: "medium",
     detailWidth: "min(1100px, 94vw)",
     detailMaxHeight: "82vh",
-    render: (w) => <MarkdownWidget w={w} />,
-    renderDetail: (w) => <MarkdownDetail w={w} />,
+    render: (w) => tile(<MarkdownWidget w={w} />),
+    renderDetail: (w) => detail(<MarkdownDetail w={w} />),
   },
 };
 

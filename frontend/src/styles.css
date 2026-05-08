@@ -700,6 +700,26 @@ html[data-mode="light"] .sidebar-bottom::before {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/*
+ * Lazy widget Suspense fallback: shown only during the few-ms gap between
+ * the widget chunk being requested and being parsed. Filling the cell with a
+ * subtle pulse keeps the grid from collapsing while the chunk loads.
+ */
+.widget-tile-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.04);
+  animation: widgetTileFallbackPulse 1.4s ease-in-out infinite;
+}
+html[data-mode="dark"] .widget-tile-fallback {
+  background: rgba(255, 255, 255, 0.04);
+}
+@keyframes widgetTileFallbackPulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 0.9; }
+}
+
 /* ===== ICON TILES (Cherry-Studio inspired: bare icon + label, no glass wrapper) ===== */
 .tile {
   position: relative;

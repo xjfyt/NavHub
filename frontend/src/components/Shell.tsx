@@ -1,23 +1,12 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { useWallpaperShuffle } from "../hooks/useWallpaperShuffle";
 import { useColorMode } from "../hooks/useColorMode";
 import { Background } from "./Background";
 import { Sidebar } from "./Sidebar";
 import { NavView } from "./NavView";
-import { TweaksPanel } from "./TweaksPanel";
 import { UserMenu } from "./UserMenu";
-import { ProfileModal } from "./ProfileModal";
-import { AdminShell } from "./admin";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
-import { AddCategoryModal } from "./AddCategoryModal";
-import { AddIconModal } from "./AddIconModal";
-import { WidgetCatalogModal } from "./WidgetCatalogModal";
-import { WidgetEditModal } from "./WidgetEditModal";
-import { WidgetDetailModal } from "./WidgetDetailModal";
-import { IconSearchOverlay } from "./IconSearchOverlay";
-import { FolderOverlay } from "./FolderOverlay";
-import { IframePreviewModal } from "./IframePreviewModal";
 import { IconView, WidgetView } from "../types";
 import {
   WIDGET_REGISTRY,
@@ -29,6 +18,48 @@ import {
 } from "../widgets";
 import { confirmDialog, promptDialog } from "./Dialogs";
 import { toast } from "sonner";
+
+// Heavy / rarely-used surfaces are split out so they don't block first paint.
+// Each one is only fetched when the user actually opens it.
+const TweaksPanel = lazy(() =>
+  import("./TweaksPanel").then((m) => ({ default: m.TweaksPanel })),
+);
+const ProfileModal = lazy(() =>
+  import("./ProfileModal").then((m) => ({ default: m.ProfileModal })),
+);
+const AdminShell = lazy(() =>
+  import("./admin").then((m) => ({ default: m.AdminShell })),
+);
+const AddCategoryModal = lazy(() =>
+  import("./AddCategoryModal").then((m) => ({ default: m.AddCategoryModal })),
+);
+const AddIconModal = lazy(() =>
+  import("./AddIconModal").then((m) => ({ default: m.AddIconModal })),
+);
+const WidgetCatalogModal = lazy(() =>
+  import("./WidgetCatalogModal").then((m) => ({ default: m.WidgetCatalogModal })),
+);
+const WidgetEditModal = lazy(() =>
+  import("./WidgetEditModal").then((m) => ({ default: m.WidgetEditModal })),
+);
+const WidgetDetailModal = lazy(() =>
+  import("./WidgetDetailModal").then((m) => ({ default: m.WidgetDetailModal })),
+);
+const IconSearchOverlay = lazy(() =>
+  import("./IconSearchOverlay").then((m) => ({ default: m.IconSearchOverlay })),
+);
+const FolderOverlay = lazy(() =>
+  import("./FolderOverlay").then((m) => ({ default: m.FolderOverlay })),
+);
+const IframePreviewModal = lazy(() =>
+  import("./IframePreviewModal").then((m) => ({ default: m.IframePreviewModal })),
+);
+
+// Modals open over the existing UI; returning null while their chunk loads
+// is preferable to a flashing spinner.
+const ModalSuspense = ({ children }: { children: React.ReactNode }) => (
+  <Suspense fallback={null}>{children}</Suspense>
+);
 
 export const Shell = ({
   onLogout,
@@ -123,7 +154,26 @@ export const Shell = ({
   const [openedFolder, setOpenedFolder] = useState<IconView | null>(null);
 
   if (adminOpen) {
-    return <AdminShell onClose={() => { setAdminOpen(false); setAdminInitialTab(undefined); }} initialTab={adminInitialTab} />;
+    // Admin shell is the largest split chunk; show a minimal full-screen
+    // placeholder while it loads instead of a layout flash.
+    return (
+      <Suspense
+        fallback={
+          <div className="nh-boot">
+            <div className="nh-boot-spinner" />
+            <div className="nh-boot-text">正在加载管理后台 …</div>
+          </div>
+        }
+      >
+        <AdminShell
+          onClose={() => {
+            setAdminOpen(false);
+            setAdminInitialTab(undefined);
+          }}
+          initialTab={adminInitialTab}
+        />
+      </Suspense>
+    );
   }
 
   const onAvatarClick = () => {
@@ -453,101 +503,121 @@ export const Shell = ({
       </div>
 
       {catalogOpen && (
-        <WidgetCatalogModal
-          groups={workspace.groups}
-          defaultGroupId={activeGroup}
-          onClose={() => setCatalogOpen(false)}
-          onAdd={(groupId, widgetId, span) => {
-            void addWidget(groupId, widgetId, span);
-            setCatalogOpen(false);
-          }}
-        />
+        <ModalSuspense>
+          <WidgetCatalogModal
+            groups={workspace.groups}
+            defaultGroupId={activeGroup}
+            onClose={() => setCatalogOpen(false)}
+            onAdd={(groupId, widgetId, span) => {
+              void addWidget(groupId, widgetId, span);
+              setCatalogOpen(false);
+            }}
+          />
+        </ModalSuspense>
       )}
 
       {openedFolder && (
-        <FolderOverlay 
-          folder={openedFolder} 
-          onClose={() => setOpenedFolder(null)} 
-          onExtract={(itemId) => {
-            extractFolderItem(openedFolder.id, itemId);
-          }}
-          onRename={canEditGroup(openedFolder.groupId) ? (newName) => {
-            if (newName.trim() && newName.trim() !== openedFolder.name) {
-              updateIcon(openedFolder.id, { name: newName.trim() });
-              setOpenedFolder({ ...openedFolder, name: newName.trim() });
-            }
-          } : undefined}
-          onReorder={canEditGroup(openedFolder.groupId) ? (order) => {
-            void reorderFolderItems(openedFolder.id, order);
-          } : undefined}
-          onItemContext={(e, item) => {
-            const x = e.clientX;
-            const y = e.clientY;
-            const editable = canEditGroup(openedFolder.groupId);
-            const items: CtxItem[] = [];
-            if (item.url && item.url !== "#") {
-              items.push({ icon: "arrow-right", label: "当前页面打开", onClick: () => { window.location.href = item.url!; } });
-              items.push({ icon: "external", label: "新标签页打开", onClick: () => { window.open(item.url!, "_blank"); } });
-            }
-            if (editable) {
-              if (items.length > 0) items.push({ divider: true });
-              items.push({
-                icon: "edit",
-                label: "编辑图标",
-                onClick: () => {
-                  setOpenedFolder(null); // Close the folder overlay when editing
-                  setAddIconOpen(item as IconView);
-                }
-              });
-              items.push({
-                icon: "trash",
-                label: "删除图标",
-                danger: true,
-                onClick: async () => {
-                  if (await confirmDialog(`删除"${item.name}"?`)) void deleteIcon(item.id);
-                },
-              });
-              items.push({ divider: true });
-              items.push({ icon: "move", label: "从文件夹取出", onClick: () => { extractFolderItem(openedFolder.id, item.id); } });
-            }
-            if (items.length > 0) openCtx(x, y, items);
-          }}
-        />
+        <ModalSuspense>
+          <FolderOverlay
+            folder={openedFolder}
+            onClose={() => setOpenedFolder(null)}
+            onExtract={(itemId) => {
+              extractFolderItem(openedFolder.id, itemId);
+            }}
+            onRename={canEditGroup(openedFolder.groupId) ? (newName) => {
+              if (newName.trim() && newName.trim() !== openedFolder.name) {
+                updateIcon(openedFolder.id, { name: newName.trim() });
+                setOpenedFolder({ ...openedFolder, name: newName.trim() });
+              }
+            } : undefined}
+            onReorder={canEditGroup(openedFolder.groupId) ? (order) => {
+              void reorderFolderItems(openedFolder.id, order);
+            } : undefined}
+            onItemContext={(e, item) => {
+              const x = e.clientX;
+              const y = e.clientY;
+              const editable = canEditGroup(openedFolder.groupId);
+              const items: CtxItem[] = [];
+              if (item.url && item.url !== "#") {
+                items.push({ icon: "arrow-right", label: "当前页面打开", onClick: () => { window.location.href = item.url!; } });
+                items.push({ icon: "external", label: "新标签页打开", onClick: () => { window.open(item.url!, "_blank"); } });
+              }
+              if (editable) {
+                if (items.length > 0) items.push({ divider: true });
+                items.push({
+                  icon: "edit",
+                  label: "编辑图标",
+                  onClick: () => {
+                    setOpenedFolder(null); // Close the folder overlay when editing
+                    setAddIconOpen(item as IconView);
+                  }
+                });
+                items.push({
+                  icon: "trash",
+                  label: "删除图标",
+                  danger: true,
+                  onClick: async () => {
+                    if (await confirmDialog(`删除"${item.name}"?`)) void deleteIcon(item.id);
+                  },
+                });
+                items.push({ divider: true });
+                items.push({ icon: "move", label: "从文件夹取出", onClick: () => { extractFolderItem(openedFolder.id, item.id); } });
+              }
+              if (items.length > 0) openCtx(x, y, items);
+            }}
+          />
+        </ModalSuspense>
       )}
 
       {editingWidget && (
-        <WidgetEditModal
-          widget={editingWidget}
-          onClose={() => setEditingWidgetId(null)}
-        />
+        <ModalSuspense>
+          <WidgetEditModal
+            widget={editingWidget}
+            onClose={() => setEditingWidgetId(null)}
+          />
+        </ModalSuspense>
       )}
 
       {detailWidget && (
-        <WidgetDetailModal
-          widget={detailWidget}
-          onClose={() => setDetailWidgetId(null)}
-        />
+        <ModalSuspense>
+          <WidgetDetailModal
+            widget={detailWidget}
+            onClose={() => setDetailWidgetId(null)}
+          />
+        </ModalSuspense>
       )}
 
-      {tweaksOpen && <TweaksPanel onClose={() => setTweaksOpen(false)} />}
+      {tweaksOpen && (
+        <ModalSuspense>
+          <TweaksPanel onClose={() => setTweaksOpen(false)} />
+        </ModalSuspense>
+      )}
 
-      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+      {profileOpen && (
+        <ModalSuspense>
+          <ProfileModal onClose={() => setProfileOpen(false)} />
+        </ModalSuspense>
+      )}
 
       {iconSearchOpen && (
-        <IconSearchOverlay
-          icons={workspace.icons}
-          groups={workspace.groups}
-          onClose={() => setIconSearchOpen(false)}
-          onOpenIcon={openIcon}
-          onActivateGroup={setActiveGroup}
-        />
+        <ModalSuspense>
+          <IconSearchOverlay
+            icons={workspace.icons}
+            groups={workspace.groups}
+            onClose={() => setIconSearchOpen(false)}
+            onOpenIcon={openIcon}
+            onActivateGroup={setActiveGroup}
+          />
+        </ModalSuspense>
       )}
 
       {iframePreviewIcon && (
-        <IframePreviewModal
-          icon={iframePreviewIcon}
-          onClose={() => setIframePreviewIcon(null)}
-        />
+        <ModalSuspense>
+          <IframePreviewModal
+            icon={iframePreviewIcon}
+            onClose={() => setIframePreviewIcon(null)}
+          />
+        </ModalSuspense>
       )}
 
       {userMenuOpen && me && (
@@ -576,31 +646,35 @@ export const Shell = ({
       )}
 
       {addCatOpen && (
-        <AddCategoryModal
-          onClose={() => setAddCatOpen(false)}
-          onSave={async ({ name, icon }) => {
-            setAddCatOpen(false);
-            await addGroup(name, icon);
-          }}
-        />
+        <ModalSuspense>
+          <AddCategoryModal
+            onClose={() => setAddCatOpen(false)}
+            onSave={async ({ name, icon }) => {
+              setAddCatOpen(false);
+              await addGroup(name, icon);
+            }}
+          />
+        </ModalSuspense>
       )}
 
       {addIconOpen && (
-        <AddIconModal
-          groups={workspace.groups}
-          defaultGroupId={activeGroup}
-          onClose={() => setAddIconOpen(false)}
-          initialIcon={typeof addIconOpen === "object" ? addIconOpen : undefined}
-          onSave={async (body) => {
-            setAddIconOpen(false);
-            if (typeof addIconOpen === "object" && addIconOpen.id) {
-              await updateIcon(addIconOpen.id, body);
-            } else {
-              const created = await addIcon(body);
-              if (created) setActiveGroup(created.groupId);
-            }
-          }}
-        />
+        <ModalSuspense>
+          <AddIconModal
+            groups={workspace.groups}
+            defaultGroupId={activeGroup}
+            onClose={() => setAddIconOpen(false)}
+            initialIcon={typeof addIconOpen === "object" ? addIconOpen : undefined}
+            onSave={async (body) => {
+              setAddIconOpen(false);
+              if (typeof addIconOpen === "object" && addIconOpen.id) {
+                await updateIcon(addIconOpen.id, body);
+              } else {
+                const created = await addIcon(body);
+                if (created) setActiveGroup(created.groupId);
+              }
+            }}
+          />
+        </ModalSuspense>
       )}
     </>
   );
