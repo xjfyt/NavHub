@@ -1,4 +1,4 @@
-import React, { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Icon } from "../components/Icon";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import type { WidgetProps } from "./types";

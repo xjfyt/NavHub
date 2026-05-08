@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { api } from "../api";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";

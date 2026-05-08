@@ -12,6 +12,7 @@ use deadpool_redis::redis::AsyncCommands;
 use serde::Deserialize;
 use std::net::IpAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 pub struct FaviconQuery {
@@ -35,11 +36,73 @@ fn default_size() -> u16 {
     64
 }
 
+/// Probe a host through DNS and reject any address pointing at private / loopback /
+/// link-local / multicast / reserved space, covering both IPv4 and IPv6.
+/// `allow_private` opens a homelab escape hatch that still blocks loopback/multicast/unspecified.
+async fn ensure_safe_target(host: &str, allow_private: bool) -> AppResult<()> {
+    if host.eq_ignore_ascii_case("localhost") {
+        return Err(AppError::BadRequest("invalid host".into()));
+    }
+    // If the host is itself an IP literal, validate it directly without DNS.
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return check_ip(ip, allow_private);
+    }
+    // Probe both v4 and v6 — port 0 yields all records.
+    let iter = tokio::net::lookup_host((host, 0u16))
+        .await
+        .map_err(|e| AppError::BadRequest(format!("dns failure: {e}")))?;
+    let mut saw_any = false;
+    for addr in iter {
+        saw_any = true;
+        check_ip(addr.ip(), allow_private)?;
+    }
+    if !saw_any {
+        return Err(AppError::BadRequest("dns: no records".into()));
+    }
+    Ok(())
+}
+
+fn check_ip(ip: IpAddr, allow_private: bool) -> AppResult<()> {
+    if ip.is_loopback() || ip.is_multicast() || ip.is_unspecified() {
+        return Err(AppError::BadRequest("invalid host IP".into()));
+    }
+    match ip {
+        IpAddr::V4(v4) => {
+            if v4.is_broadcast() || v4.is_documentation() {
+                return Err(AppError::BadRequest("invalid host IP".into()));
+            }
+            if !allow_private && (v4.is_private() || v4.is_link_local()) {
+                return Err(AppError::BadRequest("invalid host IP (private)".into()));
+            }
+        }
+        IpAddr::V6(v6) => {
+            // Reject IPv4-mapped (::ffff:0:0/96) so attackers can't smuggle a private V4.
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return check_ip(IpAddr::V4(mapped), allow_private);
+            }
+            let segs = v6.segments();
+            // fe80::/10 link-local
+            let link_local = (segs[0] & 0xffc0) == 0xfe80;
+            // fc00::/7 unique-local
+            let unique_local = (segs[0] & 0xfe00) == 0xfc00;
+            if !allow_private && (link_local || unique_local) {
+                return Err(AppError::BadRequest("invalid host IP (private)".into()));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub async fn search(
     State(state): State<Arc<AppState>>,
     Query(q): Query<FaviconSearchQuery>,
 ) -> AppResult<axum::Json<Vec<FaviconSearchCandidate>>> {
-    let host = extract_host(&q.url).unwrap_or_default();
+    let host = extract_host(&q.url).ok_or_else(|| AppError::BadRequest("invalid url".into()))?;
+    let allow_private = state.cfg.app.tls_accept_invalid_certs;
+    // Validate the user-supplied host BEFORE making any request, so a parse-only path
+    // can't be used as an internal port scanner.
+    ensure_safe_target(&host, allow_private).await?;
+
     let mut candidates = Vec::new();
 
     candidates.push(FaviconSearchCandidate {
@@ -47,16 +110,24 @@ pub async fn search(
         source: "智能抓取/生成".into(),
     });
 
-    // Strategy 1: Parse HTML
     let mut url_with_scheme = q.url.clone();
     if !url_with_scheme.starts_with("http") {
         url_with_scheme = format!("https://{}", url_with_scheme);
     }
-    
-    if let Ok(resp) = state.reqwest_client.get(&url_with_scheme).timeout(std::time::Duration::from_secs(5)).send().await {
+
+    if let Ok(resp) = state
+        .favicon_client
+        .get(&url_with_scheme)
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+    {
         if let Ok(html) = resp.text().await {
             let document = scraper::Html::parse_document(&html);
-            let selector = scraper::Selector::parse("link[rel='apple-touch-icon'], link[rel='icon'], link[rel='shortcut icon']").unwrap();
+            let selector = scraper::Selector::parse(
+                "link[rel='apple-touch-icon'], link[rel='icon'], link[rel='shortcut icon']",
+            )
+            .unwrap();
             for element in document.select(&selector) {
                 if let Some(href) = element.value().attr("href") {
                     let full_url = if href.starts_with("http") {
@@ -83,47 +154,59 @@ pub async fn search(
         }
     }
 
-    if !host.is_empty() {
-        // Direct
-        candidates.push(FaviconSearchCandidate {
-            url: format!("https://{}/favicon.ico", host),
-            source: "直接访问".into(),
-        });
-        
-        // DuckDuckGo
-        candidates.push(FaviconSearchCandidate {
-            url: format!("https://icons.duckduckgo.com/ip3/{}.ico", host),
-            source: "DuckDuckGo".into(),
-        });
-        
-        // Google
-        candidates.push(FaviconSearchCandidate {
-            url: format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=128", host),
-            source: "Google".into(),
-        });
-    }
+    candidates.push(FaviconSearchCandidate {
+        url: format!("https://{}/favicon.ico", host),
+        source: "直接访问".into(),
+    });
+    candidates.push(FaviconSearchCandidate {
+        url: format!("https://icons.duckduckgo.com/ip3/{}.ico", host),
+        source: "DuckDuckGo".into(),
+    });
+    candidates.push(FaviconSearchCandidate {
+        url: format!("https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{}&size=128", host),
+        source: "Google".into(),
+    });
 
-    // deduplicate
     let mut seen = std::collections::HashSet::new();
     candidates.retain(|c| seen.insert(c.url.clone()));
 
-    let client = state.reqwest_client.clone();
+    // Probe candidates concurrently with a hard cap; each probe revalidates SSRF for
+    // its own host so a redirect or HTML-extracted href can't smuggle in a private target.
+    let allow_private = state.cfg.app.tls_accept_invalid_certs;
+    let sem = Arc::new(tokio::sync::Semaphore::new(8));
     let mut tasks = Vec::new();
     for c in candidates {
-        let client = client.clone();
+        let client = state.favicon_client.clone();
+        let sem = sem.clone();
         tasks.push(tokio::spawn(async move {
             if c.url.starts_with('/') {
                 return Some(c);
             }
-            if let Ok(resp) = client.get(&c.url).timeout(std::time::Duration::from_secs(3)).send().await {
-                if resp.status().is_success() {
-                    let ct = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("");
-                    if ct.starts_with("image/") || ct.contains("icon") || ct.contains("octet-stream") {
-                        return Some(c);
-                    }
-                }
+            let _permit = sem.acquire_owned().await.ok()?;
+            // Re-validate every candidate's resolved host.
+            let cand_host = extract_host(&c.url)?;
+            if ensure_safe_target(&cand_host, allow_private).await.is_err() {
+                return None;
             }
-            None
+            let resp = client
+                .get(&c.url)
+                .timeout(Duration::from_secs(3))
+                .send()
+                .await
+                .ok()?;
+            if !resp.status().is_success() {
+                return None;
+            }
+            let ct = resp
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if ct.starts_with("image/") || ct.contains("icon") || ct.contains("octet-stream") {
+                Some(c)
+            } else {
+                None
+            }
         }));
     }
 
@@ -142,31 +225,11 @@ pub async fn proxy(
     Query(q): Query<FaviconQuery>,
 ) -> AppResult<Response> {
     let host = extract_host(&q.url).ok_or_else(|| AppError::BadRequest("invalid url".into()))?;
-
-    // SSRF guard — skipped when tls_accept_invalid_certs is true (internal/homelab deployment)
     let allow_private = state.cfg.app.tls_accept_invalid_certs;
-    if !allow_private {
-        if host == "localhost" {
-            return Err(AppError::BadRequest("invalid host".into()));
-        }
-        if let Ok(mut addrs) = tokio::net::lookup_host(format!("{}:80", host)).await {
-            for addr in addrs.by_ref() {
-                let ip = addr.ip();
-                if ip.is_loopback() || ip.is_multicast() || ip.is_unspecified() {
-                    return Err(AppError::BadRequest("invalid host IP".into()));
-                }
-                if let IpAddr::V4(ipv4) = ip {
-                    if ipv4.is_private() || ipv4.is_link_local() {
-                        return Err(AppError::BadRequest("invalid host IP (private)".into()));
-                    }
-                }
-            }
-        }
-    }
+    ensure_safe_target(&host, allow_private).await?;
 
     let cache_key = format!("favicon:{}:{}", q.sz, host);
 
-    // Try Redis cache first
     {
         let mut conn = state.redis.get().await?;
         let cached: Option<Vec<u8>> = conn.get(&cache_key).await.ok().flatten();
@@ -176,10 +239,9 @@ pub async fn proxy(
         }
     }
 
-    let client = &state.reqwest_client;
+    let client = &state.favicon_client;
     let sz = q.sz;
 
-    // Strategy 1: direct /favicon.ico on the target (works for internal/private sites)
     let direct_url = format!("https://{host}/favicon.ico");
     if let Some(bytes) = try_fetch(client, &direct_url).await {
         if is_valid_icon(&bytes) {
@@ -187,7 +249,6 @@ pub async fn proxy(
         }
     }
 
-    // Fallbacks
     try_remaining_strategies(client, &state, &cache_key, &host, sz).await
 }
 
@@ -198,7 +259,6 @@ async fn try_remaining_strategies(
     host: &str,
     sz: u16,
 ) -> AppResult<Response> {
-    // Strategy 2: DuckDuckGo favicon CDN (reliable, not blocked in China)
     let ddg_url = format!("https://icons.duckduckgo.com/ip3/{host}.ico");
     if let Some(bytes) = try_fetch(client, &ddg_url).await {
         if is_valid_icon(&bytes) {
@@ -206,7 +266,6 @@ async fn try_remaining_strategies(
         }
     }
 
-    // Strategy 3: Google gstatic faviconV2 (works for well-known public domains)
     let google_url = format!(
         "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{host}&size={sz}"
     );
@@ -216,7 +275,6 @@ async fn try_remaining_strategies(
         }
     }
 
-    // Strategy 4: HTTP fallback for direct fetch (in case target only serves HTTP)
     let http_url = format!("http://{host}/favicon.ico");
     if let Some(bytes) = try_fetch(client, &http_url).await {
         if is_valid_icon(&bytes) {
@@ -224,14 +282,13 @@ async fn try_remaining_strategies(
         }
     }
 
-    // All strategies failed — return a fallback letter avatar so the UI doesn't break
     Ok(placeholder_response(host))
 }
 
 async fn try_fetch(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     let resp = client
         .get(url)
-        .timeout(std::time::Duration::from_secs(8))
+        .timeout(Duration::from_secs(8))
         .send()
         .await
         .ok()?;
@@ -256,12 +313,10 @@ async fn cache_and_return(
     Ok(image_response(bytes, mime))
 }
 
-/// Reject obviously invalid responses: too small, or an HTML error page.
 fn is_valid_icon(bytes: &[u8]) -> bool {
     if bytes.len() < 64 {
         return false;
     }
-    // Reject HTML responses (error pages)
     let prefix = &bytes[..bytes.len().min(16)];
     if prefix.starts_with(b"<!DOCTYPE") || prefix.starts_with(b"<html") || prefix.starts_with(b"<!") {
         return false;
@@ -281,7 +336,6 @@ fn detect_mime(bytes: &[u8]) -> &'static str {
     } else if bytes.len() > 4 && &bytes[..4] == b"RIFF" {
         "image/webp"
     } else {
-        // ICO or unknown — browsers handle ICO fine as x-icon
         "image/x-icon"
     }
 }
@@ -295,16 +349,19 @@ fn image_response(bytes: Vec<u8>, mime: &'static str) -> Response {
         .unwrap()
 }
 
-// Letter avatar SVG fallback
 fn placeholder_response(host: &str) -> Response {
-    let letter = host.chars().find(|c| c.is_ascii_alphabetic()).unwrap_or('?').to_ascii_uppercase();
+    let letter = host
+        .chars()
+        .find(|c| c.is_ascii_alphabetic())
+        .unwrap_or('?')
+        .to_ascii_uppercase();
     let hash = host.bytes().fold(0u32, |acc, b| acc.wrapping_add(b as u32));
     let colors = [
         "#E57373", "#F06292", "#BA68C8", "#9575CD", "#7986CB", "#64B5F6", "#4FC3F7", "#4DD0E1",
         "#4DB6AC", "#81C784", "#AED581", "#DCE775", "#FFF176", "#FFD54F", "#FFB74D", "#FF8A65",
     ];
     let color = colors[(hash as usize) % colors.len()];
-    
+
     let svg = format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="{}"/><text x="50%" y="50%" font-family="sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
         color, letter
@@ -329,6 +386,5 @@ fn extract_host(input: &str) -> Option<String> {
         format!("https://{s}")
     };
     let parsed = url::Url::parse(&with_scheme).ok()?;
-    // Return host without port so cache keys are stable
     parsed.host_str().map(|h| h.to_string())
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import { Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";

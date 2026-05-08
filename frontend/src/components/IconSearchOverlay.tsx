@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GroupView, IconView } from "../types";
 import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";

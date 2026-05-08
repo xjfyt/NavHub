@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Icon } from "../components/Icon";
 import type { WidgetProps } from "./types";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";

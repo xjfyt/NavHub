@@ -1,4 +1,6 @@
-# ── Stage 1: Frontend Builder ────────────────────────────────────────────────
+# syntax=docker/dockerfile:1.7
+
+# ── Stage 1: Frontend builder ───────────────────────────────────────────────
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -6,7 +8,7 @@ RUN npm ci
 COPY frontend .
 RUN npm run build
 
-# ── Stage 2: Backend Builder ─────────────────────────────────────────────────
+# ── Stage 2: Backend builder ────────────────────────────────────────────────
 FROM --platform=$BUILDPLATFORM rust:1.95.0-bullseye AS backend-builder
 ARG TARGETARCH
 WORKDIR /app
@@ -32,15 +34,25 @@ RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/usr/local/cargo/r
         cp target/release/navhub /tmp/navhub; \
     fi
 
-# ── Final Target: all-in-one ────────────────────────────────────────────────
+# ── Final image ─────────────────────────────────────────────────────────────
+# Stay on debian:bullseye-slim rather than distroless so `wget` is available
+# for HEALTHCHECK without bundling a static curl. Run as a non-root UID so a
+# container escape doesn't immediately get root on the host.
 FROM debian:bullseye-slim
-RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --shell /usr/sbin/nologin navhub
 WORKDIR /app
-COPY --from=backend-builder /tmp/navhub ./
+COPY --from=backend-builder /tmp/navhub ./navhub
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 COPY config.example.toml ./config.toml
+RUN chown -R navhub:navhub /app
+USER navhub
 EXPOSE 8080
 ENV NAVHUB_CONFIG="/app/config.toml"
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8080/healthz || exit 1
+# `/readyz` checks pg + redis liveness so the orchestrator only routes traffic
+# when the dependencies are actually reachable.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -q --spider http://localhost:8080/readyz || exit 1
 CMD ["./navhub"]

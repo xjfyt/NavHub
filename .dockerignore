@@ -1,0 +1,23 @@
+.git
+.github
+.gitignore
+.DS_Store
+*.log
+
+# Heavy build artefacts — re-built inside the image's cache mounts.
+backend/target
+frontend/dist
+frontend/node_modules
+node_modules
+
+# Local dev state never wanted in the image.
+config.toml
+.env
+uploads
+docs
+
+# Editor noise.
+*.tsbuildinfo
+backend/clippy.txt
+backend/clippy.json
+frontend/ts-prune.txt

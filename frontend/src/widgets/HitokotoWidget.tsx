@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import type { WidgetProps } from "./types";
 

@@ -1,6 +1,3 @@
-import React from "react";
-import { CustomEngine } from "../types";
-
 export interface EngineDef {
   id: string;
   name: string;

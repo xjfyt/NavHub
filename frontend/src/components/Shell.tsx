@@ -6,7 +6,6 @@ import { Background } from "./Background";
 import { Sidebar } from "./Sidebar";
 import { NavView } from "./NavView";
 import { TweaksPanel } from "./TweaksPanel";
-import { SearchBar } from "./SearchBar";
 import { UserMenu } from "./UserMenu";
 import { ProfileModal } from "./ProfileModal";
 import { AdminShell } from "./admin";
@@ -19,7 +18,7 @@ import { WidgetDetailModal } from "./WidgetDetailModal";
 import { IconSearchOverlay } from "./IconSearchOverlay";
 import { FolderOverlay } from "./FolderOverlay";
 import { IframePreviewModal } from "./IframePreviewModal";
-import { IconView, IconSize, WidgetView } from "../types";
+import { IconView, WidgetView } from "../types";
 import {
   WIDGET_REGISTRY,
   WIDGET_SIZE_DIMENSIONS,
@@ -68,7 +67,6 @@ export const Shell = ({
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<string | undefined>();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [dragType, setDragType] = useState<"icon" | "widget" | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
   const [addCatOpen, setAddCatOpen] = useState(false);
@@ -175,7 +173,6 @@ export const Shell = ({
       return;
     }
     const editable = canEditGroup(activeGroup);
-    const g = workspace.groups.find((x) => x.id === activeGroup);
     const items: CtxItem[] = [];
     if (editable) {
       items.push({

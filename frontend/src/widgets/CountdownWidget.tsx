@@ -1,4 +1,3 @@
-import React from "react";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import type { WidgetProps } from "./types";
 

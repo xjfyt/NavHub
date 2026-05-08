@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { WidgetView } from "../types";
 import { api } from "../api";
 import { useWorkspace } from "../hooks/useWorkspace";

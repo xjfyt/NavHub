@@ -22,10 +22,7 @@ fn is_must_change_password_allowed(path: &str) -> bool {
 
 /// Injects a `request_id` tracing span for every incoming request,
 /// enabling structured log correlation across handlers.
-pub async fn inject_request_id(
-    req: Request,
-    next: Next,
-) -> Response {
+pub async fn inject_request_id(req: Request, next: Next) -> Response {
     let request_id = Uuid::new_v4();
     let method = req.method().clone();
     let path = req.uri().path().to_string();
@@ -38,6 +35,33 @@ pub async fn inject_request_id(
     async move { next.run(req).await }.instrument(span).await
 }
 
+/// Bump `last_seen_at` at most once per minute per user, using a single
+/// `SET … NX EX` so the key + TTL land atomically (the prior code did `SETNX`
+/// then `EXPIRE` — if the second command failed, the key would never expire).
+fn bump_last_seen(state: Arc<AppState>, uid: Uuid) {
+    tokio::spawn(async move {
+        let Ok(mut conn) = state.redis.get().await else {
+            return;
+        };
+        let key = format!("user:seen:{uid}");
+        let res: redis::RedisResult<Option<String>> = redis::cmd("SET")
+            .arg(&key)
+            .arg(1)
+            .arg("NX")
+            .arg("EX")
+            .arg(60)
+            .query_async(&mut *conn)
+            .await;
+        // SET NX returns Some("OK") when the key was set, None when it already existed.
+        if !matches!(res, Ok(Some(_))) {
+            return;
+        }
+        let _ = sqlx::query("UPDATE users SET last_seen_at=now() WHERE id=$1")
+            .bind(uid)
+            .execute(&state.pg)
+            .await;
+    });
+}
 
 pub async fn require_login(
     State(state): State<Arc<AppState>>,
@@ -58,24 +82,10 @@ pub async fn require_login(
         username: data.username.clone(),
         email: data.email.clone(),
     };
+    let uid = user.id;
     req.extensions_mut().insert(user);
 
-    let state_bg = state.clone();
-    let uid = data.user_id;
-    tokio::spawn(async move {
-        use deadpool_redis::redis::AsyncCommands;
-        if let Ok(mut conn) = state_bg.redis.get().await {
-            let key = format!("user:seen:{}", uid);
-            let locked: bool = conn.set_nx(&key, 1).await.unwrap_or(false);
-            if locked {
-                let _ = conn.expire::<_, ()>(&key, 60).await;
-                let _ = sqlx::query("UPDATE users SET last_seen_at=now() WHERE id=$1")
-                    .bind(uid)
-                    .execute(&state_bg.pg)
-                    .await;
-            }
-        }
-    });
+    bump_last_seen(state.clone(), uid);
 
     Ok(next.run(req).await)
 }
@@ -89,7 +99,9 @@ pub async fn optional_login(
     let maybe_user: Option<SessionUser> = match session::extract_sid(req.headers()) {
         Some(sid) => match session::get_session(&state, &sid).await? {
             Some(data) => {
-                if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
+                if data.must_change_password
+                    && !is_must_change_password_allowed(req.uri().path())
+                {
                     return Err(AppError::Forbidden("must_change_password"));
                 }
                 let user = SessionUser {
@@ -98,26 +110,9 @@ pub async fn optional_login(
                     username: data.username,
                     email: data.email,
                 };
-                
-                let state_bg = state.clone();
-                let uid = user.id;
-                tokio::spawn(async move {
-                    use deadpool_redis::redis::AsyncCommands;
-                    if let Ok(mut conn) = state_bg.redis.get().await {
-                        let key = format!("user:seen:{}", uid);
-                        let locked: bool = conn.set_nx(&key, 1).await.unwrap_or(false);
-                        if locked {
-                            let _ = conn.expire::<_, ()>(&key, 60).await;
-                            let _ = sqlx::query("UPDATE users SET last_seen_at=now() WHERE id=$1")
-                                .bind(uid)
-                                .execute(&state_bg.pg)
-                                .await;
-                        }
-                    }
-                });
-                
+                bump_last_seen(state.clone(), user.id);
                 Some(user)
-            },
+            }
             None => None,
         },
         None => None,

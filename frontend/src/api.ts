@@ -21,7 +21,6 @@ import type {
   Workspace,
   WallpaperSourceView,
   IconAssetSourceView,
-  AdminRemoteIconAsset,
   AdminPaginatedIconAssets,
 } from "./types";
 
@@ -423,15 +422,6 @@ export const api = {
       await request(`/api/admin/groups/import`, {
         method: "POST",
         body: JSON.stringify(data),
-      });
-    },
-    async visibility(): Promise<Record<string, string[]>> {
-      return request("/api/admin/visibility");
-    },
-    async putVisibility(map: Record<string, string[]>): Promise<void> {
-      await request("/api/admin/visibility", {
-        method: "PUT",
-        body: JSON.stringify(map),
       });
     },
     async audit(params: { kind?: string; q?: string; limit?: number; offset?: number } = {}): Promise<

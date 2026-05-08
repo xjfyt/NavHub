@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import type { WidgetProps } from "./types";
 
 export const CalculatorWidget = (_props: WidgetProps = {}) => {

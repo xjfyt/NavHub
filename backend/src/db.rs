@@ -2,6 +2,7 @@ use crate::config::DatabaseConfig;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool};
 use std::str::FromStr;
+use std::time::Duration;
 
 pub async fn connect(cfg: &DatabaseConfig) -> anyhow::Result<PgPool> {
     ensure_database(cfg).await?;
@@ -11,6 +12,11 @@ pub async fn connect(cfg: &DatabaseConfig) -> anyhow::Result<PgPool> {
 
     let pool = PgPoolOptions::new()
         .max_connections(cfg.max_connections)
+        .min_connections(1)
+        .acquire_timeout(Duration::from_secs(10))
+        .idle_timeout(Some(Duration::from_secs(300)))
+        .max_lifetime(Some(Duration::from_secs(1800)))
+        .test_before_acquire(true)
         .connect_with(opts)
         .await?;
 

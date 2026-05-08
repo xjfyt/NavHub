@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from "react";
+import { Component, useState, useEffect, type ReactNode } from "react";
 import { Icon } from "../Icon";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { api } from "../../api";
 import { toast } from "sonner";
-import { confirmDialog, promptDialog } from "../Dialogs";
+import { confirmDialog } from "../Dialogs";
 import type {
   AdminDashboardStats,
   AdminMessage,
   AdminUser,
   AuditEntry,
   GroupView,
-  IconLibraryView,
-  IconView,
-  LibraryIconView,
   MessageLevel,
   MessageTargetType,
 } from "../../types";
@@ -27,7 +24,7 @@ const MESSAGE_LEVELS: { id: MessageLevel; name: string }[] = [
   { id: "error", name: "紧急" },
 ];
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: any }> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
   componentDidCatch(error: any, errorInfo: any) { console.error("ErrorBoundary caught:", error, errorInfo); }
@@ -124,7 +121,6 @@ export const AdminShell = ({ onClose, initialTab }: { onClose: () => void, initi
     { id: "roles", name: "角色 / 权限", icon: "shield" },
     { id: "messages", name: "消息推送", icon: "bell" },
     { id: "push", name: "推送分类", icon: "send" },
-    { id: "visibility", name: "图标可见性", icon: "eye" },
     { id: "wallpapers", name: "壁纸库", icon: "image" },
     { id: "iconAssets", name: "图标库", icon: "image" },
     ...(isSuper ? [{ id: "sso", name: "SSO 接入", icon: "key", super: true }] : []),
@@ -157,7 +153,6 @@ export const AdminShell = ({ onClose, initialTab }: { onClose: () => void, initi
         {tab === "roles" && <AdminRoles />}
         {tab === "messages" && <AdminMessages />}
         {tab === "push" && <AdminPush groups={workspace.groups} />}
-        {tab === "visibility" && <AdminVisibility groups={workspace.groups} icons={workspace.icons} />}
         {tab === "wallpapers" && <AdminWallpaperLibrary />}
         {tab === "iconAssets" && <AdminIconAssetLibrary />}
         {tab === "sso" && isSuper && <AdminSSO />}
@@ -758,57 +753,6 @@ const AdminPush = ({ groups }: { groups: GroupView[] }) => {
   );
 };
 
-const AdminVisibility = ({ groups, icons }: { groups: GroupView[], icons: IconView[] }) => {
-  const [vis, setVis] = useState<Record<string, string[]>>({});
-  const [role, setRole] = useState("user");
-  const load = async () => setVis(await api.admin.visibility());
-  useEffect(() => { load(); }, []);
-
-  const save = async () => {
-    try { await api.admin.putVisibility(vis); toast.success("已保存"); } catch (e: any) { toast.error("Failed: " + e.message); }
-  };
-
-  const toggle = (groupId: string) => {
-    setVis(v => {
-      const arr = v[role] || [];
-      const updated = arr.includes(groupId) ? arr.filter(x => x !== groupId) : [...arr, groupId];
-      return { ...v, [role]: updated };
-    });
-  };
-
-  return (
-    <>
-      <div className="admin-head" style={{ marginBottom: 30, display: "flex", justifyContent: "space-between" }}>
-        <div><h2 style={{ fontSize: 24, margin: '0 0 6px 0' }}>图标可见性</h2><div style={{ fontSize: 13, color: 'var(--text-soft)' }}>控制不同角色对各分类的默认可见性权限</div></div>
-        <button className="pill-btn primary" onClick={save}>保存变更</button>
-      </div>
-      <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ width: 200, background: "var(--admin-card-bg)", borderRadius: 12, overflow: "hidden" }}>
-          {ROLES.map(r => (
-            <div key={r.id} onClick={() => setRole(r.id)} style={{ padding: 16, cursor: "pointer", background: role === r.id ? "var(--admin-border-soft)" : "transparent", borderLeft: role === r.id ? "3px solid var(--accent)" : "3px solid transparent" }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{r.label.split(' ')[0]}</div>
-              <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 4 }}>可见性配置 ({vis[r.id]?.length || 0})</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ flex: 1, background: "var(--admin-card-bg)", borderRadius: 12, padding: 16 }}>
-          <h3 style={{ margin: "0 0 16px 0", fontSize: 16 }}>可见性分配 · {ROLES.find(r => r.id === role)?.label.split(' ')[0]}</h3>
-          {groups.map(g => {
-            const on = (vis[role] || []).includes(g.id);
-            return (
-              <div key={g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--admin-border-slight)" }}>
-                <div><div style={{ fontWeight: 500, fontSize: 14 }}>{g.name}</div><div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 2 }}>包含 {icons.filter(i => i.groupId === g.id).length} 个组件/图标</div></div>
-                <div onClick={() => toggle(g.id)} style={{ display: "inline-block", width: 34, height: 20, borderRadius: 10, background: on ? "var(--ok)" : "var(--admin-border-str)", cursor: "pointer", position: "relative" }}>
-                   <div style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--text)', position: 'absolute', top: 3, left: on ? 17 : 3, transition: "0.2s" }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
-};
 
 const AdminAudit = () => {
   const [logs, setLogs] = useState<AuditEntry[]>([]);

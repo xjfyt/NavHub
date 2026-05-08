@@ -1,4 +1,4 @@
-version: '3.8'
+# `version` is intentionally omitted — Compose v2 ignores it and emits a warning.
 
 services:
   navhub:
@@ -7,10 +7,13 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # NEVER ship a default password in a public manifest. Set these via a local
+      # `.env` next to this file, or in your orchestrator's secret store. The
+      # build will refuse to come up if any of them are empty.
       - NAVHUB__DATABASE__HOST=postgres
-      - NAVHUB__DATABASE__USER=navhub
-      - NAVHUB__DATABASE__PASSWORD=navhub_secret
-      - NAVHUB__DATABASE__DATABASE=navhub
+      - NAVHUB__DATABASE__USER=${PG_USER:?PG_USER must be set}
+      - NAVHUB__DATABASE__PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set}
+      - NAVHUB__DATABASE__DATABASE=${PG_DATABASE:?PG_DATABASE must be set}
       - NAVHUB__REDIS__HOST=redis
     depends_on:
       postgres:
@@ -22,13 +25,13 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=navhub
-      - POSTGRES_PASSWORD=navhub_secret
-      - POSTGRES_DB=navhub
+      - POSTGRES_USER=${PG_USER:?PG_USER must be set}
+      - POSTGRES_PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set}
+      - POSTGRES_DB=${PG_DATABASE:?PG_DATABASE must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U navhub"]
+      test: ["CMD-SHELL", "pg_isready -U $${PG_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5

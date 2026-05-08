@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import type { WidgetView } from "../types";
 import { WIDGET_REGISTRY } from "../widgets";
 import { Icon } from "./Icon";

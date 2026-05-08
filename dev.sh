@@ -30,8 +30,8 @@ if ! command -v cargo-watch >/dev/null 2>&1; then
   warn "未检测到 cargo-watch,建议执行: cargo install cargo-watch"
 fi
 
-PKG_MGR="pnpm"
-command -v pnpm >/dev/null 2>&1 || PKG_MGR="npm"
+PKG_MGR="npm"
+command -v npm >/dev/null 2>&1 || { err "未找到 npm"; exit 1; }
 
 # --- Port Cleanup ---
 log "检查端口占用 (8088, 5173)..."

@@ -80,19 +80,18 @@ pub async fn get_workspace(
 
     let group_ids: Vec<Uuid> = groups.iter().map(|g| g.id).collect();
 
-    let icons: Vec<Icon> = sqlx::query_as(
+    // icons + widgets are independent — fetch in parallel to halve workspace latency.
+    let icons_fut = sqlx::query_as::<_, Icon>(
         "SELECT * FROM icons WHERE group_id = ANY($1) ORDER BY sort_order ASC, created_at ASC",
     )
     .bind(&group_ids)
-    .fetch_all(&state.pg)
-    .await?;
-
-    let widgets: Vec<Widget> = sqlx::query_as(
+    .fetch_all(&state.pg);
+    let widgets_fut = sqlx::query_as::<_, Widget>(
         "SELECT * FROM widgets WHERE group_id = ANY($1) ORDER BY sort_order ASC, created_at ASC",
     )
     .bind(&group_ids)
-    .fetch_all(&state.pg)
-    .await?;
+    .fetch_all(&state.pg);
+    let (icons, widgets) = tokio::try_join!(icons_fut, widgets_fut)?;
 
     let icon_ids: Vec<Uuid> = icons.iter().filter(|i| i.is_folder).map(|i| i.id).collect();
     let folder_items: Vec<FolderItem> = if icon_ids.is_empty() {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Icon } from "./Icon";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
@@ -8,7 +8,7 @@ export const SearchBar = () => {
   const { workspace, updateTweaks } = useWorkspace();
   const tweaks = workspace.preferences.tweaks || {};
   const [val, setVal] = useState("");
-  const [focused, setFocused] = useState(false);
+  const [, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   
   const customEngines = Array.isArray(workspace.preferences.customEngines)

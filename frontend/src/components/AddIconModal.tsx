@@ -7,7 +7,6 @@ import {
   IconSize,
   IconTextAlign,
   IconView,
-  IconLibraryView,
   LibraryIconView,
 } from "../types";
 import { DEFAULT_ICON_COLORS } from "../constants/design";

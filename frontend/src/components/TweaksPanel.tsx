@@ -9,7 +9,6 @@ import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import {
   composeShuffleInterval,
   decomposeShuffleInterval,
-  DEFAULT_SHUFFLE_INTERVAL_SEC,
   formatShuffleInterval,
   normalizeShuffleInterval,
   type ShuffleIntervalUnit,
@@ -145,7 +144,7 @@ const navIcons = {
 };
 
 export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
-  const { me, workspace, updateTweaks, updateIcon, deleteIcon, addCustomEngine, deleteCustomEngine } = useWorkspace();
+  const { me, workspace, updateTweaks, addCustomEngine, deleteCustomEngine } = useWorkspace();
   const s = workspace.preferences.tweaks || {};
   const [activeNav, setActiveNav] = useState("general");
   const [sub, setSub] = useState<string | null>(null);
@@ -237,11 +236,6 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const openOpts = [{ id: "newtab", name: "新标签页" }, { id: "current", name: "当前标签页" }];
   const iconSizeOpts = [{ id: "auto", name: "自动" }, { id: "lg", name: "大" }, { id: "md", name: "中" }, { id: "sm", name: "小" }];
   const modeOpts = [{ id: "light", name: "浅色" }, { id: "dark", name: "深色" }, { id: "auto", name: "跟随系统" }];
-  const themeOpts = [
-    { id: "dawn", name: "Dawn" }, { id: "ocean", name: "Ocean" },
-    { id: "mist", name: "Mist" }, { id: "night", name: "Night" },
-    { id: "daylight", name: "Daylight" }, { id: "cloud", name: "Cloud" }, { id: "sand", name: "Sand" }
-  ];
 
   const navItems = [
     { id: "general", icon: navIcons.general, label: "常规设置" },
@@ -401,7 +395,6 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         </div>
       );
     }
-    const currentTheme = themeOpts.find((item) => item.id === ((s.theme as string) || "dawn")) || themeOpts[0];
     const wallpaperUrl = s.wallpaperUrl as string | undefined;
     const wallpaperMediaType = (s.wallpaperMediaType as "image" | "video" | undefined) ?? "image";
     const wallpaperPosterUrl = s.wallpaperPosterUrl as string | undefined;

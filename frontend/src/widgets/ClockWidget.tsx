@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { WidgetProps } from "./types";
 
 export const ClockWidget = ({ w: _w }: WidgetProps = {}) => {
