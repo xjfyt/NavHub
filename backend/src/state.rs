@@ -9,13 +9,16 @@ pub struct AppState {
     pub redis: RedisPool,
     pub sso: RwLock<SsoCache>,
     pub storage: Storage,
-    /// Strict client used for trusted external APIs (weather, hot-list, OIDC, etc.).
+    /// Strict client for public-internet APIs (weather, hot lists, etc.).
     /// Always validates TLS — never weakened by `tls_accept_invalid_certs`.
     pub reqwest_client: reqwest::Client,
-    /// Lenient client used only for the favicon proxy/search path.
-    /// May skip TLS verification when `app.tls_accept_invalid_certs = true` so
-    /// homelab self-signed sites can still surface their favicon.
-    pub favicon_client: reqwest::Client,
+    /// Lenient client for backends the operator has wired up themselves: favicon
+    /// proxy/search and the OIDC token / userinfo exchange. When
+    /// `app.tls_accept_invalid_certs = true` this client skips TLS validation
+    /// so homelab self-signed CAs work without bundling them into the image.
+    /// The strict `reqwest_client` is unaffected so MITM on third-party APIs
+    /// still gets caught.
+    pub lenient_client: reqwest::Client,
 }
 
 impl AppState {
@@ -28,19 +31,19 @@ impl AppState {
             .pool_max_idle_per_host(16)
             .build()?;
 
-        let mut favicon_builder = reqwest::Client::builder()
+        let mut lenient_builder = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .pool_max_idle_per_host(16)
             // Cap redirects so a site can't bounce us through an internal URL.
             .redirect(reqwest::redirect::Policy::limited(3));
         if cfg.app.tls_accept_invalid_certs {
             tracing::warn!(
-                "app.tls_accept_invalid_certs=true: favicon client will skip TLS validation. \
-                 Trusted external APIs (weather/OIDC/etc.) still validate normally."
+                "app.tls_accept_invalid_certs=true: favicon + OIDC requests will skip TLS \
+                 validation. Public-internet APIs still validate normally."
             );
-            favicon_builder = favicon_builder.danger_accept_invalid_certs(true);
+            lenient_builder = lenient_builder.danger_accept_invalid_certs(true);
         }
-        let favicon_client = favicon_builder.build()?;
+        let lenient_client = lenient_builder.build()?;
 
         Ok(Self {
             cfg,
@@ -49,7 +52,7 @@ impl AppState {
             sso: RwLock::new(sso),
             storage,
             reqwest_client,
-            favicon_client,
+            lenient_client,
         })
     }
 }

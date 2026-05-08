@@ -116,7 +116,7 @@ pub async fn search(
     }
 
     if let Ok(resp) = state
-        .favicon_client
+        .lenient_client
         .get(&url_with_scheme)
         .timeout(Duration::from_secs(5))
         .send()
@@ -176,7 +176,7 @@ pub async fn search(
     let sem = Arc::new(tokio::sync::Semaphore::new(8));
     let mut tasks = Vec::new();
     for c in candidates {
-        let client = state.favicon_client.clone();
+        let client = state.lenient_client.clone();
         let sem = sem.clone();
         tasks.push(tokio::spawn(async move {
             if c.url.starts_with('/') {
@@ -239,7 +239,7 @@ pub async fn proxy(
         }
     }
 
-    let client = &state.favicon_client;
+    let client = &state.lenient_client;
     let sz = q.sz;
 
     let direct_url = format!("https://{host}/favicon.ico");

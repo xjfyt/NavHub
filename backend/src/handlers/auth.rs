@@ -70,8 +70,12 @@ pub async fn callback(
     }
 
     let sso = state.sso.read().await.clone();
-    let token = casdoor::exchange_code(&state.reqwest_client, &sso, &code).await?;
-    let info = casdoor::fetch_userinfo(&state.reqwest_client, &sso, &token.access_token).await?;
+    // Use the lenient client so homelab OIDC servers signed by a private CA work
+    // when the operator has set `app.tls_accept_invalid_certs = true`. With the
+    // flag off the client still validates TLS normally.
+    let token = casdoor::exchange_code(&state.lenient_client, &sso, &code).await?;
+    let info =
+        casdoor::fetch_userinfo(&state.lenient_client, &sso, &token.access_token).await?;
 
     let email = info
         .email
