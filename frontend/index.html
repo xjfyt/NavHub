@@ -13,6 +13,53 @@
     />
   </head>
   <body>
+    <!--
+      Wallpaper preload hint: kick off the image fetch in parallel with the
+      JS bundle download. On a slow network this can shave seconds off the
+      first paint of the wallpaper. Reads the same localStorage keys the
+      runtime writes; if anything is missing or malformed we silently bail.
+    -->
+    <script>
+      (function () {
+        try {
+          var addPreload = function (href) {
+            if (!href || typeof href !== "string") return;
+            var l = document.createElement("link");
+            l.rel = "preload";
+            l.as = "image";
+            l.href = href;
+            l.fetchPriority = "high";
+            document.head.appendChild(l);
+          };
+          // Shuffle mode: useWallpaperShuffle caches the last preset here.
+          var shuffleRaw = localStorage.getItem("navhub_last_wallpaper");
+          if (shuffleRaw) {
+            var preset = JSON.parse(shuffleRaw);
+            if (preset && preset.mediaType !== "video") {
+              addPreload(preset.assetUrl);
+              return;
+            }
+          }
+          // Pinned mode: read from the SWR snapshot of /workspace.
+          var swrRaw = localStorage.getItem("navhub_swr_v1");
+          if (swrRaw) {
+            var swr = JSON.parse(swrRaw);
+            var tweaks =
+              swr && swr.workspace && swr.workspace.preferences && swr.workspace.preferences.tweaks;
+            if (
+              tweaks &&
+              tweaks.backgroundMode === "wallpaper" &&
+              tweaks.wallpaperMediaType !== "video"
+            ) {
+              addPreload(tweaks.wallpaperUrl);
+            }
+          }
+        } catch (_e) {
+          /* ignore — preload is purely a perf hint */
+        }
+      })();
+    </script>
+
     <div id="root"></div>
 
     <!-- Background SVG registry (inline gradients, no hand-drawn artwork) -->

@@ -183,8 +183,10 @@ export const api = {
 
   // ---------- Workspace ----------
   async workspace(): Promise<Workspace> {
-    const ts = Date.now();
-    return request(`/api/workspace?_ts=${ts}`);
+    // App.tsx layer handles staleness via localStorage SWR; the request itself
+    // already opts out of HTTP cache via `cache: "no-store"`, so no need to
+    // append a busting query string.
+    return request("/api/workspace");
   },
 
   // ---------- Groups ----------
