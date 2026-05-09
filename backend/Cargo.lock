@@ -2381,7 +2381,7 @@ dependencies = [
 
 [[package]]
 name = "navhub"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "argon2",
