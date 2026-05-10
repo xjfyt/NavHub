@@ -64,6 +64,11 @@ input, textarea { outline: none; }
 .bg-wallpaper-frame {
   position: fixed; inset: 0; z-index: 1;
   overflow: hidden;
+}
+/* Only the wallpaper that arrives during a shuffle transition fades in. The
+   first paint shows the wallpaper instantly so a cached image isn't hidden
+   behind an 800ms reveal. */
+.bg-wallpaper-frame-fade {
   animation: bgFadeIn 800ms ease-out;
 }
 @keyframes bgFadeIn {
@@ -76,6 +81,14 @@ input, textarea { outline: none; }
   background-position: center;
   background-repeat: no-repeat;
   transition: opacity 400ms ease;
+}
+/* Low-res poster sitting underneath the full image so the user always sees
+   *something* instead of solid theme color while the real wallpaper is
+   downloading. Slight blur disguises any resolution gap. */
+.bg-wallpaper-thumb {
+  filter: blur(18px);
+  transform: scale(1.08);
+  z-index: 0;
 }
 .bg-wallpaper-video {
   position: absolute; inset: 0;

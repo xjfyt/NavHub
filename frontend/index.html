@@ -16,13 +16,15 @@
     <script>
       (function () {
         try {
-          var addPreload = function (href) {
+          var addPreload = function (href, priority) {
             if (!href || typeof href !== "string") return;
             var l = document.createElement("link");
             l.rel = "preload";
             l.as = "image";
             l.href = href;
-            l.fetchPriority = "high";
+            // Thumbnail is tiny and renders as the visible backdrop until the
+            // full-res image arrives, so we want it ahead of the heavy asset.
+            l.fetchPriority = priority || "high";
             document.head.appendChild(l);
           };
           // Shuffle mode: useWallpaperShuffle caches the last preset here.
@@ -30,7 +32,8 @@
           if (shuffleRaw) {
             var preset = JSON.parse(shuffleRaw);
             if (preset && preset.mediaType !== "video") {
-              addPreload(preset.assetUrl);
+              addPreload(preset.thumbUrl || preset.posterUrl, "high");
+              addPreload(preset.assetUrl, "high");
               return;
             }
           }
@@ -45,7 +48,8 @@
               tweaks.backgroundMode === "wallpaper" &&
               tweaks.wallpaperMediaType !== "video"
             ) {
-              addPreload(tweaks.wallpaperUrl);
+              addPreload(tweaks.wallpaperPosterUrl, "high");
+              addPreload(tweaks.wallpaperUrl, "high");
             }
           }
         } catch (_e) {
