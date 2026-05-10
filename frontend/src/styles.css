@@ -11,8 +11,12 @@
   --accent: #ffd7a5;
   --danger: #ff8a8a;
   --ok: #9be7b4;
-  --font-sans: 'Inter', 'Noto Sans SC', -apple-system, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* System font stacks — no external font fetch, instant first paint and
+     zero pain on networks that block fonts.googleapis.com (e.g. mainland CN). */
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    "Hiragino Sans GB", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Code",
+    "Roboto Mono", "Source Code Pro", Consolas, monospace;
   --radius-sm: 10px;
   --radius-md: 16px;
   --radius-lg: 24px;

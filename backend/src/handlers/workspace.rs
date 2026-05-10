@@ -6,8 +6,14 @@ use crate::{
     },
     state::AppState,
 };
-use axum::{extract::State, Extension, Json};
+use axum::{
+    extract::State,
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    Extension,
+};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
@@ -26,7 +32,8 @@ pub struct WorkspaceResp {
 pub async fn get_workspace(
     State(state): State<Arc<AppState>>,
     Extension(maybe_user): Extension<Option<SessionUser>>,
-) -> AppResult<Json<WorkspaceResp>> {
+    headers: HeaderMap,
+) -> AppResult<Response> {
     let is_guest = maybe_user.is_none();
     let user_role = maybe_user.as_ref().map(|u| u.role).unwrap_or(Role::Guest);
     let user_id: Option<Uuid> = maybe_user.as_ref().map(|u| u.id);
@@ -200,14 +207,59 @@ pub async fn get_workspace(
         None => PreferencesView::default(),
     };
 
-    Ok(Json(WorkspaceResp {
+    let resp = WorkspaceResp {
         groups: group_views,
         icons: icon_views,
         widgets: widget_views,
         preferences,
         iframe_whitelist: state.cfg.app.iframe_whitelist.clone(),
         guest: is_guest,
-    }))
+    };
+
+    // ETag lets the client (especially on slow trans-Pacific links) skip the
+    // body when nothing changed since last fetch. We still run the DB queries
+    // — invalidating without a real cache is fine for now since the win is
+    // bandwidth, not backend work.
+    let body = serde_json::to_vec(&resp)?;
+    let etag = make_etag(&body);
+
+    if matches_etag(&headers, &etag) {
+        return Ok((
+            StatusCode::NOT_MODIFIED,
+            [
+                (header::ETAG, etag.as_str()),
+                (header::CACHE_CONTROL, "private, no-cache"),
+            ],
+        )
+            .into_response());
+    }
+
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (header::ETAG, etag.as_str()),
+            (header::CACHE_CONTROL, "private, no-cache"),
+        ],
+        body,
+    )
+        .into_response())
+}
+
+fn make_etag(body: &[u8]) -> String {
+    let digest = Sha256::digest(body);
+    // 16 hex chars (64 bits) — plenty for collision avoidance on a per-user
+    // resource and keeps the header tiny.
+    let short = hex::encode(&digest[..8]);
+    format!("\"{short}\"")
+}
+
+fn matches_etag(headers: &HeaderMap, etag: &str) -> bool {
+    headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .map(|h| h.split(',').any(|t| t.trim() == etag))
+        .unwrap_or(false)
 }
 
 pub async fn ensure_prefs(state: &Arc<AppState>, user_id: Uuid) -> AppResult<UserPreferences> {

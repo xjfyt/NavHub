@@ -183,10 +183,11 @@ export const api = {
 
   // ---------- Workspace ----------
   async workspace(): Promise<Workspace> {
-    // App.tsx layer handles staleness via localStorage SWR; the request itself
-    // already opts out of HTTP cache via `cache: "no-store"`, so no need to
-    // append a busting query string.
-    return request("/api/workspace");
+    // Let the browser HTTP cache participate so the server's ETag /
+    // If-None-Match round-trip can return a tiny 304 instead of the full body
+    // on slow trans-Pacific connections. Server sets Cache-Control: no-cache
+    // (store but always revalidate), so freshness is still guaranteed.
+    return request("/api/workspace", { cache: "default" });
   },
 
   // ---------- Groups ----------

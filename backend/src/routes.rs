@@ -14,8 +14,17 @@ use axum::{
 use std::sync::Arc;
 
 pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
+    // Endpoints that work for guests too. These are either:
+    //   - per-user views that simply return a guest-flavored payload (workspace), or
+    //   - stateless reads that should match what the page actually renders for
+    //     a guest (favicon proxy, wallpaper list — both backing visuals on
+    //     admin-pushed content that guests are allowed to see).
     let api_guest = Router::new()
         .route("/workspace", get(handlers::workspace::get_workspace))
+        .route("/wallpapers", get(handlers::wallpapers::list_wallpapers))
+        .route("/wallpaper-sources", get(handlers::wallpapers::list_sources))
+        .route("/favicon", get(handlers::favicon::proxy))
+        .route("/favicon/search", get(handlers::favicon::search))
         .route("/healthz", get(crate::healthz))
         .route("/readyz", get(crate::readyz))
         .layer(axum::middleware::from_fn_with_state(
@@ -76,15 +85,11 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
                 (state.cfg.app.upload_max_mb * 1024 * 1024) as usize,
             )),
         )
-        .route("/favicon", get(handlers::favicon::proxy))
-        .route("/favicon/search", get(handlers::favicon::search))
         .route("/widgets/weather", get(handlers::widgets::weather))
         .route("/widgets/hot", get(handlers::widgets::hot))
         .route("/widgets/music/search", get(handlers::music::search))
         .route("/widgets/music/song/:id", get(handlers::music::song))
         .route("/auth/password/change", post(handlers::auth::change_password))
-        .route("/wallpapers", get(handlers::wallpapers::list_wallpapers))
-        .route("/wallpaper-sources", get(handlers::wallpapers::list_sources))
         .route(
             "/admin/dashboard",
             get(handlers::admin::dashboard::get_dashboard),

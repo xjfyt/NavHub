@@ -9,15 +9,14 @@ import { ChangePasswordScreen } from "./ChangePasswordScreen";
 
 interface ReadyState {
   stage: "ready";
-  status: AuthStatus;
+  status: AuthStatus | null;
   me: Me | null;
   workspace: Workspace;
-  /** True while a background revalidation is in flight after a stale render. */
+  /** True while the first /workspace request is still in flight on a cold start. */
   revalidating?: boolean;
 }
 
 type BootState =
-  | { stage: "loading" }
   | { stage: "error"; message: string }
   | { stage: "must_change_password" }
   | ReadyState;
@@ -68,10 +67,30 @@ function clearSwr() {
   }
 }
 
+// An empty workspace lets the Shell render immediately on a cold first visit
+// instead of blocking on a full-screen loading screen. Real data slides in
+// when /workspace returns.
+function emptyWorkspace(): Workspace {
+  return {
+    groups: [],
+    icons: [],
+    widgets: [],
+    preferences: {
+      tweaks: {},
+      customEngines: [],
+      pushedGroupWallpapers: {},
+      sidebarOrder: [],
+    },
+    iframeWhitelist: [],
+    guest: true,
+  };
+}
+
 export function App() {
-  // Seed from the last known good payload so the UI paints immediately on
-  // repeat visits even before /workspace returns. The `revalidating` flag
-  // marks the brief window where the screen is showing stale data.
+  // Always start in "ready" so the Shell mounts on the first frame.
+  // - If we have an SWR snapshot, paint it immediately (best UX on repeat visits).
+  // - Otherwise, paint the empty skeleton — the Shell handles zero groups/icons
+  //   gracefully, and the real data replaces it as soon as /workspace returns.
   const [state, setState] = useState<BootState>(() => {
     const cached = readSwr();
     if (cached) {
@@ -83,26 +102,54 @@ export function App() {
         revalidating: true,
       };
     }
-    return { stage: "loading" };
+    return {
+      stage: "ready",
+      status: null,
+      me: null,
+      workspace: emptyWorkspace(),
+      revalidating: true,
+    };
   });
   const [wantLogin, setWantLogin] = useState(false);
 
   const boot = useCallback(async () => {
     try {
-      const status = await api.status();
-      if (status.mustChangePassword) {
+      // Status + workspace always go in parallel. /api/me only fires if we
+      // believe the user is logged in:
+      //   - If the SWR cache says they were authed, kick it off optimistically
+      //     to keep the "warm cache, three-in-flight" fast path.
+      //   - Otherwise (cold start, incognito, last-known guest) we wait for
+      //     /auth/status — saves a guaranteed 401 round-trip for every guest.
+      const cachedAuthed = readSwr()?.status?.authenticated === true;
+      const meEager = cachedAuthed
+        ? api.me().catch((e) => {
+            if (e instanceof ApiError && e.status === 401) return null;
+            throw e;
+          })
+        : null;
+
+      const [statusResult, workspaceResult] = await Promise.all([
+        api.status(),
+        api.workspace(),
+      ]);
+
+      if (statusResult.mustChangePassword) {
         setState({ stage: "must_change_password" });
         clearSwr();
         return;
       }
-      const [workspace, meResult] = await Promise.all([
-        api.workspace(),
-        api.me().catch((e) => {
-          if (e instanceof ApiError && e.status === 401) return null;
-          throw e;
-        }),
-      ]);
-      const me = status.authenticated ? meResult : null;
+
+      let meSettled: Me | null = null;
+      if (statusResult.authenticated) {
+        meSettled = await (meEager ??
+          api.me().catch((e) => {
+            if (e instanceof ApiError && e.status === 401) return null;
+            throw e;
+          }));
+      }
+
+      const workspace = workspaceResult;
+      const me = statusResult.authenticated ? meSettled : null;
       if (!me) {
         try {
           const guestStr = window.localStorage.getItem("navhub_guest_tweaks");
@@ -115,12 +162,12 @@ export function App() {
         }
       }
 
-      if (status.appName) {
-        document.title = status.appName;
-        (window as any).appName = status.appName;
+      if (statusResult.appName) {
+        document.title = statusResult.appName;
+        (window as any).appName = statusResult.appName;
       }
-      setState({ stage: "ready", status, me, workspace });
-      writeSwr({ status, me, workspace });
+      setState({ stage: "ready", status: statusResult, me, workspace });
+      writeSwr({ status: statusResult, me, workspace });
       setWantLogin(false);
     } catch (e) {
       if (e instanceof ApiError && e.code === "must_change_password") {
@@ -128,9 +175,8 @@ export function App() {
         clearSwr();
         return;
       }
-      // If we already painted from cache, keep that on screen rather than
-      // dropping the user back to a generic error page — they can still
-      // navigate, mutations will surface their own toast on failure.
+      // Keep whatever is on screen (cache or skeleton) — the user can still
+      // navigate and mutations will surface their own toast on failure.
       setState((prev) => {
         if (prev.stage === "ready") {
           return { ...prev, revalidating: false };
@@ -147,15 +193,6 @@ export function App() {
   useEffect(() => {
     void boot();
   }, [boot]);
-
-  if (state.stage === "loading") {
-    return (
-      <div className="nh-boot">
-        <div className="nh-boot-spinner" />
-        <div className="nh-boot-text">正在加载系统环境 …</div>
-      </div>
-    );
-  }
 
   if (state.stage === "error") {
     return (
@@ -195,7 +232,7 @@ export function App() {
           await boot();
         }}
       />
-      {showLogin ? (
+      {showLogin && state.status ? (
         <LoginScreen
           status={state.status}
           onAuthed={boot}
