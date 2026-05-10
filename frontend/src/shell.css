@@ -24,84 +24,232 @@
 }
 .nh-boot-text { color: rgba(255,255,255,0.7); letter-spacing: 0.04em; }
 
-/* Own background layer — overrides styles.css fixed positioning */
+/* Full-screen backdrop for takeover screens that don't have a Shell behind
+   them (e.g. forced password change). Pair with one of the bg-* gradients. */
 .nh-bg {
   position: fixed !important;
   inset: 0 !important;
   z-index: 9998 !important;
 }
 
-/* Login */
-.nh-login-wrap {
+/* Login modal — sits over the existing wallpaper / theme so the user keeps
+   visual context instead of being yanked into a separate dark slate. */
+.nh-login-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 24px;
+  /* Just a soft dim — let the wallpaper show through cleanly. The card
+     itself has the frosted-glass effect; blurring the whole screen on top
+     of that is overkill. */
+  background: rgba(8, 10, 16, 0.38);
+  animation: nh-login-overlay-in 220ms ease-out;
 }
-.nh-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(var(--glass-blur, 18px));
-  -webkit-backdrop-filter: blur(var(--glass-blur, 18px));
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+@keyframes nh-login-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
+
 .nh-login-card {
-  width: min(420px, 100%);
-  padding: 32px 28px;
-  border-radius: 22px;
+  position: relative;
+  width: min(360px, 100%);
+  padding: 44px 32px 36px;
+  border-radius: 24px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.08)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 0 0 0.5px rgba(255, 255, 255, 0.06) inset;
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  animation: nh-login-card-in 280ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  color: #fff;
 }
-.nh-login-title { font-size: 32px; font-weight: 700; letter-spacing: 0.02em; color: #fff; }
-.nh-login-sub { color: rgba(255,255,255,0.6); margin-top: 4px; margin-bottom: 20px; font-size: 14px; }
-.nh-login-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
-.nh-tab {
-  padding: 8px 14px;
+@keyframes nh-login-card-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.nh-login-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
   border-radius: 999px;
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.7);
-  font-size: 13px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
   border: none;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
-.nh-tab.on { background: rgba(255,255,255,0.22); color: #fff; }
+.nh-login-close:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.nh-login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+.nh-login-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35));
+}
+.nh-login-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-align: center;
+  line-height: 1.2;
+}
+/* Optional caption under the title — only used by takeover screens like
+   ChangePasswordScreen where extra context is non-negotiable. */
+.nh-login-caption {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+}
+/* Icon swap-in for screens that want a glyph instead of the project image */
+.nh-login-icon-glyph {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #1a1a1a;
+  background: linear-gradient(135deg, #ffe5be, #ffd7a5 60%, #f0b773);
+  box-shadow:
+    0 6px 20px rgba(255, 200, 130, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.4) inset;
+}
+
 .nh-login-pane { display: flex; flex-direction: column; gap: 12px; }
-.nh-login-hint { color: rgba(255,255,255,0.55); font-size: 13px; line-height: 1.5; margin: 0; }
+.nh-login-hint {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: center;
+  margin: 0;
+}
+
+/* Secondary text-button under the primary CTA — switches login methods */
+.nh-login-switch {
+  align-self: center;
+  padding: 6px 8px;
+  margin-top: 2px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.nh-login-switch:hover { color: #fff; }
+
+/* Input with leading icon */
+.nh-login-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.nh-login-field:focus-within {
+  border-color: rgba(255, 215, 165, 0.55);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(255, 215, 165, 0.18);
+}
+.nh-login-field-icon {
+  position: absolute;
+  left: 14px;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
 .nh-login-input {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.1);
+  padding: 12px 14px 12px 40px;
+  border: none;
+  background: transparent;
   color: #fff;
-  border: 1px solid rgba(255,255,255,0.15);
   font-size: 14px;
+  border-radius: 12px;
 }
-.nh-login-input:focus { border-color: rgba(255,255,255,0.4); }
-.nh-btn-primary {
+.nh-login-input::placeholder { color: rgba(255, 255, 255, 0.4); }
+.nh-login-input:focus { outline: none; }
+
+.nh-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 12px 18px;
   border-radius: 12px;
-  background: #fff;
-  color: #111;
-  font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: opacity 0.2s ease;
   font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  background: linear-gradient(135deg, #ffe5be 0%, #ffd09a 100%);
+  box-shadow:
+    0 6px 18px rgba(255, 200, 130, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.55) inset;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, opacity 0.15s ease;
 }
-.nh-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.nh-login-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 24px rgba(255, 200, 130, 0.42),
+    0 1px 0 rgba(255, 255, 255, 0.55) inset;
+}
+.nh-login-btn:active:not(:disabled) { transform: translateY(0); }
+.nh-login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.nh-login-err {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 90, 90, 0.12);
+  border: 1px solid rgba(255, 120, 120, 0.28);
+  color: #ffb4b4;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .nh-btn-ghost {
   padding: 6px 10px;
   border-radius: 8px;
-  color: rgba(255,255,255,0.65);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 12px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border: none;
   cursor: pointer;
 }
-.nh-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #fff; }
-.nh-login-err { color: #ff9d9d; font-size: 13px; }
+.nh-btn-ghost:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 
 /* App shell */
 .nh-shell {
