@@ -82,12 +82,23 @@ export function WorkspaceProvider({
     setMe(initialMe);
   }, [initialMe]);
 
+  // Always land on the first group (the "home" tab) on every fresh mount —
+  // same behavior for guest and authenticated users. We don't persist
+  // navigation state, so this is the entry point for every visit.
   const [activeGroup, setActiveGroup] = useState(
-    workspace.groups.find((g) => !g.readOnly)?.id ||
-      workspace.groups[0]?.id ||
-      "home",
+    workspace.groups[0]?.id || "home",
   );
   const isGuest = me === null;
+
+  // If the current activeGroup isn't in the workspace (e.g. cold-start
+  // skeleton replaced by real data, or the active group got deleted),
+  // snap back to the first group.
+  useEffect(() => {
+    if (workspace.groups.length === 0) return;
+    if (!workspace.groups.some((g) => g.id === activeGroup)) {
+      setActiveGroup(workspace.groups[0].id);
+    }
+  }, [workspace.groups, activeGroup]);
 
   const canEditGroup = useCallback(
     (id: string) => {
