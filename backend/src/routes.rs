@@ -8,6 +8,7 @@ use crate::{
 };
 use axum::{
     extract::DefaultBodyLimit,
+    http::{header, HeaderValue},
     routing::{get, patch, post},
     Router,
 };
@@ -225,5 +226,18 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
     let uploads =
         Router::new().route("/uploads/*path", get(handlers::upload::serve));
 
-    Router::new().merge(public).merge(uploads).nest("/api", api)
+    // `Cache-Control: no-store` on every dynamic response so an upstream reverse
+    // proxy (we've seen openresty in front of this app) can't accidentally cache
+    // `/auth/status` or any per-user `/api/*` response and serve another user's
+    // (or a stale logged-in) view to the next requester. `if_not_present` keeps
+    // handler-set policies (e.g. `favicon` long-cache, `workspace`'s `private,
+    // no-cache`) intact.
+    Router::new()
+        .merge(public)
+        .merge(uploads)
+        .nest("/api", api)
+        .layer(tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store"),
+        ))
 }

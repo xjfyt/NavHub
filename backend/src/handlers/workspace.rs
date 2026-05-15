@@ -228,7 +228,7 @@ pub async fn get_workspace(
             StatusCode::NOT_MODIFIED,
             [
                 (header::ETAG, etag.as_str()),
-                (header::CACHE_CONTROL, "private, no-cache"),
+                (header::CACHE_CONTROL, "no-store"),
             ],
         )
             .into_response());
@@ -239,7 +239,7 @@ pub async fn get_workspace(
         [
             (header::CONTENT_TYPE, "application/json"),
             (header::ETAG, etag.as_str()),
-            (header::CACHE_CONTROL, "private, no-cache"),
+            (header::CACHE_CONTROL, "no-store"),
         ],
         body,
     )
