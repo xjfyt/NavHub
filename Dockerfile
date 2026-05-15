@@ -49,10 +49,12 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 COPY config.example.toml ./config.toml
 RUN chown -R navhub:navhub /app
 USER navhub
-EXPOSE 8080
+EXPOSE 8088
 ENV NAVHUB_CONFIG="/app/config.toml"
-# `/readyz` checks pg + redis liveness so the orchestrator only routes traffic
-# when the dependencies are actually reachable.
+# `/api/readyz` checks pg + redis liveness so the orchestrator only routes
+# traffic when the dependencies are actually reachable. Port matches
+# config.example.toml's [server].port; override `NAVHUB__SERVER__PORT` and
+# the operator must also override this HEALTHCHECK.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD wget -q --spider http://localhost:8080/readyz || exit 1
+    CMD wget -q --spider http://localhost:8088/api/readyz || exit 1
 CMD ["./navhub"]
