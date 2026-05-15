@@ -63,7 +63,9 @@ access_key = "replace-me"
 secret_key = "replace-me"
 path_style = true
 key_prefix = "assets"
-presign_ttl_secs = 3600
+# 24h: 同一个对象 24 小时内拿到的 URL 字节一致，浏览器/反代 HTTP 缓存才能命中，
+# 国内访问体验明显改善。文件名是 sha256 内容哈希，URL 泄露不会暴露其他对象。
+presign_ttl_secs = 86400
 
 # 可选：和风天气 API（留空则组件返回静态样例）
 [weather]
