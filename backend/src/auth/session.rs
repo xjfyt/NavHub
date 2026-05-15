@@ -70,8 +70,13 @@ fn session_key(sid: &str) -> String {
 pub fn build_cookie(sid: &str, ttl_days: i64, secure: bool) -> String {
     let max_age = ttl_days * 24 * 3600;
     let secure_attr = if secure { "; Secure" } else { "" };
+    // SameSite=Lax: OAuth/SSO callback redirects back from a cross-site IdP
+    // (e.g. Casdoor) as a top-level navigation; Strict would drop the session
+    // cookie on the redirect chain and leave the user still unauthenticated.
+    // Lax keeps CSRF protection for cross-site POSTs while letting the
+    // post-callback navigation carry the cookie.
     format!(
-        "{}={}; HttpOnly; Path=/; SameSite=Strict; Max-Age={}{}",
+        "{}={}; HttpOnly; Path=/; SameSite=Lax; Max-Age={}{}",
         COOKIE_NAME, sid, max_age, secure_attr
     )
 }
@@ -79,7 +84,7 @@ pub fn build_cookie(sid: &str, ttl_days: i64, secure: bool) -> String {
 pub fn clear_cookie(secure: bool) -> String {
     let secure_attr = if secure { "; Secure" } else { "" };
     format!(
-        "{}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0{}",
+        "{}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0{}",
         COOKIE_NAME, secure_attr
     )
 }
