@@ -71,9 +71,15 @@ pub async fn list_wallpapers(
         if t.is_empty() { None } else { Some(format!("%{t}%")) }
     });
 
+    // Guest list intentionally skips rows with `storage_key IS NULL`: those are
+    // entries the scraper found but failed to download into MinIO (网络/源被墙等),
+    // so they would render as the original external URL — invariably slow or
+    // outright unreachable for end users behind GFW. The admin view is allowed
+    // to see them so the operator can decide to refetch or delete.
     let total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM remote_wallpapers
          WHERE is_active = true
+           AND storage_key IS NOT NULL
            AND (expires_at IS NULL OR expires_at > now())
            AND ($1::text IS NULL OR media_type = $1)
            AND ($2::text IS NULL OR title ILIKE $2)
@@ -92,13 +98,12 @@ pub async fn list_wallpapers(
          FROM remote_wallpapers rw
          LEFT JOIN wallpaper_sources ws ON ws.id = rw.source_id
          WHERE rw.is_active = true
+           AND rw.storage_key IS NOT NULL
            AND (rw.expires_at IS NULL OR rw.expires_at > now())
            AND ($1::text IS NULL OR rw.media_type = $1)
            AND ($2::text IS NULL OR rw.title ILIKE $2)
            AND ($3::uuid IS NULL OR rw.source_id = $3)
-         ORDER BY
-           CASE WHEN rw.source_id = '00000000-0000-0000-0000-000000000001'::uuid THEN 0 ELSE 1 END,
-           rw.fetched_at DESC
+         ORDER BY rw.fetched_at DESC
          LIMIT $4 OFFSET $5",
     )
     .bind(q.media_type.as_deref())
