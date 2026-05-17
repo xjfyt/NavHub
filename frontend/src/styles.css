@@ -3858,7 +3858,14 @@ html[data-mode="light"] .icon-search-empty-sub {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  scrollbar-width: thin;
+  /* 保留滚动功能，但隐藏滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.nav-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 .nav-area {
   width: 100%;
