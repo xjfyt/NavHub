@@ -189,10 +189,10 @@ export const Shell = ({
     try {
       if (shuffleEnabled) {
         nextPreset();
-        toast.success("已切换到新壁纸");
+        toast.success("已切换到新壁纸", { id: "wallpaper-switch" });
       } else {
         await updateTweaks({ wallpaperShuffle: true, backgroundMode: undefined });
-        toast.success("已开启随机壁纸轮换");
+        toast.success("已开启随机壁纸轮换", { id: "wallpaper-switch" });
       }
     } finally {
       setIsChangingWallpaper(false);
