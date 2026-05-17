@@ -575,6 +575,14 @@ export const api = {
     async triggerWallpaperFetch(id: string): Promise<{ status: string }> {
       return request(`/api/admin/wallpaper-sources/${id}/fetch`, { method: "POST" });
     },
+    async uploadWallpaper(sourceId: string, file: File): Promise<AdminRemoteWallpaper> {
+      const fd = new FormData();
+      fd.append("file", file);
+      return request(`/api/admin/wallpaper-sources/${sourceId}/upload`, {
+        method: "POST",
+        body: fd,
+      });
+    },
     async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number; search?: string } = {}): Promise<AdminPaginatedWallpapers> {
       const qs = new URLSearchParams();
       if (params.sourceId) qs.set("sourceId", params.sourceId);

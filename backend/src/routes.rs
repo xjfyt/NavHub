@@ -168,6 +168,12 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
             post(handlers::admin::wallpapers::trigger_fetch),
         )
         .route(
+            "/admin/wallpaper-sources/:id/upload",
+            post(handlers::admin::wallpapers::upload_wallpaper).layer(
+                DefaultBodyLimit::max(200 * 1024 * 1024),
+            ),
+        )
+        .route(
             "/admin/remote-wallpapers",
             get(handlers::admin::wallpapers::list_wallpapers),
         )

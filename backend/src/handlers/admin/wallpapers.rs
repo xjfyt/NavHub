@@ -10,12 +10,13 @@ use crate::{
     storage::Storage,
 };
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     Extension, Json,
 };
 use bytes::Bytes;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -52,8 +53,12 @@ pub async fn create_source(
     Json(req): Json<CreateWallpaperSourceReq>,
 ) -> AppResult<Json<WallpaperSource>> {
     require_at_least_admin(user.role)?;
-    if req.name.trim().is_empty() || req.site_url.trim().is_empty() {
-        return Err(AppError::BadRequest("name and siteUrl required".into()));
+    if req.name.trim().is_empty() {
+        return Err(AppError::BadRequest("name required".into()));
+    }
+    let is_manual = req.scraper_type.as_deref() == Some("manual");
+    if !is_manual && req.site_url.trim().is_empty() {
+        return Err(AppError::BadRequest("siteUrl required".into()));
     }
     let row = sqlx::query_as::<_, WallpaperSource>(
         "INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
@@ -138,6 +143,12 @@ pub async fn trigger_fetch(
         .fetch_optional(&state.pg)
         .await?
         .ok_or(AppError::NotFound)?;
+
+    if source.scraper_type == "manual" {
+        return Err(AppError::BadRequest(
+            "manual sources are upload-only, use the upload endpoint instead".into(),
+        ));
+    }
 
     tokio::spawn(async move {
         if let Err(e) = run_fetch(&state, &source).await {
@@ -235,7 +246,7 @@ pub async fn delete_wallpaper(
 /// Core fetch logic: scrape a source and store wallpapers in MinIO + DB.
 /// Called both from the background task and the manual trigger endpoint.
 pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyhow::Result<()> {
-    if !source.enabled {
+    if !source.enabled || source.scraper_type == "manual" {
         return Ok(());
     }
 
@@ -412,6 +423,118 @@ async fn download_to_storage(
     storage.put_bytes(&storage_key, Some(&content_type), bytes).await?;
 
     Ok((storage_key, file_size))
+}
+
+/// Manual-upload endpoint for sources with scraper_type="manual".
+/// Receives a single multipart file, stores it in MinIO, and inserts a remote_wallpapers row.
+/// Dedupe by sha256: re-uploading the same bytes is idempotent (returns the existing row).
+pub async fn upload_wallpaper(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<SessionUser>,
+    Path(id): Path<Uuid>,
+    mut mp: Multipart,
+) -> AppResult<Json<RemoteWallpaper>> {
+    require_at_least_admin(user.role)?;
+
+    let source = sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.pg)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    if source.scraper_type != "manual" {
+        return Err(AppError::BadRequest(
+            "upload only available for manual sources".into(),
+        ));
+    }
+
+    let field = mp
+        .next_field()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?
+        .ok_or_else(|| AppError::BadRequest("no file in multipart payload".into()))?;
+
+    let filename = field
+        .file_name()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "wallpaper".into());
+
+    let data = field
+        .bytes()
+        .await
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+
+    let max_bytes: usize = 200 * 1024 * 1024;
+    if data.len() > max_bytes {
+        return Err(AppError::BadRequest(format!(
+            "file too large ({} bytes > {} max)",
+            data.len(),
+            max_bytes
+        )));
+    }
+
+    let (mime, ext) = match infer::get(&data) {
+        Some(kind) => (kind.mime_type().to_string(), kind.extension().to_string()),
+        None => {
+            return Err(AppError::BadRequest("unable to detect file type".into()));
+        }
+    };
+
+    let media_type = if mime.starts_with("image/") {
+        "image"
+    } else if mime.starts_with("video/") {
+        "video"
+    } else {
+        return Err(AppError::BadRequest(
+            "only images and videos are allowed".into(),
+        ));
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(&data);
+    let sha_hex = hex::encode(hasher.finalize());
+
+    let storage_key = format!("wallpapers/manual/{sha_hex}.{ext}");
+    let original_url = format!("manual://{sha_hex}");
+    let file_size = data.len() as i64;
+
+    let bytes_data: Bytes = data.to_vec().into();
+    state
+        .storage
+        .put_bytes(&storage_key, Some(&mime), bytes_data)
+        .await?;
+
+    let title = std::path::Path::new(&filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "未命名壁纸".to_string());
+
+    let row = sqlx::query_as::<_, RemoteWallpaper>(
+        "INSERT INTO remote_wallpapers
+            (source_id, title, original_url, storage_key, media_type, file_size_bytes, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL)
+         ON CONFLICT (source_id, original_url) DO UPDATE
+            SET storage_key = EXCLUDED.storage_key,
+                media_type = EXCLUDED.media_type,
+                file_size_bytes = EXCLUDED.file_size_bytes
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(&title)
+    .bind(&original_url)
+    .bind(&storage_key)
+    .bind(media_type)
+    .bind(file_size)
+    .fetch_one(&state.pg)
+    .await?;
+
+    sqlx::query("UPDATE wallpaper_sources SET updated_at = now() WHERE id = $1")
+        .bind(id)
+        .execute(&state.pg)
+        .await?;
+
+    Ok(Json(row))
 }
 
 fn ext_from_content_type(content_type: &str, url: &str) -> &'static str {

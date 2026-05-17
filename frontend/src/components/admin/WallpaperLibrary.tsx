@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../api";
 import { toast } from "sonner";
 import { confirmDialog, promptDialog } from "../Dialogs";
 import { Icon } from "../Icon";
+import { ContextMenu, type CtxItem, type CtxMenuState } from "../ContextMenu";
 import type { WallpaperSourceView, AdminRemoteWallpaper } from "../../types";
 
 interface ScraperConfig {
@@ -17,6 +18,12 @@ interface ScraperConfig {
 }
 
 const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
+  manual: {
+    label: "本地上传（手动）",
+    defaultUrl: "",
+    defaultBatch: 0,
+    batchHint: "本地壁纸库，不走任何爬虫，直接由你上传图片/视频。",
+  },
   bing: {
     label: "Bing 每日壁纸",
     defaultUrl: "https://www.bing.com/HPImageArchive.aspx?format=js&n=8&mkt=zh-CN",
@@ -174,6 +181,10 @@ export const AdminWallpaperLibrary = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [wallpaperPage, setWallpaperPage] = useState(0);
   const [detailWallpaper, setDetailWallpaper] = useState<AdminRemoteWallpaper | null>(null);
+  const [uploadingTo, setUploadingTo] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetSourceRef = useRef<string | null>(null);
   const PAGE_SIZE = 24;
 
   const loadSources = useCallback(async () => {
@@ -283,6 +294,77 @@ export const AdminWallpaperLibrary = () => {
     }
   };
 
+  const triggerUpload = (sourceId: string) => {
+    uploadTargetSourceRef.current = sourceId;
+    uploadInputRef.current?.click();
+  };
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    const sourceId = uploadTargetSourceRef.current;
+    e.target.value = "";
+    if (!files || files.length === 0 || !sourceId) return;
+    setUploadingTo(sourceId);
+    try {
+      let okCount = 0;
+      for (const file of Array.from(files)) {
+        try {
+          await api.admin.uploadWallpaper(sourceId, file);
+          okCount += 1;
+        } catch (err) {
+          console.error("upload failed", file.name, err);
+          toast.error(`「${file.name}」上传失败`);
+        }
+      }
+      if (okCount > 0) {
+        toast.success(`已上传 ${okCount} 张壁纸`);
+        await Promise.all([loadSources(), loadWallpapers(selectedSourceId, wallpaperPage)]);
+      }
+    } finally {
+      setUploadingTo(null);
+      uploadTargetSourceRef.current = null;
+    }
+  };
+
+  const openWallpaperCtx = (e: React.MouseEvent, w: AdminRemoteWallpaper) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const items: CtxItem[] = [
+      { icon: "eye", label: "查看详情", onClick: () => setDetailWallpaper(w) },
+      { icon: "edit", label: "重命名", onClick: () => handleRenameWallpaper(w) },
+    ];
+    if (w.originalUrl && !w.originalUrl.startsWith("manual://")) {
+      items.push({
+        icon: "external",
+        label: "打开原始链接",
+        onClick: () => window.open(w.originalUrl, "_blank", "noopener,noreferrer"),
+      });
+    }
+    const copyTarget = w.storageKey ? `/uploads/${w.storageKey}` : w.originalUrl;
+    if (copyTarget) {
+      items.push({
+        icon: "link",
+        label: "复制图片地址",
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(new URL(copyTarget, window.location.origin).href);
+            toast.success("已复制到剪贴板");
+          } catch {
+            toast.error("复制失败");
+          }
+        },
+      });
+    }
+    items.push({ divider: true });
+    items.push({
+      icon: "trash",
+      label: "删除壁纸",
+      danger: true,
+      onClick: () => handleDeleteWallpaper(w.id),
+    });
+    setCtxMenu({ x: e.clientX, y: e.clientY, items });
+  };
+
   const sourceNameOf = (sid: string) => sources.find((s) => s.id === sid)?.name ?? "未知来源";
 
   const formatBytes = (n: number | null | undefined) => {
@@ -313,8 +395,13 @@ export const AdminWallpaperLibrary = () => {
 
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.siteUrl.trim()) {
-      toast.error("名称和地址不能为空");
+    if (!form.name.trim()) {
+      toast.error("名称不能为空");
+      return;
+    }
+    const isManual = form.scraperType === "manual";
+    if (!isManual && !form.siteUrl.trim()) {
+      toast.error("地址不能为空");
       return;
     }
     const config = SCRAPER_CONFIGS[form.scraperType];
@@ -520,17 +607,21 @@ export const AdminWallpaperLibrary = () => {
               );
             })()}
 
-            {/* API URL */}
-            {formField("API 地址", "siteUrl", "text", { placeholder: "https://..." })}
+            {form.scraperType !== "manual" && (
+              <>
+                {/* API URL */}
+                {formField("API 地址", "siteUrl", "text", { placeholder: "https://..." })}
 
-            {/* Numeric params */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
-              {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: SCRAPER_CONFIGS[form.scraperType]?.maxBatch ?? 50 })}
-              {formField("缓存时长 (小时)", "cacheTtlHours", "number", { min: 1 })}
-              {formField("抓取间隔 (小时)", "fetchIntervalHours", "number", { min: 1 })}
-            </div>
+                {/* Numeric params */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
+                  {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: SCRAPER_CONFIGS[form.scraperType]?.maxBatch ?? 50 })}
+                  {formField("缓存时长 (小时)", "cacheTtlHours", "number", { min: 1 })}
+                  {formField("抓取间隔 (小时)", "fetchIntervalHours", "number", { min: 1 })}
+                </div>
+              </>
+            )}
             {SCRAPER_CONFIGS[form.scraperType]?.batchHint && (
-              <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: -8, marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: form.scraperType === "manual" ? 0 : -8, marginBottom: 14 }}>
                 {SCRAPER_CONFIGS[form.scraperType].batchHint}
               </div>
             )}
@@ -668,17 +759,31 @@ export const AdminWallpaperLibrary = () => {
                   </span>
                 </td>
                 <td style={{ ...cell, whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => handleTriggerFetch(src)}
-                    disabled={fetching === src.id}
-                    style={{
-                      marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer",
-                      background: "var(--accent)", color: "var(--text-inv)", border: "none", borderRadius: 6,
-                      opacity: fetching === src.id ? 0.6 : 1,
-                    }}
-                  >
-                    {fetching === src.id ? "抓取中..." : "立即抓取"}
-                  </button>
+                  {src.scraperType === "manual" ? (
+                    <button
+                      onClick={() => triggerUpload(src.id)}
+                      disabled={uploadingTo === src.id}
+                      style={{
+                        marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer",
+                        background: "var(--accent)", color: "var(--text-inv)", border: "none", borderRadius: 6,
+                        opacity: uploadingTo === src.id ? 0.6 : 1,
+                      }}
+                    >
+                      {uploadingTo === src.id ? "上传中..." : "上传壁纸"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleTriggerFetch(src)}
+                      disabled={fetching === src.id}
+                      style={{
+                        marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer",
+                        background: "var(--accent)", color: "var(--text-inv)", border: "none", borderRadius: 6,
+                        opacity: fetching === src.id ? 0.6 : 1,
+                      }}
+                    >
+                      {fetching === src.id ? "抓取中..." : "立即抓取"}
+                    </button>
+                  )}
                   <button
                     onClick={() => openEditForm(src)}
                     style={{ marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer", background: "transparent", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)" }}
@@ -751,6 +856,7 @@ export const AdminWallpaperLibrary = () => {
             <div
               key={w.id}
               onClick={() => setDetailWallpaper(w)}
+              onContextMenu={(e) => openWallpaperCtx(e, w)}
               style={{
                 background: "var(--admin-border-soft)",
                 borderRadius: 10,
@@ -923,6 +1029,26 @@ export const AdminWallpaperLibrary = () => {
             </div>
           </div>
         </div>
+      )}
+
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        title="上传壁纸"
+        aria-label="上传壁纸"
+        style={{ display: "none" }}
+        onChange={handleUploadFile}
+      />
+
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={ctxMenu.items}
+          onClose={() => setCtxMenu(null)}
+        />
       )}
     </div>
   );
