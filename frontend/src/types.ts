@@ -291,6 +291,8 @@ export interface AdminRemoteWallpaper {
   thumbnailUrl: string | null;
   mediaType: "video" | "image";
   fileSizeBytes: number | null;
+  width: number | null;
+  height: number | null;
   author: string | null;
   fetchedAt: string;
   expiresAt: string | null;

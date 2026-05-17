@@ -292,7 +292,7 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
         )
         .await
         {
-            Ok((storage_key, file_size)) => {
+            Ok((storage_key, file_size, width, height)) => {
                 // Download thumbnail if available
                 let thumb_key = if let Some(ref thumb_url) = item.thumbnail_url {
                     download_to_storage(
@@ -304,15 +304,15 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
                     )
                     .await
                     .ok()
-                    .map(|(k, _)| k)
+                    .map(|(k, _, _, _)| k)
                 } else {
                     None
                 };
 
                 let res = sqlx::query(
                     "INSERT INTO remote_wallpapers
-                        (source_id, title, original_url, page_url, storage_key, thumbnail_key, thumbnail_url, media_type, file_size_bytes, author, expires_at)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                        (source_id, title, original_url, page_url, storage_key, thumbnail_key, thumbnail_url, media_type, file_size_bytes, width, height, author, expires_at)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                      ON CONFLICT (source_id, original_url) DO NOTHING",
                 )
                 .bind(source.id)
@@ -324,6 +324,8 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
                 .bind(&item.thumbnail_url)
                 .bind(&item.media_type)
                 .bind(file_size as i64)
+                .bind(width)
+                .bind(height)
                 .bind(&item.author)
                 .bind(expires_at)
                 .execute(&state.pg)
@@ -375,13 +377,22 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
     Ok(())
 }
 
+/// Read pixel dimensions from image header bytes. Returns (None, None) for
+/// videos/unsupported/corrupt inputs; never panics. Cheap (header-only parse).
+fn measure_image_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
+    match imagesize::blob_size(bytes) {
+        Ok(s) => (Some(s.width as i32), Some(s.height as i32)),
+        Err(_) => (None, None),
+    }
+}
+
 async fn download_to_storage(
     client: &reqwest::Client,
     storage: &Storage,
     url: &str,
     prefix: &str,
     max_bytes: u64,
-) -> anyhow::Result<(String, u64)> {
+) -> anyhow::Result<(String, u64, Option<i32>, Option<i32>)> {
     let resp = client.get(url).send().await?;
     if !resp.status().is_success() {
         anyhow::bail!("http {} downloading {url}", resp.status());
@@ -420,9 +431,10 @@ async fn download_to_storage(
 
     let storage_key = format!("{prefix}/{hash}.{ext}");
     let file_size = bytes.len() as u64;
+    let (width, height) = measure_image_dimensions(&bytes);
     storage.put_bytes(&storage_key, Some(&content_type), bytes).await?;
 
-    Ok((storage_key, file_size))
+    Ok((storage_key, file_size, width, height))
 }
 
 /// Manual-upload endpoint for sources with scraper_type="manual".
@@ -497,6 +509,7 @@ pub async fn upload_wallpaper(
     let storage_key = format!("wallpapers/manual/{sha_hex}.{ext}");
     let original_url = format!("manual://{sha_hex}");
     let file_size = data.len() as i64;
+    let (width, height) = measure_image_dimensions(&data);
 
     let bytes_data: Bytes = data.to_vec().into();
     state
@@ -512,12 +525,14 @@ pub async fn upload_wallpaper(
 
     let row = sqlx::query_as::<_, RemoteWallpaper>(
         "INSERT INTO remote_wallpapers
-            (source_id, title, original_url, storage_key, media_type, file_size_bytes, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NULL)
+            (source_id, title, original_url, storage_key, media_type, file_size_bytes, width, height, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
          ON CONFLICT (source_id, original_url) DO UPDATE
             SET storage_key = EXCLUDED.storage_key,
                 media_type = EXCLUDED.media_type,
-                file_size_bytes = EXCLUDED.file_size_bytes
+                file_size_bytes = EXCLUDED.file_size_bytes,
+                width = EXCLUDED.width,
+                height = EXCLUDED.height
          RETURNING *",
     )
     .bind(id)
@@ -526,6 +541,8 @@ pub async fn upload_wallpaper(
     .bind(&storage_key)
     .bind(media_type)
     .bind(file_size)
+    .bind(width)
+    .bind(height)
     .fetch_one(&state.pg)
     .await?;
 

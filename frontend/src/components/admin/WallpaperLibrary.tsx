@@ -902,6 +902,18 @@ export const AdminWallpaperLibrary = () => {
                 </div>
               )}
 
+              {/* Resolution badge */}
+              {w.width && w.height && (
+                <div style={{
+                  position: "absolute", top: 6, right: 6,
+                  background: "rgba(0,0,0,0.65)", borderRadius: 4,
+                  padding: "2px 6px", fontSize: 10, color: "#fff",
+                  fontVariantNumeric: "tabular-nums",
+                }}>
+                  {w.width}×{w.height}
+                </div>
+              )}
+
               <div style={{ padding: "8px 10px 10px" }}>
                 <div style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={w.title ?? undefined}>
                   {w.title ?? "未命名壁纸"}
@@ -985,6 +997,14 @@ export const AdminWallpaperLibrary = () => {
                 {detailWallpaper.author ? ` · ${detailWallpaper.author}` : ""}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 8, columnGap: 14, fontSize: 12 }}>
+                <div style={{ color: "var(--text-soft)" }}>分辨率</div>
+                <div>
+                  {detailWallpaper.width && detailWallpaper.height
+                    ? `${detailWallpaper.width} × ${detailWallpaper.height}`
+                    : detailWallpaper.mediaType === "video"
+                    ? "—（视频未探测）"
+                    : "—"}
+                </div>
                 <div style={{ color: "var(--text-soft)" }}>文件大小</div>
                 <div>{formatBytes(detailWallpaper.fileSizeBytes)}</div>
                 <div style={{ color: "var(--text-soft)" }}>抓取时间</div>

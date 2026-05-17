@@ -33,6 +33,8 @@ pub struct RemoteWallpaper {
     pub thumbnail_url: Option<String>,
     pub media_type: String,
     pub file_size_bytes: Option<i64>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
     pub author: Option<String>,
     pub fetched_at: DateTime<Utc>,
     pub expires_at: Option<DateTime<Utc>>,
