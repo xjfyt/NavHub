@@ -15,4 +15,4 @@ CREATE TABLE wallpaper_sources (
 );
 
 INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
-VALUES ('Desktop Hut Live Wallpapers', 'https://www.desktophut.com/category/landscape-live-wallpapers', true, 10, 168, 24, 'video', 'desktophut');
+VALUES ('Desktop Hut Live Wallpapers', 'https://www.desktophut.com', true, 10, 168, 24, 'video', 'desktophut');
