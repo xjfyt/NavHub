@@ -303,14 +303,16 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+    // input.files 是对该 input 选区的实时引用——一旦下面把 value 清空，
+    // 这个 FileList 会立刻变空，所以必须先快照成 File[] 再清空。
+    const files: File[] = e.target.files ? Array.from(e.target.files) : [];
     const sourceId = uploadTargetSourceRef.current;
     e.target.value = "";
-    if (!files || files.length === 0 || !sourceId) return;
+    if (files.length === 0 || !sourceId) return;
     setUploadingTo(sourceId);
     try {
       let okCount = 0;
-      for (const file of Array.from(files)) {
+      for (const file of files) {
         try {
           await api.admin.uploadWallpaper(sourceId, file);
           okCount += 1;
