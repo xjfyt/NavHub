@@ -476,6 +476,7 @@ export const Shell = ({
             else setTweaksOpen(true);
           }}
           onLogout={() => void onLogout()}
+          sidebarPos={tweaks.sidebarPos === "right" ? "right" : "left"}
         />
       )}
 

@@ -2,14 +2,15 @@ import React from "react";
 import { Icon } from "./Icon";
 import { Me } from "../types";
 
-export const UserMenu = ({ 
-  user, 
-  onClose, 
-  onOpenAdmin, 
-  onOpenSSO, 
-  onOpenSettings, 
+export const UserMenu = ({
+  user,
+  onClose,
+  onOpenAdmin,
+  onOpenSSO,
+  onOpenSettings,
   onLogout,
-  onContextMenu
+  onContextMenu,
+  sidebarPos = "left",
 }: {
   user: Me;
   onClose: () => void;
@@ -18,6 +19,7 @@ export const UserMenu = ({
   onOpenSettings: (isProfile?: boolean) => void;
   onLogout: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  sidebarPos?: "left" | "right";
 }) => {
   const role = user.role || "user";
   const roleLabel = { superadmin: "超级管理员", admin: "管理员", user: "普通用户", guest: "访客" }[role] || role;
@@ -56,7 +58,16 @@ export const UserMenu = ({
       onClose();
       if (onContextMenu) onContextMenu(e);
     }} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}>
-      <div className="user-menu glass-strong" onClick={e=>e.stopPropagation()} onContextMenu={e=>e.stopPropagation()} style={{ position: 'absolute', bottom: 70, left: 20, zIndex: 9999 }}>
+      <div
+        className="user-menu glass-strong"
+        onClick={e=>e.stopPropagation()}
+        onContextMenu={e=>e.stopPropagation()}
+        style={
+          sidebarPos === "right"
+            ? { position: 'absolute', bottom: 70, right: 20, zIndex: 9999 }
+            : { position: 'absolute', bottom: 70, left: 20, zIndex: 9999 }
+        }
+      >
         <div className="user-menu-head">
           {user.avatarUrl ? (
             <div className="side-avatar">
