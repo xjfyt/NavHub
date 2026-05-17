@@ -2,10 +2,12 @@ use crate::{
     auth::require_at_least_admin,
     error::{AppError, AppResult},
     models::{
-        wallpaper::{CreateWallpaperSourceReq, RemoteWallpaper, UpdateWallpaperSourceReq, WallpaperSource},
+        wallpaper::{
+            CreateWallpaperSourceReq, RemoteWallpaper, UpdateWallpaperSourceReq, WallpaperSource,
+        },
         SessionUser,
     },
-    scraper::get_scraper,
+    scraper::{get_scraper, is_wallpaper_dimensions},
     state::AppState,
     storage::Storage,
 };
@@ -85,11 +87,12 @@ pub async fn update_source(
     Json(req): Json<UpdateWallpaperSourceReq>,
 ) -> AppResult<Json<WallpaperSource>> {
     require_at_least_admin(user.role)?;
-    let existing = sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.pg)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let existing =
+        sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pg)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, WallpaperSource>(
         "UPDATE wallpaper_sources SET
@@ -109,11 +112,27 @@ pub async fn update_source(
     .bind(req.name.as_deref().unwrap_or(&existing.name).trim())
     .bind(req.site_url.as_deref().unwrap_or(&existing.site_url).trim())
     .bind(req.enabled.unwrap_or(existing.enabled))
-    .bind(req.fetch_batch_size.unwrap_or(existing.fetch_batch_size).clamp(1, 50))
-    .bind(req.cache_ttl_hours.unwrap_or(existing.cache_ttl_hours).max(1))
-    .bind(req.fetch_interval_hours.unwrap_or(existing.fetch_interval_hours).max(1))
+    .bind(
+        req.fetch_batch_size
+            .unwrap_or(existing.fetch_batch_size)
+            .clamp(1, 50),
+    )
+    .bind(
+        req.cache_ttl_hours
+            .unwrap_or(existing.cache_ttl_hours)
+            .max(1),
+    )
+    .bind(
+        req.fetch_interval_hours
+            .unwrap_or(existing.fetch_interval_hours)
+            .max(1),
+    )
     .bind(req.source_type.as_deref().unwrap_or(&existing.source_type))
-    .bind(req.scraper_type.as_deref().unwrap_or(&existing.scraper_type))
+    .bind(
+        req.scraper_type
+            .as_deref()
+            .unwrap_or(&existing.scraper_type),
+    )
     .fetch_one(&state.pg)
     .await?;
     Ok(Json(row))
@@ -138,11 +157,12 @@ pub async fn trigger_fetch(
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<serde_json::Value>> {
     require_at_least_admin(user.role)?;
-    let source = sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.pg)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let source =
+        sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pg)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     if source.scraper_type == "manual" {
         return Err(AppError::BadRequest(
@@ -176,10 +196,11 @@ pub async fn list_wallpapers(
     let offset = q.offset.unwrap_or(0);
 
     let (items, total) = if let Some(sid) = q.source_id {
-        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_wallpapers WHERE source_id = $1")
-            .bind(sid)
-            .fetch_one(&state.pg)
-            .await?;
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM remote_wallpapers WHERE source_id = $1")
+                .bind(sid)
+                .fetch_one(&state.pg)
+                .await?;
         let rows = sqlx::query_as::<_, RemoteWallpaper>(
             "SELECT * FROM remote_wallpapers WHERE source_id = $1 ORDER BY fetched_at DESC LIMIT $2 OFFSET $3",
         )
@@ -218,7 +239,11 @@ pub async fn update_wallpaper(
     Json(req): Json<UpdateWallpaperReq>,
 ) -> AppResult<Json<RemoteWallpaper>> {
     require_at_least_admin(user.role)?;
-    let title = req.title.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    let title = req
+        .title
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
     let row = sqlx::query_as::<_, RemoteWallpaper>(
         "UPDATE remote_wallpapers SET title = COALESCE($2, title) WHERE id = $1 RETURNING *",
     )
@@ -250,10 +275,16 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
         return Ok(());
     }
 
-    tracing::info!("fetching wallpapers from source '{}' ({})", source.name, source.site_url);
+    tracing::info!(
+        "fetching wallpapers from source '{}' ({})",
+        source.name,
+        source.site_url
+    );
 
     let scraper = get_scraper(&source.scraper_type);
-    let scraped = scraper.scrape(&source.site_url, source.fetch_batch_size as usize).await?;
+    let scraped = scraper
+        .scrape(&source.site_url, source.fetch_batch_size as usize)
+        .await?;
 
     tracing::info!("scraped {} wallpapers, downloading...", scraped.len());
 
@@ -293,6 +324,16 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
         .await
         {
             Ok((storage_key, file_size, width, height)) => {
+                if item.media_type == "image" && !is_downloaded_quality_wallpaper(width, height) {
+                    tracing::info!(
+                        "skipping low quality wallpaper {:?}: dimensions {:?}x{:?}",
+                        item.title,
+                        width,
+                        height
+                    );
+                    continue;
+                }
+
                 // Download thumbnail if available
                 let thumb_key = if let Some(ref thumb_url) = item.thumbnail_url {
                     download_to_storage(
@@ -373,7 +414,10 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
     .execute(&state.pg)
     .await?;
 
-    tracing::info!("fetch complete: stored {stored_count} new wallpapers from '{}'", source.name);
+    tracing::info!(
+        "fetch complete: stored {stored_count} new wallpapers from '{}'",
+        source.name
+    );
     Ok(())
 }
 
@@ -383,6 +427,13 @@ fn measure_image_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
     match imagesize::blob_size(bytes) {
         Ok(s) => (Some(s.width as i32), Some(s.height as i32)),
         Err(_) => (None, None),
+    }
+}
+
+fn is_downloaded_quality_wallpaper(width: Option<i32>, height: Option<i32>) -> bool {
+    match (width, height) {
+        (Some(w), Some(h)) if w > 0 && h > 0 => is_wallpaper_dimensions(w as u32, h as u32),
+        _ => false,
     }
 }
 
@@ -432,7 +483,9 @@ async fn download_to_storage(
     let storage_key = format!("{prefix}/{hash}.{ext}");
     let file_size = bytes.len() as u64;
     let (width, height) = measure_image_dimensions(&bytes);
-    storage.put_bytes(&storage_key, Some(&content_type), bytes).await?;
+    storage
+        .put_bytes(&storage_key, Some(&content_type), bytes)
+        .await?;
 
     Ok((storage_key, file_size, width, height))
 }
@@ -448,11 +501,12 @@ pub async fn upload_wallpaper(
 ) -> AppResult<Json<RemoteWallpaper>> {
     require_at_least_admin(user.role)?;
 
-    let source = sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.pg)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let source =
+        sqlx::query_as::<_, WallpaperSource>("SELECT * FROM wallpaper_sources WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pg)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     if source.scraper_type != "manual" {
         return Err(AppError::BadRequest(

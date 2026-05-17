@@ -17,7 +17,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
 VALUES (
     'Wikimedia Commons 动态壁纸',
-    'https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:Timelapse_videos&cmtype=file&cmlimit=30&format=json',
+    'https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:Time-lapse_videos&cmtype=file&cmlimit=100&format=json',
     true, 20, 720, 168, 'video', 'wikimedia'
 );
 
@@ -25,8 +25,8 @@ VALUES (
 INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
 VALUES (
     'NASA 天文图库',
-    'https://images-api.nasa.gov/search?q=earth+aurora+nebula+galaxy+space&media_type=image&page_size=20',
-    true, 20, 720, 168, 'image', 'nasa'
+    'https://images-api.nasa.gov/search?q=aurora%20nebula%20galaxy%20earth&media_type=image&page_size=80',
+    true, 30, 720, 168, 'image', 'nasa'
 );
 
 -- ========== Seed existing hardcoded presets into remote_wallpapers ==========

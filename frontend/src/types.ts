@@ -182,8 +182,18 @@ export interface AdminDashboardStats {
   onlineUsers: number;
   totalIcons: number;
   totalGroups: number;
+  totalWidgets: number;
+  totalWallpapers: number;
+  wallpaperImageCount: number;
+  wallpaperVideoCount: number;
+  wallpaperSourcesTotal: number;
+  wallpaperSourcesEnabled: number;
+  totalIconAssets: number;
+  iconAssetSourcesTotal: number;
+  iconAssetSourcesEnabled: number;
   recentAudit: AuditEntry[];
   rolesDistribution: Record<string, number>;
+  topWallpaperSources: { name: string; count: number }[];
 }
 
 export type MessageLevel = "info" | "success" | "warning" | "error";

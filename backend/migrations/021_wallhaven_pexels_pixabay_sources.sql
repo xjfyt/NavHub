@@ -4,7 +4,7 @@
 INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
 VALUES (
     'Wallhaven 热门壁纸',
-    'https://wallhaven.cc/api/v1/search?purity=100&categories=110&sorting=hot&atleast=1920x1080',
+    'https://wallhaven.cc/api/v1/search?purity=100&categories=100&sorting=toplist&topRange=1M&atleast=2560x1440&ratios=16x9,16x10',
     true,
     24,
     168,
@@ -34,7 +34,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
 VALUES (
     'Pixabay 自然风景',
-    'https://pixabay.com/api/?key=YOUR_PIXABAY_API_KEY&category=nature&min_width=1920&per_page=30&order=popular',
+    'https://pixabay.com/api/?key=YOUR_PIXABAY_API_KEY&category=nature&image_type=photo&orientation=horizontal&min_width=2560&min_height=1440&per_page=50&order=popular&safesearch=true',
     false,
     30,
     720,

@@ -1,6 +1,10 @@
-use super::{truncate_title, ScrapedWallpaper, Scraper};
+use super::{
+    is_blocked_wallpaper_subject, is_wallpaper_dimensions, truncate_title, ScrapedWallpaper,
+    Scraper,
+};
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use url::Url;
 
 pub struct WikimediaScraper {
     client: reqwest::Client,
@@ -9,7 +13,9 @@ pub struct WikimediaScraper {
 impl WikimediaScraper {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
-            .user_agent("NavHub/1.0 (https://github.com/navhub; contact: navhub@example.com) reqwest/0.12")
+            .user_agent(
+                "NavHub/1.0 (https://github.com/navhub; contact: navhub@example.com) reqwest/0.12",
+            )
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default();
@@ -56,30 +62,38 @@ struct ImageInfo {
     thumburl: Option<String>,
     #[serde(rename = "descriptionurl")]
     description_url: Option<String>,
+    #[serde(default)]
+    width: Option<u32>,
+    #[serde(default)]
+    height: Option<u32>,
+    #[serde(default)]
+    mime: Option<String>,
+    #[serde(default)]
+    mediatype: Option<String>,
 }
 
 #[async_trait::async_trait]
 impl Scraper for WikimediaScraper {
     async fn scrape(&self, site_url: &str, batch_size: usize) -> Result<Vec<ScrapedWallpaper>> {
         // site_url is the full API URL with category/query params
+        let category_url = wikimedia_category_url(site_url, batch_size)?;
         let cm_resp: CategoryMembersResp = self
             .client
-            .get(site_url)
+            .get(category_url.as_str())
             .send()
             .await
             .context("wikimedia categorymembers fetch")?
+            .error_for_status()
+            .context("wikimedia categorymembers error")?
             .json()
             .await
             .context("wikimedia categorymembers parse")?;
 
-        let members = cm_resp
-            .query
-            .map(|q| q.members)
-            .unwrap_or_default();
+        let members = cm_resp.query.map(|q| q.members).unwrap_or_default();
 
         let titles: Vec<String> = members
             .iter()
-            .take(batch_size)
+            .take((batch_size * 5).clamp(30, 200))
             .map(|m| m.title.clone())
             .collect();
 
@@ -94,11 +108,8 @@ impl Scraper for WikimediaScraper {
         // Batch info requests (up to 50 titles per request)
         for chunk in titles.chunks(10) {
             let titles_param = chunk.join("|");
-            // iiprop=url is sufficient; thumburl and descriptionurl are returned
-            // automatically when iiurlwidth is set (comma-separated values are rejected
-            // by the MediaWiki API — it requires pipe-separated, but url alone works)
             let info_url = format!(
-                "https://commons.wikimedia.org/w/api.php?action=query&titles={}&prop=imageinfo&iiprop=url&iiurlwidth=1280&format=json",
+                "https://commons.wikimedia.org/w/api.php?action=query&titles={}&prop=imageinfo&iiprop=url%7Csize%7Cmime%7Cmediatype&iiurlwidth=640&format=json",
                 urlencoding::encode(&titles_param)
             );
 
@@ -139,8 +150,11 @@ impl Scraper for WikimediaScraper {
 
                     if let Some(infos) = page.imageinfo {
                         if let Some(info) = infos.first() {
+                            if !is_quality_wikimedia_file(title, info) {
+                                continue;
+                            }
                             if let Some(url) = &info.url {
-                                let media_type = infer_media_type(url);
+                                let media_type = infer_media_type(url, info);
                                 results.push(ScrapedWallpaper {
                                     title: truncate_title(Some(name), 80),
                                     video_url: url.clone(),
@@ -152,9 +166,16 @@ impl Scraper for WikimediaScraper {
                             }
                         }
                     }
+
+                    if results.len() >= batch_size {
+                        break;
+                    }
                 }
             }
 
+            if results.len() >= batch_size {
+                break;
+            }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
 
@@ -162,7 +183,54 @@ impl Scraper for WikimediaScraper {
     }
 }
 
-fn infer_media_type(url: &str) -> String {
+fn wikimedia_category_url(site_url: &str, batch_size: usize) -> Result<Url> {
+    let mut url = Url::parse(site_url).context("wikimedia source url parse")?;
+    upsert_query_param(&mut url, "cmtype", "file");
+    upsert_query_param(
+        &mut url,
+        "cmlimit",
+        &(batch_size * 5).clamp(30, 200).to_string(),
+    );
+    Ok(url)
+}
+
+fn upsert_query_param(url: &mut Url, key: &str, value: &str) {
+    let mut params: Vec<(String, String)> = url
+        .query_pairs()
+        .filter(|(k, _)| k != key)
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    params.push((key.to_string(), value.to_string()));
+
+    url.set_query(None);
+    {
+        let mut pairs = url.query_pairs_mut();
+        for (k, v) in params {
+            pairs.append_pair(&k, &v);
+        }
+    }
+}
+
+fn is_quality_wikimedia_file(title: &str, info: &ImageInfo) -> bool {
+    if is_blocked_wallpaper_subject(title) {
+        return false;
+    }
+
+    match (info.width, info.height) {
+        (Some(w), Some(h)) if is_wallpaper_dimensions(w, h) => {}
+        _ => return false,
+    }
+
+    let media_type = info.mediatype.as_deref().unwrap_or_default();
+    let mime = info.mime.as_deref().unwrap_or_default();
+    media_type == "VIDEO" || mime.starts_with("image/")
+}
+
+fn infer_media_type(url: &str, info: &ImageInfo) -> String {
+    if info.mediatype.as_deref() == Some("VIDEO") {
+        return "video".to_string();
+    }
+
     let lower = url.to_lowercase();
     if lower.ends_with(".webm")
         || lower.ends_with(".ogv")

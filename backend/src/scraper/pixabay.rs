@@ -1,4 +1,7 @@
-use super::{truncate_title, ScrapedWallpaper, Scraper, MIN_IMAGE_DIMENSION};
+use super::{
+    is_blocked_wallpaper_subject, is_wallpaper_dimensions, truncate_title, ScrapedWallpaper,
+    Scraper,
+};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -58,14 +61,15 @@ impl Scraper for PixabayScraper {
         let results = resp
             .hits
             .into_iter()
-            .filter(|hit| {
-                let min_side = hit.image_width.min(hit.image_height);
-                min_side == 0 || min_side >= MIN_IMAGE_DIMENSION
-            })
+            .filter(is_quality_pixabay_hit)
             .take(batch_size)
             .map(|hit| {
                 let title = truncate_title(
-                    if hit.tags.is_empty() { None } else { Some(hit.tags) },
+                    if hit.tags.is_empty() {
+                        None
+                    } else {
+                        Some(hit.tags)
+                    },
                     80,
                 );
 
@@ -82,4 +86,9 @@ impl Scraper for PixabayScraper {
 
         Ok(results)
     }
+}
+
+fn is_quality_pixabay_hit(hit: &PixabayHit) -> bool {
+    is_wallpaper_dimensions(hit.image_width, hit.image_height)
+        && !is_blocked_wallpaper_subject(&hit.tags)
 }

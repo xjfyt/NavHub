@@ -1,4 +1,4 @@
-use super::{truncate_title, ScrapedWallpaper, Scraper};
+use super::{is_blocked_wallpaper_subject, truncate_title, ScrapedWallpaper, Scraper};
 use anyhow::{Context, Result};
 use scraper::{Html, Selector};
 
@@ -152,8 +152,14 @@ impl DesktopHutScraper {
             })
             .map(|u| resolve_url(&u, page_url));
 
+        let title = title.map(|t| clean_title(&t));
+        let subject = format!("{} {page_url}", title.as_deref().unwrap_or_default());
+        if is_blocked_wallpaper_subject(&subject) {
+            return None;
+        }
+
         Some(ScrapedWallpaper {
-            title: truncate_title(title.map(|t| clean_title(&t)), 80),
+            title: truncate_title(title, 80),
             video_url,
             thumbnail_url,
             page_url: Some(page_url.to_string()),

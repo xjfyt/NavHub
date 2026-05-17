@@ -1,4 +1,7 @@
-use super::{truncate_title, ScrapedWallpaper, Scraper, MIN_IMAGE_DIMENSION};
+use super::{
+    is_blocked_wallpaper_subject, is_wallpaper_dimensions, truncate_title, ScrapedWallpaper,
+    Scraper,
+};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -72,16 +75,17 @@ impl Scraper for WallhavenScraper {
         let results = resp
             .data
             .into_iter()
-            .filter(|item| {
-                let min_side = item.dimension_x.min(item.dimension_y);
-                min_side == 0 || min_side >= MIN_IMAGE_DIMENSION
-            })
+            .filter(is_quality_wallhaven_item)
             .take(batch_size)
             .map(|item| {
                 let title = truncate_title(
                     item.tags.and_then(|tags| {
                         let names: Vec<_> = tags.into_iter().take(3).map(|t| t.name).collect();
-                        if names.is_empty() { None } else { Some(names.join(", ")) }
+                        if names.is_empty() {
+                            None
+                        } else {
+                            Some(names.join(", "))
+                        }
                     }),
                     80,
                 );
@@ -105,6 +109,25 @@ impl Scraper for WallhavenScraper {
 
         Ok(results)
     }
+}
+
+fn is_quality_wallhaven_item(item: &WallhavenItem) -> bool {
+    if !is_wallpaper_dimensions(item.dimension_x, item.dimension_y) {
+        return false;
+    }
+
+    if let Some(tags) = &item.tags {
+        let subject = tags
+            .iter()
+            .map(|tag| tag.name.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if is_blocked_wallpaper_subject(&subject) {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn extract_param(url: &str, key: &str) -> Option<String> {

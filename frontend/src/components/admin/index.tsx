@@ -7,7 +7,6 @@ import { ErrorBoundary } from "./shared";
 // in a 60KB monolith for users who only need one screen.
 const AdminDashboard = lazy(() => import("./tabs/Dashboard"));
 const AdminUsers = lazy(() => import("./tabs/Users"));
-const AdminRoles = lazy(() => import("./tabs/Roles"));
 const AdminMessages = lazy(() => import("./tabs/Messages"));
 const AdminPush = lazy(() => import("./tabs/Push"));
 const AdminAudit = lazy(() => import("./tabs/Audit"));
@@ -38,7 +37,6 @@ export const AdminShell = ({
   const tabs = [
     { id: "dashboard", name: "总览", icon: "grid" },
     { id: "users", name: "用户管理", icon: "users" },
-    { id: "roles", name: "角色 / 权限", icon: "shield" },
     { id: "messages", name: "消息推送", icon: "bell" },
     { id: "push", name: "推送分类", icon: "send" },
     { id: "wallpapers", name: "壁纸库", icon: "image" },
@@ -136,7 +134,6 @@ export const AdminShell = ({
           <Suspense fallback={<TabFallback />}>
             {tab === "dashboard" && <AdminDashboard />}
             {tab === "users" && <AdminUsers />}
-            {tab === "roles" && <AdminRoles />}
             {tab === "messages" && <AdminMessages />}
             {tab === "push" && <AdminPush groups={workspace.groups} />}
             {tab === "wallpapers" && <AdminWallpaperLibrary />}

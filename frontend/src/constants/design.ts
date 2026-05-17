@@ -22,21 +22,4 @@ export const ROLES = [
   { id: "guest", label: "访客 · Guest", desc: "未登录 · 只读预览 · 禁用所有编辑操作" },
 ];
 
-export const PERMISSIONS = [
-  { key: "view_nav", label: "查看导航页" },
-  { key: "use_widgets", label: "使用小组件" },
-  { key: "edit_own_nav", label: "编辑自有分类 / 图标 / 壁纸" },
-  { key: "reorder_sidebar", label: "调整侧边栏顺序" },
-  { key: "edit_pushed_wallpaper", label: "修改推送分类壁纸" },
-  { key: "manage_groups", label: "管理全局分类 / 推送" },
-  { key: "manage_users", label: "管理用户与角色" },
-  { key: "manage_sso", label: "SSO 接入配置" },
-  { key: "audit_log", label: "查看审计日志" },
-];
-
-export const ROLE_MATRIX: Record<string, string[]> = {
-  superadmin: ["view_nav","use_widgets","edit_own_nav","reorder_sidebar","edit_pushed_wallpaper","manage_groups","manage_users","manage_sso","audit_log"],
-  admin:      ["view_nav","use_widgets","edit_own_nav","reorder_sidebar","edit_pushed_wallpaper","manage_groups","manage_users","audit_log"],
-  user:       ["view_nav","use_widgets","edit_own_nav","reorder_sidebar","edit_pushed_wallpaper"],
-  guest:      ["view_nav"],
-};
+// 权限矩阵在 docs/02-permissions.md 维护，前端不再展示
