@@ -367,8 +367,9 @@ export const NavView = ({
     clearGroupTarget();
 
     // 2) 合并 / 落入文件夹检测
-    //    用「拖拽矩形与目标矩形的重叠面积比」判断意图，比之前「光标在目标 25% 中心区」
-    //    更接近视觉直觉、命中区显著变大；文件夹门槛更低（25%）作为显式落入区。
+    //    重叠率 = 交集面积 / 拖拽元素自身面积。以「拖动这张图标自己进去多少」为口径，
+    //    比之前 min(两边面积) 更稳定（受目标尺寸变化影响小，sortable 推开邻居时仍可命中）。
+    //    门槛大幅下调：普通图标 30%、文件夹 18%，使合并体验接近 iOS 那种"贴上去就吸"。
     const draggedItem = gridItems.find((it) => it.id === draggedId);
     if (!draggedItem || draggedItem.kind !== "icon") {
       clearMergeTarget();
@@ -386,8 +387,8 @@ export const NavView = ({
       const bottom = Math.min(a.bottom, b.bottom);
       if (left >= right || top >= bottom) return 0;
       const inter = (right - left) * (bottom - top);
-      const minArea = Math.min(a.width * a.height, b.width * b.height);
-      return minArea > 0 ? inter / minArea : 0;
+      const draggedArea = a.width * a.height;
+      return draggedArea > 0 ? inter / draggedArea : 0;
     };
     const iconEls = document.querySelectorAll<HTMLElement>("[data-nav-item-type='icon']");
     let foundMergeEl: HTMLElement | null = null;
@@ -398,7 +399,7 @@ export const NavView = ({
       const r = el.getBoundingClientRect();
       if (r.width === 0) continue;
       const isFolder = el.dataset.navItemFolder === "true";
-      const threshold = isFolder ? 0.25 : 0.5;
+      const threshold = isFolder ? 0.18 : 0.3;
       const ratio = overlapRatio(draggedRect, r);
       if (ratio >= threshold && ratio > bestRatio) {
         foundMergeEl = el;
