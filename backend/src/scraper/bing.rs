@@ -1,6 +1,7 @@
-use super::{truncate_title, Scraper, ScrapedWallpaper};
+use super::{truncate_title, ScrapedWallpaper, Scraper};
 use anyhow::Result;
 use serde::Deserialize;
+use std::collections::HashSet;
 
 pub struct BingScraper;
 
@@ -34,19 +35,30 @@ impl Scraper for BingScraper {
             .timeout(std::time::Duration::from_secs(30))
             .build()?;
 
-        // Bing API: idx=0 is today, max idx=14 (15 days archive), max n=8 per request
+        // Bing HPImageArchive returns at most 8 images per request. Recent
+        // behavior clamps high idx values to the oldest public window, so page
+        // with one item of overlap and stop as soon as a page adds nothing.
         let per_req = 8usize;
+        let page_stride = per_req - 1;
         let mut results = Vec::new();
-        let mut idx = 0usize;
+        let mut seen = HashSet::new();
+        let mut idx = extract_param(site_url, "idx")
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(0);
 
         // Extract market from site_url if present, else default
         let mkt = extract_param(site_url, "mkt").unwrap_or_else(|| "zh-CN".to_string());
+        let max_requests = ((batch_size / page_stride) + 3).clamp(1, 100);
+        let mut requests = 0usize;
 
-        while results.len() < batch_size && idx < 15 {
-            let n = per_req.min(batch_size - results.len());
+        while results.len() < batch_size && requests < max_requests {
+            let remaining = batch_size - results.len();
+            let overlap = if requests > 0 { 1 } else { 0 };
+            let n = per_req.min(remaining + overlap);
             let url = format!(
                 "https://www.bing.com/HPImageArchive.aspx?format=js&idx={idx}&n={n}&mkt={mkt}"
             );
+            requests += 1;
 
             let resp = client.get(&url).send().await?;
             if !resp.status().is_success() {
@@ -58,9 +70,14 @@ impl Scraper for BingScraper {
                 break;
             }
 
+            let mut added = 0usize;
             for img in data.images {
                 // img.url already contains resolution suffix like _1920x1080.jpg
                 let full_url = format!("https://www.bing.com{}", img.url);
+                if !seen.insert(full_url.clone()) {
+                    continue;
+                }
+
                 // Thumbnail: urlbase + _640x360.jpg
                 let thumb_url = format!("https://www.bing.com{}_640x360.jpg", img.url_base);
 
@@ -75,23 +92,33 @@ impl Scraper for BingScraper {
                     author: author.map(|s| s.to_string()),
                     media_type: "image".to_string(),
                 });
+                added += 1;
+
+                if results.len() >= batch_size {
+                    break;
+                }
             }
 
-            idx += per_req;
+            if added == 0 {
+                break;
+            }
+
+            idx += page_stride;
         }
 
-        Ok(results.into_iter().take(batch_size).collect())
+        Ok(results)
     }
 }
 
 fn extract_param(url: &str, key: &str) -> Option<String> {
-    url.split_once('?')?
-        .1
-        .split('&')
-        .find_map(|param| {
-            let (k, v) = param.split_once('=')?;
-            if k == key { Some(v.to_string()) } else { None }
-        })
+    url.split_once('?')?.1.split('&').find_map(|param| {
+        let (k, v) = param.split_once('=')?;
+        if k == key {
+            Some(v.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 fn parse_copyright_author(copyright: &str) -> Option<&str> {

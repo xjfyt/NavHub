@@ -9,6 +9,8 @@ interface ScraperConfig {
   label: string;
   defaultUrl: string;
   defaultBatch: number;
+  maxBatch?: number;
+  batchHint?: string;
   keyParam?: string;
   keyRequired?: boolean;
   keyHint?: string;
@@ -18,7 +20,9 @@ const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
   bing: {
     label: "Bing 每日壁纸",
     defaultUrl: "https://www.bing.com/HPImageArchive.aspx?format=js&n=8&mkt=zh-CN",
-    defaultBatch: 8,
+    defaultBatch: 15,
+    maxBatch: 50,
+    batchHint: "Bing 公开接口单次最多返回 8 张，历史窗口较短；系统会翻页去重，超过公开窗口后会自动停止。",
   },
   nasa: {
     label: "NASA 图库",
@@ -146,7 +150,7 @@ const defaultForm = (): SourceFormState => ({
   siteUrl: SCRAPER_CONFIGS.bing.defaultUrl,
   apiKey: "",
   enabled: true,
-  fetchBatchSize: 8,
+  fetchBatchSize: SCRAPER_CONFIGS.bing.defaultBatch,
   cacheTtlHours: 168,
   fetchIntervalHours: 24,
   sourceType: "image",
@@ -519,10 +523,15 @@ export const AdminWallpaperLibrary = () => {
 
             {/* Numeric params */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
-              {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: 50 })}
+              {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: SCRAPER_CONFIGS[form.scraperType]?.maxBatch ?? 50 })}
               {formField("缓存时长 (小时)", "cacheTtlHours", "number", { min: 1 })}
               {formField("抓取间隔 (小时)", "fetchIntervalHours", "number", { min: 1 })}
             </div>
+            {SCRAPER_CONFIGS[form.scraperType]?.batchHint && (
+              <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: -8, marginBottom: 14 }}>
+                {SCRAPER_CONFIGS[form.scraperType].batchHint}
+              </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
               <div style={{ marginBottom: 14 }}>
