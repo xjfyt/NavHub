@@ -118,11 +118,12 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
   if (ic.isFolder) {
     if (!editable) return;
     ctx.openCtx(x, y, [
-      { label: "小", onClick: () => void ctx.updateIcon(ic.id, { size: "sq" }) },
-      { label: "四宫格", onClick: () => void ctx.updateIcon(ic.id, { size: "lg-4" }) },
-      { label: "九宫格", onClick: () => void ctx.updateIcon(ic.id, { size: "lg-9" }) },
+      { icon: "square", label: "小", onClick: () => void ctx.updateIcon(ic.id, { size: "sq" }) },
+      { icon: "grid", label: "四宫格", onClick: () => void ctx.updateIcon(ic.id, { size: "lg-4" }) },
+      { icon: "grid-3x3", label: "九宫格", onClick: () => void ctx.updateIcon(ic.id, { size: "lg-9" }) },
       { divider: true },
       {
+        icon: "trash",
         label: "删除",
         danger: true,
         onClick: async () => {
