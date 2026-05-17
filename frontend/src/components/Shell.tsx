@@ -7,7 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { NavView } from "./NavView";
 import { UserMenu } from "./UserMenu";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
-import { IconView, WidgetView } from "../types";
+import { GroupView, IconView, WidgetView } from "../types";
 import { confirmDialog } from "./Dialogs";
 import { toast } from "sonner";
 import {
@@ -99,7 +99,7 @@ export const Shell = ({
   const [profileOpen, setProfileOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
-  const [addCatOpen, setAddCatOpen] = useState(false);
+  const [addCatOpen, setAddCatOpen] = useState<boolean | GroupView>(false);
   const [addIconOpen, setAddIconOpen] = useState<boolean | IconView>(false);
   const [iconSearchOpen, setIconSearchOpen] = useState(false);
   const [iframePreviewIcon, setIframePreviewIcon] = useState<IconView | null>(null);
@@ -492,10 +492,16 @@ export const Shell = ({
       {addCatOpen && (
         <ModalSuspense>
           <AddCategoryModal
+            initial={typeof addCatOpen === "object" ? addCatOpen : undefined}
             onClose={() => setAddCatOpen(false)}
             onSave={async ({ name, icon }) => {
+              const editing = typeof addCatOpen === "object" ? addCatOpen : null;
               setAddCatOpen(false);
-              await addGroup(name, icon);
+              if (editing) {
+                await updateGroup(editing.id, { name, icon });
+              } else {
+                await addGroup(name, icon);
+              }
             }}
           />
         </ModalSuspense>

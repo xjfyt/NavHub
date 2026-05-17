@@ -1,5 +1,5 @@
 import type { CtxItem } from "./ContextMenu";
-import { confirmDialog, promptDialog } from "./Dialogs";
+import { confirmDialog } from "./Dialogs";
 import type { GroupView, IconView, WidgetView } from "../types";
 import {
   WIDGET_REGISTRY,
@@ -31,7 +31,7 @@ export interface ShellMenuCtx {
   setTweaksOpen: (v: boolean) => void;
   setIconSearchOpen: (v: boolean) => void;
   setEditingWidgetId: (id: string | null) => void;
-  setAddCatOpen: (v: boolean) => void;
+  setAddCatOpen: (v: boolean | GroupView) => void;
 
   updateIcon: (id: string, patch: Partial<IconView>) => void;
   deleteIcon: (id: string) => void;
@@ -167,13 +167,8 @@ export function buildGroupCtx(ctx: ShellMenuCtx, e: React.MouseEvent, groupId: s
   if (editable) {
     items.push({
       icon: "edit",
-      label: "重命名",
-      onClick: async () => {
-        const next = await promptDialog("分组名称", g.name, "重命名前");
-        if (next && next.trim() && next !== g.name) {
-          void ctx.updateGroup(groupId, { name: next.trim() });
-        }
-      },
+      label: "编辑分组",
+      onClick: () => ctx.setAddCatOpen(g),
     });
     items.push({ divider: true });
     items.push({

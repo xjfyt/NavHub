@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Icon } from "./Icon";
+import type { GroupView } from "../types";
 
 // 6 列 × 5 行 = 30 个，覆盖常见场景：办公 / 学习 / 娱乐 / 通讯 / 资源 / 角色
 const SIDE_ICONS = [
@@ -11,14 +12,17 @@ const SIDE_ICONS = [
 ];
 
 export function AddCategoryModal({
+  initial,
   onClose,
   onSave,
 }: {
+  initial?: GroupView;
   onClose: () => void;
   onSave: (body: { name: string; icon: string }) => void;
 }) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("grid");
+  const isEdit = !!initial;
+  const [name, setName] = useState(initial?.name ?? "");
+  const [icon, setIcon] = useState(initial?.icon ?? "grid");
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -29,8 +33,8 @@ export function AddCategoryModal({
       >
         <div className="modal-head">
           <div>
-            <h2>新建分组</h2>
-            <div className="sub">选择名称与图标</div>
+            <h2>{isEdit ? "编辑分组" : "新建分组"}</h2>
+            <div className="sub">{isEdit ? "修改名称或图标" : "选择名称与图标"}</div>
           </div>
           <button className="modal-close" onClick={onClose}>
             <Icon name="close" size={18} />
@@ -73,7 +77,7 @@ export function AddCategoryModal({
             onClick={() => name.trim() && onSave({ name: name.trim(), icon })}
           >
             <Icon name="check" size={14} />
-            添加
+            {isEdit ? "保存" : "添加"}
           </button>
         </div>
       </div>
