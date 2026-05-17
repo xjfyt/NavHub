@@ -1,17 +1,13 @@
 import { useState } from "react";
 import { Icon } from "./Icon";
 
+// 6 列 × 5 行 = 30 个，覆盖常见场景：办公 / 学习 / 娱乐 / 通讯 / 资源 / 角色
 const SIDE_ICONS = [
-  "home",
-  "briefcase",
-  "tool",
-  "play",
-  "code",
-  "globe",
-  "star",
-  "heart",
-  "book",
-  "grid",
+  "home", "briefcase", "tool", "code", "grid", "settings",
+  "star", "heart", "book", "globe", "shield", "user",
+  "users", "music", "video", "camera", "image", "play",
+  "mail", "message", "phone", "bell", "cloud", "download",
+  "file", "folder", "cart", "wallet", "gamepad", "mascot",
 ];
 
 export function AddCategoryModal({
@@ -54,34 +50,25 @@ export function AddCategoryModal({
             <label>图标</label>
             <div className="builtin-grid">
               {SIDE_ICONS.map((ic) => (
-                <div
+                <button
+                  type="button"
                   key={ic}
                   className={"builtin-opt " + (icon === ic ? "active" : "")}
                   onClick={() => setIcon(ic)}
+                  aria-label={ic}
                 >
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      display: "grid",
-                      placeItems: "center",
-                      background: "rgba(255,255,255,0.08)",
-                      color: "#fff",
-                    }}
-                  >
-                    <Icon name={ic} size={20} />
-                  </div>
-                </div>
+                  <Icon name={ic} size={22} />
+                </button>
               ))}
             </div>
           </div>
         </div>
         <div className="modal-foot">
-          <button className="pill-btn" onClick={onClose}>
+          <button type="button" className="pill-btn" onClick={onClose}>
             取消
           </button>
           <button
+            type="button"
             className="pill-btn primary"
             onClick={() => name.trim() && onSave({ name: name.trim(), icon })}
           >

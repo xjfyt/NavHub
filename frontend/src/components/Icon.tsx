@@ -71,6 +71,22 @@ export const Icon = ({ name, size = 18, stroke = 1.8, ...rest }: IconProps) => {
     case "music": return <svg {...props}><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>;
     case "hash": return <svg {...props}><line x1="4" y1="9" x2="20" y2="9" /><line x1="4" y1="15" x2="20" y2="15" /><line x1="10" y1="3" x2="8" y2="21" /><line x1="16" y1="3" x2="14" y2="21" /></svg>;
     case "refresh": return <svg {...props}><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.5 9a9 9 0 0114.8-3.4L23 10M1 14l4.7 4.4A9 9 0 0020.5 15" /></svg>;
+    case "book": return <svg {...props}><path d="M4 4.5A2.5 2.5 0 016.5 2H20v18H6.5A2.5 2.5 0 014 17.5v-13z" /><path d="M4 17.5A2.5 2.5 0 016.5 15H20" /></svg>;
+    case "camera": return <svg {...props}><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" /></svg>;
+    case "image": return <svg {...props}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>;
+    case "mail": return <svg {...props}><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z" /><polyline points="22 6 12 13 2 6" /></svg>;
+    case "message": return <svg {...props}><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8z" /></svg>;
+    case "phone": return <svg {...props}><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.1-8.7A2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.3 1.8.6 2.6a2 2 0 01-.5 2.1L8 9.6a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.8.3 1.7.5 2.6.6a2 2 0 011.7 2z" /></svg>;
+    case "video": return <svg {...props}><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>;
+    case "cart": return <svg {...props}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>;
+    case "wallet": return <svg {...props}><path d="M20 12V8H4a2 2 0 010-4h12v4" /><path d="M20 12v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6" /><circle cx="17" cy="14" r="1.2" fill="currentColor" /></svg>;
+    case "download": return <svg {...props}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
+    case "file": return <svg {...props}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+    case "folder": return <svg {...props}><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /></svg>;
+    case "gamepad": return <svg {...props}><line x1="6" y1="11" x2="10" y2="11" /><line x1="8" y1="9" x2="8" y2="13" /><line x1="15" y1="12" x2="15.01" y2="12" /><line x1="18" y1="10" x2="18.01" y2="10" /><path d="M17.3 5H6.7A4.7 4.7 0 002 9.7v4.6A4.7 4.7 0 006.7 19c1.4 0 2.7-.6 3.6-1.6l1-1.4h3.4l1 1.4c.9 1 2.2 1.6 3.6 1.6a4.7 4.7 0 004.7-4.7V9.7A4.7 4.7 0 0017.3 5z" /></svg>;
+    case "gift": return <svg {...props}><polyline points="20 12 20 22 4 22 4 12" /><rect x="2" y="7" width="20" height="5" /><line x1="12" y1="22" x2="12" y2="7" /><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" /></svg>;
+    case "map": return <svg {...props}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>;
+    case "mascot": return <svg {...props}><circle cx="6.4" cy="6.8" r="2.7" fill="currentColor" stroke="none" /><circle cx="17.6" cy="6.8" r="2.7" fill="currentColor" stroke="none" /><circle cx="12" cy="14" r="6.5" /><circle cx="9.5" cy="13" r="0.95" fill="currentColor" stroke="none" /><circle cx="14.5" cy="13" r="0.95" fill="currentColor" stroke="none" /><path d="M9 16.6c1.2 1.4 4.8 1.4 6 0" /></svg>;
     default: return <svg {...props}><circle cx="12" cy="12" r="8" /></svg>;
   }
 };
