@@ -823,11 +823,11 @@ html[data-mode="dark"] .widget-tile-fallback {
   width: 100%;
   height: 100%;
   /* 无底板的图标直接贴在壁纸上，与同色背景容易糊在一起。
-     用双层 drop-shadow（深色阴影 + 浅色描边）沿图标 alpha 轮廓
-     拉出立体感，亮/暗壁纸都能保持可读。 */
+     双层 drop-shadow（淡深色 + 极淡浅色描边）沿图标 alpha 轮廓
+     拉出层次，强度足以分离背景但不会"过曝"显得突兀。 */
   filter:
-    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45))
-    drop-shadow(0 0 1px rgba(255, 255, 255, 0.55));
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.32));
 }
 .tile-image-glyph svg {
   width: 100%;
@@ -1866,7 +1866,14 @@ html[data-mode="dark"] .widget-tile-fallback {
 .modal-head .sub { font-size: 12px; color: var(--text-mute); margin-top: 2px;}
 .modal-close { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-soft);}
 .modal-close:hover { background: rgba(255,255,255,0.1); color: #fff;}
-.modal-body { padding: 20px 22px; overflow-y: auto;}
+.modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  /* 保留滚动功能但隐藏滚动条 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.modal-body::-webkit-scrollbar { width: 0; height: 0; display: none; }
 .modal-foot { padding: 14px 22px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: flex-end; gap: 10px;}
 
 .field { margin-bottom: 16px;}
@@ -3170,19 +3177,21 @@ html[data-mode="dark"] .tw-custom-hint {
 
 .builtin-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
 }
 .builtin-opt {
-  padding: 4px;
-  border-radius: 10px;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border-radius: 12px;
   border: 1.5px solid transparent;
   cursor: pointer;
   display: grid; place-items: center;
-  transition: all 150ms;
+  background: rgba(255,255,255,0.05);
+  transition: background 150ms, border-color 150ms, transform 150ms;
 }
-.builtin-opt:hover { background: rgba(255,255,255,0.08);}
-.builtin-opt.active { border-color: #fff; background: rgba(255,255,255,0.14);}
+.builtin-opt:hover { background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+.builtin-opt.active { border-color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.16); }
 
 /* ===== Sidebar layout modes ===== */
 .app.sb-hidden { grid-template-columns: 0 1fr; }
@@ -3254,12 +3263,12 @@ html[data-mode="light"] .search-input::placeholder { color: rgba(28,26,23,0.4); 
 html[data-mode="light"] .tile-icon { box-shadow: 0 3px 10px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.4) inset; }
 html[data-mode="light"] .tile-icon.has-plain-image { box-shadow: none; }
 html[data-mode="light"] .tile:hover .tile-icon.has-plain-image { box-shadow: none; }
-/* 浅色模式下背景偏亮，减弱白色描边、保留深色阴影即可 */
+/* 浅色模式下背景偏亮，减弱白色描边、保留淡黑阴影即可 */
 html[data-mode="light"] .tile-image.plain,
 html[data-mode="light"] .tile-image-glyph.plain {
   filter:
-    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))
-    drop-shadow(0 0 1px rgba(0, 0, 0, 0.15));
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16))
+    drop-shadow(0 0 0.6px rgba(0, 0, 0, 0.10));
 }
 html[data-mode="light"] .engine-grid-pop { background: rgba(255,255,255,0.85); border-color: rgba(0,0,0,0.08); }
 html[data-mode="light"] .engine-tile:hover { background: rgba(0,0,0,0.05); }
