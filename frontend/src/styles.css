@@ -822,6 +822,12 @@ html[data-mode="dark"] .widget-tile-fallback {
 .tile-image-glyph.plain {
   width: 100%;
   height: 100%;
+  /* 无底板的图标直接贴在壁纸上，与同色背景容易糊在一起。
+     用双层 drop-shadow（深色阴影 + 浅色描边）沿图标 alpha 轮廓
+     拉出立体感，亮/暗壁纸都能保持可读。 */
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.55));
 }
 .tile-image-glyph svg {
   width: 100%;
@@ -3245,6 +3251,13 @@ html[data-mode="light"] .search-input::placeholder { color: rgba(28,26,23,0.4); 
 html[data-mode="light"] .tile-icon { box-shadow: 0 3px 10px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.4) inset; }
 html[data-mode="light"] .tile-icon.has-plain-image { box-shadow: none; }
 html[data-mode="light"] .tile:hover .tile-icon.has-plain-image { box-shadow: none; }
+/* 浅色模式下背景偏亮，减弱白色描边、保留深色阴影即可 */
+html[data-mode="light"] .tile-image.plain,
+html[data-mode="light"] .tile-image-glyph.plain {
+  filter:
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25))
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.15));
+}
 html[data-mode="light"] .engine-grid-pop { background: rgba(255,255,255,0.85); border-color: rgba(0,0,0,0.08); }
 html[data-mode="light"] .engine-tile:hover { background: rgba(0,0,0,0.05); }
 html[data-mode="light"] .engine-tile.active { background: rgba(0,0,0,0.08); }
