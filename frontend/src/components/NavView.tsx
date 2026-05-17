@@ -139,17 +139,32 @@ export const NavView = ({
   // ----- 滚轮翻页 -----
   const wheelLockRef = useRef(0);
   const wheelAccumRef = useRef(0);
+  // 记录最近一次「本分类还能继续滚动」的时间，用于边界冷却：
+  // 触控板惯性滑动在到达边缘的瞬间仍会持续发事件，没有冷却就会立刻跨页。
+  const lastNativeScrollRef = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
     if (tweaks.wheelPage === false) return;
     const ay = Math.abs(e.deltaY), ax = Math.abs(e.deltaX);
     if (ay < ax) return;
+    // 1) 子元素自带滚动条 → 让子元素吃滚轮
     let el = e.target as HTMLElement | null;
     while (el && el !== e.currentTarget) {
       const s = getComputedStyle(el);
       if ((s.overflowY === "auto" || s.overflowY === "scroll") && el.scrollHeight > el.clientHeight) return;
       el = el.parentElement;
     }
+    // 2) 当前分类自身还能滚 → 走原生滚动，重置翻页累积
+    const container = e.currentTarget as HTMLDivElement;
+    const canScrollDown = container.scrollTop + container.clientHeight < container.scrollHeight - 1;
+    const canScrollUp = container.scrollTop > 0;
+    if ((e.deltaY > 0 && canScrollDown) || (e.deltaY < 0 && canScrollUp)) {
+      wheelAccumRef.current = 0;
+      lastNativeScrollRef.current = Date.now();
+      return;
+    }
+    // 3) 已到顶/底：边界后 280ms 内的惯性事件忽略，防止"刚到边就被甩到下一分类"
     const now = Date.now();
+    if (now - lastNativeScrollRef.current < 280) return;
     if (now < wheelLockRef.current) return;
     wheelAccumRef.current += e.deltaY;
     const threshold = tweaks.wheelSensitivity ?? 40;
