@@ -847,7 +847,10 @@ html[data-mode="dark"] .widget-tile-fallback {
   color: var(--text);
   text-align: center;
   line-height: 1.25;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.25);
+  /* 紧贴字形的硬阴影 + 极细描边，既保住对比度又不会在深色壁纸上糊成一团光晕 */
+  text-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.85),
+    0 0 1px rgba(0, 0, 0, 0.7);
   padding: 0 2px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
