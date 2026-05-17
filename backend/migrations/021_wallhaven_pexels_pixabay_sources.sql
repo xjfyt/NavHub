@@ -19,7 +19,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO wallpaper_sources (name, site_url, enabled, fetch_batch_size, cache_ttl_hours, fetch_interval_hours, source_type, scraper_type)
 VALUES (
     'Pexels 精选壁纸',
-    'https://api.pexels.com/v1/curated?per_page=30&api_key=YOUR_PEXELS_API_KEY',
+    'https://api.pexels.com/v1/search?query=nature%20landscape%20scenic%20mountains%20ocean%20forest%20waterfall&orientation=landscape&size=large&per_page=80&api_key=YOUR_PEXELS_API_KEY',
     false,
     30,
     720,

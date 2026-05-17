@@ -53,12 +53,14 @@ const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
     keyHint: "可选，登录 wallhaven.cc → 设置 → API Key（可提升速率限制）",
   },
   pexels: {
-    label: "Pexels",
-    defaultUrl: "https://api.pexels.com/v1/curated?per_page=30",
+    label: "Pexels 高质量风景",
+    defaultUrl:
+      "https://api.pexels.com/v1/search?query=nature%20landscape%20scenic%20mountains%20ocean%20forest%20waterfall&orientation=landscape&size=large&per_page=80",
     defaultBatch: 30,
     keyParam: "api_key",
     keyRequired: true,
-    keyHint: "前往 pexels.com/api 注册，获取免费 API Key",
+    batchHint: "后端会额外过滤低分辨率、非横屏、低饱和黑白图和人物/人像类素材；Pexels API 每页最多 80 张候选。",
+    keyHint: "前往 pexels.com/api 注册，获取免费 API Key。默认查询偏自然风景，可在 API 地址里调整 query。",
   },
   pixabay: {
     label: "Pixabay",
