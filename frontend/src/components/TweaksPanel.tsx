@@ -904,7 +904,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
             ))}
           </nav>
           <div className="tw-nav-foot">
-            <div className="tw-version" style={{marginBottom: 4}}>V0.1.10</div>
+            <div className="tw-version" style={{marginBottom: 4}}>V0.1.11</div>
             <div className="tw-foot-links">
               <a href="#" onClick={(e) => { e.preventDefault(); setDocModal("terms"); }}>用户协议</a>
               <span>·</span>
