@@ -263,10 +263,61 @@ export interface LibraryIconView {
 }
 
 // ---------- Group Import/Export ----------
+export interface ExportedAssetData {
+  data: string;
+  contentType?: string | null;
+  filename?: string | null;
+  sha256?: string | null;
+}
+
+export interface FolderItemExportData {
+  name: string;
+  letter: string | null;
+  color: number;
+  url: string | null;
+  imageUrl: string | null;
+  imageAsset?: ExportedAssetData | null;
+  imageStyle: IconImageStyle;
+  imageRadius: IconImageRadius;
+  sortOrder: number;
+}
+
+export interface IconExportData {
+  name: string;
+  url: string | null;
+  sub: string | null;
+  title: string | null;
+  cta: string | null;
+  size: IconSize;
+  letter: string | null;
+  color: number;
+  imageUrl: string | null;
+  imageAsset?: ExportedAssetData | null;
+  imageStyle: IconImageStyle;
+  imageRadius: IconImageRadius;
+  isFolder: boolean;
+  iframePreview: boolean;
+  sortOrder: number;
+  fontSize: IconFontSize;
+  textAlign: IconTextAlign;
+  folderItems: FolderItemExportData[];
+}
+
+export interface WidgetExportData {
+  widget: string;
+  wSpan: number;
+  wRow: number | null;
+  config: Record<string, unknown>;
+  sortOrder: number;
+}
+
 export interface GroupExportData {
-  group: GroupView;
-  icons: IconView[];
-  widgets: WidgetView[];
+  group: {
+    name: string;
+    icon: string;
+  };
+  icons: IconExportData[];
+  widgets: WidgetExportData[];
 }
 
 // ---------- Remote Wallpapers ----------

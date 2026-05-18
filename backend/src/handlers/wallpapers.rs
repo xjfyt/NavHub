@@ -1,9 +1,8 @@
-use crate::{
-
-    error::AppResult,
-    state::AppState,
+use crate::{error::AppResult, state::AppState};
+use axum::{
+    extract::{Query, State},
+    Json,
 };
-use axum::{extract::{Query, State}, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -68,7 +67,11 @@ pub async fn list_wallpapers(
 
     let search = q.q.as_deref().and_then(|s| {
         let t = s.trim();
-        if t.is_empty() { None } else { Some(format!("%{t}%")) }
+        if t.is_empty() {
+            None
+        } else {
+            Some(format!("%{t}%"))
+        }
     });
 
     // Guest list intentionally skips rows with `storage_key IS NULL`: those are
@@ -117,16 +120,28 @@ pub async fn list_wallpapers(
     let mut items = Vec::with_capacity(rows.len());
     for row in rows {
         let url = if let Some(ref key) = row.storage_key {
-            state.storage.presign_get_url(key).await.unwrap_or_else(|_| format!("/uploads/{key}"))
+            state
+                .storage
+                .presign_get_url(key)
+                .await
+                .unwrap_or_else(|_| format!("/uploads/{key}"))
         } else {
             row.original_url.clone()
         };
 
         let thumbnail_url = if let Some(ref tkey) = row.thumbnail_key {
-            let tu = state.storage.presign_get_url(tkey).await.unwrap_or_else(|_| format!("/uploads/{tkey}"));
+            let tu = state
+                .storage
+                .presign_get_url(tkey)
+                .await
+                .unwrap_or_else(|_| format!("/uploads/{tkey}"));
             Some(tu)
-        } else {
+        } else if row.thumbnail_url.is_some() {
             row.thumbnail_url.clone()
+        } else if row.media_type == "image" && row.storage_key.is_some() {
+            Some(url.clone())
+        } else {
+            None
         };
 
         items.push(WallpaperItem {
@@ -169,6 +184,7 @@ pub async fn list_sources(
          LEFT JOIN remote_wallpapers rw
            ON rw.source_id = ws.id
           AND rw.is_active = true
+          AND rw.storage_key IS NOT NULL
           AND (rw.expires_at IS NULL OR rw.expires_at > now())
          GROUP BY ws.id, ws.name, ws.source_type, ws.scraper_type, ws.created_at
          HAVING COUNT(rw.id) > 0

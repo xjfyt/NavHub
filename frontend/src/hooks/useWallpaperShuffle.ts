@@ -18,7 +18,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
       const cached = window.localStorage.getItem("navhub_last_wallpaper");
       if (cached) return JSON.parse(cached);
     } catch (e) {}
-    return null;
+    return randomWallpaperPreset(null);
   });
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     }
   }, [shufflePreset]);
   const poolRef = useRef<WallpaperPreset[]>([]);
-  const lastIdRef = useRef<string | null>(null);
+  const lastIdRef = useRef<string | null>(shufflePreset?.id ?? null);
 
   const shuffleEnabled =
     tweaks.wallpaperShuffle !== false && tweaks.backgroundMode !== "theme";
@@ -49,7 +49,14 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     })
       .then((resp) => {
         if (!alive) return;
-        poolRef.current = resp.items.map(remoteToPreset);
+        const pool = resp.items.map(remoteToPreset);
+        poolRef.current = pool;
+        if (pool.length > 0) {
+          const next = pickRandom(pool, lastIdRef.current);
+          lastIdRef.current = next.id;
+          warmWallpaper(next);
+          setShufflePreset(next);
+        }
       })
       .catch(() => {
         if (!alive) return;
@@ -58,29 +65,24 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     return () => { alive = false; };
   }, [shuffleEnabled, mediaType, sourceId]);
 
-  const hasInitialPicked = useRef(false);
-
   useEffect(() => {
     if (!shuffleEnabled) {
-      setShufflePreset(null);
-      lastIdRef.current = null;
       return;
     }
     const pick = () => {
       const next = pickRandom(poolRef.current, lastIdRef.current);
       lastIdRef.current = next.id;
+      warmWallpaper(next);
       setShufflePreset(next);
     };
-    
-    // Only pick immediately if we don't have a cached preset, or if it's not the first run
-    if (!hasInitialPicked.current && shufflePreset) {
-      hasInitialPicked.current = true;
-      lastIdRef.current = shufflePreset.id;
-    } else {
+
+    if (!shufflePreset) {
       pick();
-      hasInitialPicked.current = true;
+    } else {
+      lastIdRef.current = shufflePreset.id;
+      warmWallpaper(shufflePreset);
     }
-    
+
     const timer = window.setInterval(pick, shuffleIntervalSec * 1000);
     return () => window.clearInterval(timer);
   }, [shuffleEnabled, shuffleIntervalSec]);
@@ -90,6 +92,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
   const nextPreset = () => {
     const next = pickRandom(poolRef.current, lastIdRef.current);
     lastIdRef.current = next.id;
+    warmWallpaper(next);
     setShufflePreset(next);
   };
 
@@ -116,4 +119,20 @@ function remoteToPreset(w: RemoteWallpaperItem): WallpaperPreset {
     thumbUrl: w.thumbnailUrl ?? w.url,
     posterUrl: w.thumbnailUrl ?? undefined,
   };
+}
+
+function warmWallpaper(preset: WallpaperPreset) {
+  if (typeof window === "undefined") return;
+  const urls = [preset.posterUrl, preset.thumbUrl].filter(Boolean) as string[];
+  for (const url of urls) {
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = url;
+  }
+  if (preset.mediaType === "image") {
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = preset.assetUrl;
+    if (img.decode) void img.decode().catch(() => undefined);
+  }
 }

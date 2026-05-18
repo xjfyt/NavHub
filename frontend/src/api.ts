@@ -106,6 +106,55 @@ async function request<T>(
   return (await res.text()) as unknown as T;
 }
 
+function uploadFormWithProgress<T>(
+  path: string,
+  body: FormData,
+  onProgress?: (loaded: number, total: number | null) => void,
+): Promise<T> {
+  if (!onProgress) {
+    return request(path, { method: "POST", body });
+  }
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path);
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (event) => {
+      onProgress(event.loaded, event.lengthComputable ? event.total : null);
+    };
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        reject(new ApiError(401, "unauthorized", "unauthorized"));
+        return;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let code = "error";
+        let message = xhr.statusText;
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          code = parsed.error ?? code;
+          message = parsed.message ?? message;
+        } catch {
+          /* ignore */
+        }
+        reject(new ApiError(xhr.status, code, message));
+        return;
+      }
+      if (xhr.status === 204 || !xhr.responseText) {
+        resolve(undefined as T);
+        return;
+      }
+      try {
+        resolve(JSON.parse(xhr.responseText) as T);
+      } catch {
+        resolve(xhr.responseText as T);
+      }
+    };
+    xhr.onerror = () => reject(new ApiError(0, "network", "network error"));
+    xhr.onabort = () => reject(new ApiError(0, "aborted", "upload aborted"));
+    xhr.send(body);
+  });
+}
+
 export { ApiError };
 
 // ---------- Auth ----------
@@ -575,13 +624,14 @@ export const api = {
     async triggerWallpaperFetch(id: string): Promise<{ status: string }> {
       return request(`/api/admin/wallpaper-sources/${id}/fetch`, { method: "POST" });
     },
-    async uploadWallpaper(sourceId: string, file: File): Promise<AdminRemoteWallpaper> {
+    async uploadWallpaper(
+      sourceId: string,
+      file: File,
+      onProgress?: (loaded: number, total: number | null) => void,
+    ): Promise<AdminRemoteWallpaper> {
       const fd = new FormData();
       fd.append("file", file);
-      return request(`/api/admin/wallpaper-sources/${sourceId}/upload`, {
-        method: "POST",
-        body: fd,
-      });
+      return uploadFormWithProgress(`/api/admin/wallpaper-sources/${sourceId}/upload`, fd, onProgress);
     },
     async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number; search?: string } = {}): Promise<AdminPaginatedWallpapers> {
       const qs = new URLSearchParams();

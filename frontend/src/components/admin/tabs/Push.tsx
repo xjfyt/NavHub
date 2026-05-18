@@ -10,6 +10,11 @@ import { MESSAGE_TARGETS, PUSHABLE_ROLES } from "../shared";
 export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
   const { refreshWorkspace } = useWorkspace();
   const [loading, setLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    phase: string;
+    detail: string;
+    percent: number;
+  } | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [pushingGroupId, setPushingGroupId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -25,7 +30,9 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
 
   const exportCategory = async (id: string, name: string) => {
     try {
+      setImportProgress({ phase: "导出分类", detail: "正在打包分类与本地图标资源...", percent: 15 });
       const data = await api.admin.exportGroup(id);
+      setImportProgress({ phase: "生成文件", detail: "正在生成 JSON 文件...", percent: 80 });
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -33,28 +40,67 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       a.download = `Category_${name.replace(/\s+/g, "_")}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      setImportProgress({ phase: "导出完成", detail: "分类 JSON 已包含可打包的本地图标资源。", percent: 100 });
+      window.setTimeout(() => setImportProgress(null), 700);
     } catch (e: any) {
       toast.error("Export failed: " + e.message);
+      setImportProgress(null);
     }
   };
 
   const importCategory = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const data = JSON.parse(ev.target?.result as string);
-        setLoading(true);
-        await api.admin.importGroup(data);
-        refreshWorkspace();
-      } catch (err: any) {
-        toast.error("Import failed: " + err.message);
-        setLoading(false);
-      }
-    };
-    reader.readAsText(file);
     e.target.value = "";
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    let timer: number | undefined;
+    try {
+      setLoading(true);
+      setImportProgress({ phase: "读取文件", detail: file.name, percent: 5 });
+      const text = await file.text();
+      setImportProgress({ phase: "解析 JSON", detail: "正在检查分类、图标和组件数据...", percent: 15 });
+      await nextFrame();
+      const data = JSON.parse(text);
+      const iconCount = Array.isArray(data.icons) ? data.icons.length : 0;
+      const folderItemCount = Array.isArray(data.icons)
+        ? data.icons.reduce((sum: number, icon: any) => sum + (Array.isArray(icon.folderItems) ? icon.folderItems.length : 0), 0)
+        : 0;
+      const widgetCount = Array.isArray(data.widgets) ? data.widgets.length : 0;
+      const assetCount = Array.isArray(data.icons)
+        ? data.icons.reduce((sum: number, icon: any) => {
+            const self = icon.imageAsset ? 1 : 0;
+            const children = Array.isArray(icon.folderItems)
+              ? icon.folderItems.filter((item: any) => item.imageAsset).length
+              : 0;
+            return sum + self + children;
+          }, 0)
+        : 0;
+      setImportProgress({
+        phase: "写入服务器",
+        detail: `${iconCount} 个图标、${folderItemCount} 个文件夹项、${widgetCount} 个组件、${assetCount} 个图标资源`,
+        percent: 30,
+      });
+      timer = window.setInterval(() => {
+        setImportProgress((prev) => {
+          if (!prev || prev.percent >= 88) return prev;
+          const step = prev.percent < 60 ? 4 : 2;
+          return { ...prev, percent: Math.min(88, prev.percent + step) };
+        });
+      }, 500);
+      await api.admin.importGroup(data);
+      if (timer) window.clearInterval(timer);
+      setImportProgress({ phase: "刷新工作区", detail: "导入完成，正在刷新分类列表...", percent: 94 });
+      refreshWorkspace();
+      setImportProgress({ phase: "导入完成", detail: "新分类已经可用。", percent: 100 });
+      toast.success("分类导入完成");
+      window.setTimeout(() => setImportProgress(null), 900);
+    } catch (err: any) {
+      if (timer) window.clearInterval(timer);
+      toast.error("Import failed: " + err.message);
+      setImportProgress(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const initPush = async (id: string, isPushed: boolean) => {
@@ -333,6 +379,48 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
                   {loading ? "下发中..." : "确认推送"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {importProgress && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            background: "rgba(0,0,0,0.42)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            className="glass-strong"
+            style={{ width: "min(420px, 100%)", borderRadius: 14, padding: 20 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <Icon name={importProgress.percent >= 100 ? "check" : "activity"} size={18} />
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{importProgress.phase}</div>
+              <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-soft)" }}>
+                {Math.round(importProgress.percent)}%
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 12 }}>
+              {importProgress.detail}
+            </div>
+            <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.12)" }}>
+              <div
+                style={{
+                  width: `${importProgress.percent}%`,
+                  height: "100%",
+                  borderRadius: 999,
+                  background: "var(--accent)",
+                  transition: "width 240ms ease",
+                }}
+              />
             </div>
           </div>
         </div>

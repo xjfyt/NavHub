@@ -185,6 +185,16 @@ export const AdminWallpaperLibrary = () => {
   const [wallpaperPage, setWallpaperPage] = useState(0);
   const [detailWallpaper, setDetailWallpaper] = useState<AdminRemoteWallpaper | null>(null);
   const [uploadingTo, setUploadingTo] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    sourceId: string;
+    fileName: string;
+    index: number;
+    total: number;
+    filePercent: number;
+    overallPercent: number;
+    okCount: number;
+    failCount: number;
+  } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetSourceRef = useRef<string | null>(null);
@@ -312,13 +322,53 @@ export const AdminWallpaperLibrary = () => {
     setUploadingTo(sourceId);
     try {
       let okCount = 0;
-      for (const file of files) {
+      let failCount = 0;
+      const totalBytes = files.reduce((sum, file) => sum + Math.max(file.size, 1), 0);
+      let completedBytes = 0;
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i];
+        setUploadProgress({
+          sourceId,
+          fileName: file.name,
+          index: i + 1,
+          total: files.length,
+          filePercent: 0,
+          overallPercent: Math.round((completedBytes / totalBytes) * 100),
+          okCount,
+          failCount,
+        });
         try {
-          await api.admin.uploadWallpaper(sourceId, file);
+          await api.admin.uploadWallpaper(sourceId, file, (loaded, total) => {
+            const fileTotal = Math.max(total ?? file.size, 1);
+            const fileLoaded = Math.min(loaded, fileTotal);
+            setUploadProgress({
+              sourceId,
+              fileName: file.name,
+              index: i + 1,
+              total: files.length,
+              filePercent: Math.round((fileLoaded / fileTotal) * 100),
+              overallPercent: Math.round(((completedBytes + Math.min(fileLoaded, file.size || fileTotal)) / totalBytes) * 100),
+              okCount,
+              failCount,
+            });
+          });
           okCount += 1;
         } catch (err) {
+          failCount += 1;
           console.error("upload failed", file.name, err);
           toast.error(`「${file.name}」上传失败`);
+        } finally {
+          completedBytes += Math.max(file.size, 1);
+          setUploadProgress({
+            sourceId,
+            fileName: file.name,
+            index: i + 1,
+            total: files.length,
+            filePercent: 100,
+            overallPercent: Math.round((completedBytes / totalBytes) * 100),
+            okCount,
+            failCount,
+          });
         }
       }
       if (okCount > 0) {
@@ -326,6 +376,8 @@ export const AdminWallpaperLibrary = () => {
         await Promise.all([loadSources(), loadWallpapers(selectedSourceId, wallpaperPage)]);
       }
     } finally {
+      setUploadProgress((prev) => prev ? { ...prev, filePercent: 100, overallPercent: 100 } : prev);
+      window.setTimeout(() => setUploadProgress(null), 1200);
       setUploadingTo(null);
       uploadTargetSourceRef.current = null;
     }
@@ -774,7 +826,11 @@ export const AdminWallpaperLibrary = () => {
                         opacity: uploadingTo === src.id ? 0.6 : 1,
                       }}
                     >
-                      {uploadingTo === src.id ? "上传中..." : "上传壁纸"}
+                      {uploadingTo === src.id && uploadProgress
+                        ? `上传 ${uploadProgress.overallPercent}%`
+                        : uploadingTo === src.id
+                          ? "上传中..."
+                          : "上传壁纸"}
                     </button>
                   ) : (
                     <button
@@ -807,6 +863,46 @@ export const AdminWallpaperLibrary = () => {
           </tbody>
         </table>
       </div>
+
+      {uploadProgress && (
+        <div
+          style={{
+            background: "var(--admin-border-soft)",
+            border: "1px solid var(--admin-border-str)",
+            borderRadius: 10,
+            padding: "12px 14px",
+            margin: "-18px 0 24px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <Icon name={uploadProgress.overallPercent >= 100 ? "check" : "activity"} size={16} />
+            <div style={{ fontSize: 13, fontWeight: 600 }}>
+              正在上传 {uploadProgress.index} / {uploadProgress.total}
+            </div>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {uploadProgress.fileName}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-soft)", fontVariantNumeric: "tabular-nums" }}>
+              {uploadProgress.overallPercent}%
+            </div>
+          </div>
+          <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.10)" }}>
+            <div
+              style={{
+                width: `${uploadProgress.overallPercent}%`,
+                height: "100%",
+                borderRadius: 999,
+                background: "var(--accent)",
+                transition: "width 180ms ease",
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11, color: "var(--text-soft)" }}>
+            <span>当前文件 {uploadProgress.filePercent}%</span>
+            <span>成功 {uploadProgress.okCount} · 失败 {uploadProgress.failCount}</span>
+          </div>
+        </div>
+      )}
 
       {/* Wallpapers grid */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>

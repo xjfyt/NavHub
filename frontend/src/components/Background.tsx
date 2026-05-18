@@ -13,7 +13,9 @@ export function Background({
   wallpaperPosterUrl?: string;
   showWallpaper?: boolean;
 }) {
-  const [loadedUrl, setLoadedUrl] = useState<string | undefined>(wallpaperUrl);
+  const [loadedUrl, setLoadedUrl] = useState<string | undefined>(() =>
+    wallpaperMediaType === "video" ? wallpaperUrl : undefined,
+  );
   const [prevUrl, setPrevUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -22,40 +24,60 @@ export function Background({
       setPrevUrl(undefined);
       return;
     }
-    if (wallpaperMediaType === "video" || wallpaperUrl === loadedUrl) {
+    if (wallpaperUrl === loadedUrl) {
+      return;
+    }
+
+    if (wallpaperMediaType === "video") {
+      const previous = loadedUrl;
+      if (previous && previous !== wallpaperUrl) {
+        setPrevUrl(previous);
+        window.setTimeout(() => {
+          setPrevUrl((current) => (current === previous ? undefined : current));
+        }, 1000);
+      }
       setLoadedUrl(wallpaperUrl);
       return;
     }
-    
-    // Check if it's already loaded or wait for it
+
+    const previous = loadedUrl;
+    if (previous && previous !== wallpaperUrl) {
+      setPrevUrl(previous);
+    }
+
+    let cancelled = false;
     const img = new window.Image();
-    img.onload = () => {
-      setPrevUrl(loadedUrl);
+    img.decoding = "async";
+    const finish = () => {
+      if (cancelled) return;
       setLoadedUrl(wallpaperUrl);
-      
-      // Clear prevUrl after animation finishes to free DOM/memory
-      setTimeout(() => {
-        setPrevUrl((current) => current === loadedUrl ? undefined : current);
+      window.setTimeout(() => {
+        setPrevUrl((current) => (current === previous ? undefined : current));
       }, 1000);
     };
+    img.onload = () => {
+      const decoded = img.decode ? img.decode().catch(() => undefined) : Promise.resolve();
+      decoded.then(() => window.requestAnimationFrame(finish));
+    };
     img.onerror = () => {
-      setPrevUrl(loadedUrl);
-      setLoadedUrl(wallpaperUrl);
+      finish();
     };
     img.src = wallpaperUrl;
+    return () => {
+      cancelled = true;
+    };
   }, [wallpaperUrl, wallpaperMediaType, loadedUrl]);
 
-  // Animate the fade only on shuffle transitions (prevUrl present). On first
-  // paint we want the wallpaper to appear instantly the moment the image
-  // decodes — no 800ms reveal sitting on top of an already-cached image.
-  const isCrossfade = !!prevUrl && prevUrl !== loadedUrl;
+  const fullImageReady = wallpaperMediaType === "video" || loadedUrl === wallpaperUrl;
+  const showPrevious = !!prevUrl && prevUrl !== wallpaperUrl;
+  const isCrossfade = !!prevUrl && fullImageReady && prevUrl !== loadedUrl;
 
   return (
     <>
       <div className={`bg-layer bg-${theme}`} key={`theme-${theme}`} />
 
       {/* Previous wallpaper stays underneath during crossfade */}
-      {showWallpaper && isCrossfade ? (
+      {showWallpaper && showPrevious ? (
         <div className="bg-wallpaper-frame" key={`prev-${prevUrl}`} style={{ zIndex: 0 }}>
           <div
             className="bg-wallpaper"
@@ -68,10 +90,10 @@ export function Background({
           the user never sees solid theme color while the full-res image is
           still travelling across the Pacific. The full image paints over it
           when the browser finishes decoding. */}
-      {showWallpaper && loadedUrl ? (
+      {showWallpaper && wallpaperUrl ? (
         <div
           className={"bg-wallpaper-frame" + (isCrossfade ? " bg-wallpaper-frame-fade" : "")}
-          key={`wallpaper-${loadedUrl}`}
+          key={`wallpaper-${wallpaperUrl}`}
           style={{ zIndex: 1 }}
         >
           {wallpaperMediaType === "video" && loadedUrl === wallpaperUrl ? (
@@ -93,10 +115,12 @@ export function Background({
                   style={{ backgroundImage: `url("${wallpaperPosterUrl}")` }}
                 />
               ) : null}
-              <div
-                className="bg-wallpaper"
-                style={{ backgroundImage: `url("${loadedUrl}")` }}
-              />
+              {loadedUrl === wallpaperUrl ? (
+                <div
+                  className="bg-wallpaper"
+                  style={{ backgroundImage: `url("${loadedUrl}")` }}
+                />
+              ) : null}
             </>
           )}
         </div>

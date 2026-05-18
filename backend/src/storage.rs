@@ -95,6 +95,26 @@ impl Storage {
         Ok(presigned.uri().to_string())
     }
 
+    pub async fn get_bytes(&self, public_name: &str) -> AppResult<(Bytes, Option<String>)> {
+        let key = self.object_key(public_name)?;
+        let resp = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| AppError::Internal(format!("s3 get_object failed: {e}")))?;
+        let content_type = resp.content_type().map(|v| v.to_string());
+        let data = resp
+            .body
+            .collect()
+            .await
+            .map_err(|e| AppError::Internal(format!("s3 read_object failed: {e}")))?
+            .into_bytes();
+        Ok((data, content_type))
+    }
+
     fn object_key(&self, public_name: &str) -> AppResult<String> {
         let public_name = sanitize_public_name(public_name)?;
         if self.key_prefix.is_empty() {
@@ -104,8 +124,6 @@ impl Storage {
         }
     }
 }
-
-
 
 fn sanitize_public_name(name: &str) -> AppResult<String> {
     let name = name.trim().trim_matches('/');

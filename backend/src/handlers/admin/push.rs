@@ -14,7 +14,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use axum::Json;
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use bytes::Bytes;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use sqlx::{Postgres, QueryBuilder, Transaction};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,7 +87,9 @@ pub async fn unpush(
 }
 
 use crate::models::{
-    export::{FolderItemData, GroupData, GroupExportData, IconExportData, WidgetData},
+    export::{
+        ExportedAssetData, FolderItemData, GroupData, GroupExportData, IconExportData, WidgetData,
+    },
     FolderItem, Icon, Widget,
 };
 
@@ -100,43 +106,49 @@ pub async fn export(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    let icons: Vec<Icon> = sqlx::query_as("SELECT * FROM icons WHERE group_id = $1 ORDER BY sort_order ASC")
-        .bind(id)
-        .fetch_all(&state.pg)
-        .await?;
+    let icons: Vec<Icon> =
+        sqlx::query_as("SELECT * FROM icons WHERE group_id = $1 ORDER BY sort_order ASC")
+            .bind(id)
+            .fetch_all(&state.pg)
+            .await?;
 
-    let widgets: Vec<Widget> = sqlx::query_as("SELECT * FROM widgets WHERE group_id = $1 ORDER BY sort_order ASC")
-        .bind(id)
-        .fetch_all(&state.pg)
-        .await?;
+    let widgets: Vec<Widget> =
+        sqlx::query_as("SELECT * FROM widgets WHERE group_id = $1 ORDER BY sort_order ASC")
+            .bind(id)
+            .fetch_all(&state.pg)
+            .await?;
 
     let icon_ids: Vec<Uuid> = icons.iter().map(|i| i.id).collect();
     let folder_items: Vec<FolderItem> = if icon_ids.is_empty() {
         vec![]
     } else {
-        sqlx::query_as("SELECT * FROM folder_items WHERE folder_icon_id = ANY($1) ORDER BY sort_order ASC")
-            .bind(&icon_ids)
-            .fetch_all(&state.pg)
-            .await?
+        sqlx::query_as(
+            "SELECT * FROM folder_items WHERE folder_icon_id = ANY($1) ORDER BY sort_order ASC",
+        )
+        .bind(&icon_ids)
+        .fetch_all(&state.pg)
+        .await?
     };
 
-    let icon_data_list = icons.into_iter().map(|ic| {
-        let items = folder_items
-            .iter()
-            .filter(|f| f.folder_icon_id == ic.id)
-            .map(|f| FolderItemData {
+    let mut icon_data_list = Vec::with_capacity(icons.len());
+    for ic in icons {
+        let image_asset = export_image_asset(&state, ic.image_url.as_deref()).await;
+        let mut item_data = Vec::new();
+        for f in folder_items.iter().filter(|f| f.folder_icon_id == ic.id) {
+            item_data.push(FolderItemData {
                 name: f.name.clone(),
                 letter: f.letter.clone(),
                 color: f.color,
                 url: f.url.clone(),
                 image_url: f.image_url.clone(),
+                image_asset: export_image_asset(&state, f.image_url.as_deref()).await,
                 image_style: f.image_style.clone(),
                 image_radius: f.image_radius.clone(),
                 sort_order: f.sort_order,
-            })
-            .collect();
+            });
+        }
 
-        IconExportData {
+        icon_data_list.push(IconExportData {
             name: ic.name,
             url: ic.url,
             sub: ic.sub,
@@ -146,6 +158,7 @@ pub async fn export(
             letter: ic.letter,
             color: ic.color,
             image_url: ic.image_url,
+            image_asset,
             image_style: ic.image_style,
             image_radius: ic.image_radius,
             is_folder: ic.is_folder,
@@ -153,17 +166,20 @@ pub async fn export(
             sort_order: ic.sort_order,
             font_size: ic.font_size,
             text_align: ic.text_align,
-            folder_items: items,
-        }
-    }).collect();
+            folder_items: item_data,
+        });
+    }
 
-    let widget_data_list = widgets.into_iter().map(|w| WidgetData {
-        widget: w.widget_type,
-        w_span: w.w_span,
-        w_row: w.w_row,
-        config: w.config,
-        sort_order: w.sort_order,
-    }).collect();
+    let widget_data_list = widgets
+        .into_iter()
+        .map(|w| WidgetData {
+            widget: w.widget_type,
+            w_span: w.w_span,
+            w_row: w.w_row,
+            config: w.config,
+            sort_order: w.sort_order,
+        })
+        .collect();
 
     Ok(Json(GroupExportData {
         group: GroupData {
@@ -182,78 +198,124 @@ pub async fn import(
 ) -> AppResult<(StatusCode, Json<Group>)> {
     require_at_least_admin(user.role)?;
 
+    let group_name = payload.group.name.clone();
+    let group_icon = payload.group.icon.clone();
+    let mut icons = payload.icons;
+    let widgets = payload.widgets;
+
     let mut tx = state.pg.begin().await?;
 
     let new_group: Group = sqlx::query_as(
         "INSERT INTO groups (id, name, icon, owner_id, pushed, sort_order) \
          VALUES (gen_random_uuid(), $1, $2, $3, FALSE, \
            COALESCE((SELECT MAX(sort_order)+1 FROM groups WHERE owner_id = $3), 100)) \
-         RETURNING *"
+         RETURNING *",
     )
-    .bind(&payload.group.name)
-    .bind(&payload.group.icon)
+    .bind(&group_name)
+    .bind(&group_icon)
     .bind(user.id)
     .fetch_one(&mut *tx)
     .await?;
 
-    for ic in payload.icons {
-        let new_icon: Icon = sqlx::query_as(
-            "INSERT INTO icons (id, group_id, name, url, sub, title, cta, size, letter, color, image_url, image_style, image_radius, is_folder, iframe_preview, font_size, text_align, sort_order) \
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
-             RETURNING *"
+    for ic in &mut icons {
+        ic.image_url = materialize_exported_asset(
+            &state,
+            &mut tx,
+            Some(user.id),
+            ic.image_asset.as_ref(),
+            ic.image_url.take(),
+            &ic.name,
         )
-        .bind(new_group.id)
-        .bind(ic.name)
-        .bind(ic.url)
-        .bind(ic.sub)
-        .bind(ic.title)
-        .bind(ic.cta)
-        .bind(ic.size)
-        .bind(ic.letter)
-        .bind(ic.color)
-        .bind(ic.image_url)
-        .bind(ic.image_style)
-        .bind(ic.image_radius)
-        .bind(ic.is_folder)
-        .bind(ic.iframe_preview)
-        .bind(ic.font_size)
-        .bind(ic.text_align)
-        .bind(ic.sort_order)
-        .fetch_one(&mut *tx)
         .await?;
-
-        for f in ic.folder_items {
-            sqlx::query(
-                "INSERT INTO folder_items (id, folder_icon_id, name, letter, color, url, image_url, image_style, image_radius, sort_order) \
-                 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9)"
+        for f in &mut ic.folder_items {
+            f.image_url = materialize_exported_asset(
+                &state,
+                &mut tx,
+                Some(user.id),
+                f.image_asset.as_ref(),
+                f.image_url.take(),
+                &f.name,
             )
-            .bind(new_icon.id)
-            .bind(f.name)
-            .bind(f.letter)
-            .bind(f.color)
-            .bind(f.url)
-            .bind(f.image_url)
-            .bind(f.image_style)
-            .bind(f.image_radius)
-            .bind(f.sort_order)
-            .execute(&mut *tx)
             .await?;
         }
     }
 
-    for w in payload.widgets {
-        sqlx::query(
-            "INSERT INTO widgets (id, group_id, widget_type, w_span, w_row, config, sort_order) \
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)"
-        )
-        .bind(new_group.id)
-        .bind(w.widget)
-        .bind(w.w_span)
-        .bind(w.w_row)
-        .bind(w.config)
-        .bind(w.sort_order)
-        .execute(&mut *tx)
-        .await?;
+    let mut prepared_icons = Vec::with_capacity(icons.len());
+    let mut prepared_folder_items = Vec::new();
+    for mut ic in icons {
+        let icon_id = Uuid::new_v4();
+        for f in ic.folder_items.drain(..) {
+            prepared_folder_items.push(PreparedFolderItem {
+                folder_icon_id: icon_id,
+                data: f,
+            });
+        }
+        prepared_icons.push(PreparedIcon {
+            id: icon_id,
+            data: ic,
+        });
+    }
+
+    if !prepared_icons.is_empty() {
+        let mut qb = QueryBuilder::<Postgres>::new(
+            "INSERT INTO icons (id, group_id, name, url, sub, title, cta, size, letter, color, image_url, image_style, image_radius, is_folder, iframe_preview, font_size, text_align, sort_order) ",
+        );
+        qb.push_values(prepared_icons.iter(), |mut b, ic| {
+            b.push_bind(ic.id)
+                .push_bind(new_group.id)
+                .push_bind(&ic.data.name)
+                .push_bind(ic.data.url.as_deref())
+                .push_bind(ic.data.sub.as_deref())
+                .push_bind(ic.data.title.as_deref())
+                .push_bind(ic.data.cta.as_deref())
+                .push_bind(&ic.data.size)
+                .push_bind(ic.data.letter.as_deref())
+                .push_bind(ic.data.color)
+                .push_bind(ic.data.image_url.as_deref())
+                .push_bind(&ic.data.image_style)
+                .push_bind(&ic.data.image_radius)
+                .push_bind(ic.data.is_folder)
+                .push_bind(ic.data.iframe_preview)
+                .push_bind(&ic.data.font_size)
+                .push_bind(&ic.data.text_align)
+                .push_bind(ic.data.sort_order);
+        });
+        qb.build().execute(&mut *tx).await?;
+    }
+
+    if !prepared_folder_items.is_empty() {
+        let mut qb = QueryBuilder::<Postgres>::new(
+            "INSERT INTO folder_items (id, folder_icon_id, name, letter, color, url, image_url, image_style, image_radius, sort_order) ",
+        );
+        qb.push_values(prepared_folder_items.iter(), |mut b, item| {
+            b.push_bind(Uuid::new_v4())
+                .push_bind(item.folder_icon_id)
+                .push_bind(&item.data.name)
+                .push_bind(item.data.letter.as_deref())
+                .push_bind(item.data.color)
+                .push_bind(item.data.url.as_deref())
+                .push_bind(item.data.image_url.as_deref())
+                .push_bind(&item.data.image_style)
+                .push_bind(&item.data.image_radius)
+                .push_bind(item.data.sort_order);
+        });
+        qb.build().execute(&mut *tx).await?;
+    }
+
+    if !widgets.is_empty() {
+        let mut qb = QueryBuilder::<Postgres>::new(
+            "INSERT INTO widgets (id, group_id, widget_type, w_span, w_row, config, sort_order) ",
+        );
+        qb.push_values(widgets.iter(), |mut b, w| {
+            b.push_bind(Uuid::new_v4())
+                .push_bind(new_group.id)
+                .push_bind(&w.widget)
+                .push_bind(w.w_span)
+                .push_bind(w.w_row)
+                .push_bind(&w.config)
+                .push_bind(w.sort_order);
+        });
+        qb.build().execute(&mut *tx).await?;
     }
 
     tx.commit().await?;
@@ -262,11 +324,242 @@ pub async fn import(
         &state,
         Some(&user),
         "import_group",
-        Some(payload.group.name),
+        Some(group_name),
         "group",
         None,
     )
     .await;
 
     Ok((StatusCode::CREATED, Json(new_group)))
+}
+
+struct PreparedIcon {
+    id: Uuid,
+    data: IconExportData,
+}
+
+struct PreparedFolderItem {
+    folder_icon_id: Uuid,
+    data: FolderItemData,
+}
+
+async fn export_image_asset(
+    state: &Arc<AppState>,
+    image_url: Option<&str>,
+) -> Option<ExportedAssetData> {
+    let key = upload_key_from_url(image_url?)?;
+    match state.storage.get_bytes(&key).await {
+        Ok((bytes, content_type)) => {
+            let digest = Sha256::digest(&bytes);
+            Some(ExportedAssetData {
+                data: BASE64_STANDARD.encode(&bytes),
+                content_type,
+                filename: key.rsplit('/').next().map(|s| s.to_string()),
+                sha256: Some(hex::encode(digest)),
+            })
+        }
+        Err(e) => {
+            tracing::warn!("failed to embed exported icon asset '{}': {e}", key);
+            None
+        }
+    }
+}
+
+async fn materialize_exported_asset(
+    state: &Arc<AppState>,
+    tx: &mut Transaction<'_, Postgres>,
+    uploader_id: Option<Uuid>,
+    asset: Option<&ExportedAssetData>,
+    fallback_url: Option<String>,
+    display_name: &str,
+) -> AppResult<Option<String>> {
+    let Some(asset) = asset else {
+        return Ok(fallback_url);
+    };
+    let data = BASE64_STANDARD
+        .decode(asset.data.trim())
+        .map_err(|e| AppError::BadRequest(format!("invalid embedded icon asset: {e}")))?;
+    let max_bytes = (state.cfg.app.upload_max_mb * 1024 * 1024) as usize;
+    if data.len() > max_bytes {
+        return Err(AppError::BadRequest(format!(
+            "embedded icon asset too large ({} bytes > {} max)",
+            data.len(),
+            max_bytes
+        )));
+    }
+
+    let content_type = detect_exported_asset_mime(&data, asset.content_type.as_deref())?;
+    if content_type == "image/svg+xml" {
+        scan_svg_for_active_content(&data)
+            .map_err(|reason| AppError::BadRequest(format!("SVG rejected: {reason}")))?;
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(&data);
+    let sha_hex = hex::encode(hasher.finalize());
+
+    let existing =
+        sqlx::query_scalar::<_, String>("SELECT url FROM library_icons WHERE sha256 = $1 LIMIT 1")
+            .bind(&sha_hex)
+            .fetch_optional(&mut **tx)
+            .await?;
+    if let Some(url) = existing {
+        return Ok(Some(url));
+    }
+
+    let ext = exported_asset_ext(&content_type, asset.filename.as_deref());
+    let storage_key = format!("icons/{sha_hex}.{ext}");
+    let url = format!("/uploads/{storage_key}");
+    state
+        .storage
+        .put_bytes(&storage_key, Some(&content_type), Bytes::from(data.clone()))
+        .await?;
+
+    sqlx::query(
+        "INSERT INTO library_icons (sha256, name, url, uploader_id, size, content_type)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(&sha_hex)
+    .bind(display_name)
+    .bind(&url)
+    .bind(uploader_id)
+    .bind(data.len() as i32)
+    .bind(&content_type)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(Some(url))
+}
+
+fn upload_key_from_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    if let Some(rest) = trimmed.strip_prefix("/uploads/") {
+        return clean_upload_key(rest);
+    }
+    if let Ok(parsed) = url::Url::parse(trimmed) {
+        if let Some(rest) = parsed.path().strip_prefix("/uploads/") {
+            return clean_upload_key(rest);
+        }
+    }
+    None
+}
+
+fn clean_upload_key(value: &str) -> Option<String> {
+    let key = value
+        .trim_start_matches('/')
+        .split(['?', '#'])
+        .next()?
+        .trim();
+    if key.is_empty() || key.contains("..") || key.contains('\\') {
+        return None;
+    }
+    Some(key.to_string())
+}
+
+fn detect_exported_asset_mime(bytes: &[u8], hinted: Option<&str>) -> AppResult<String> {
+    if let Some(ct) = hinted.map(str::trim).filter(|v| !v.is_empty()) {
+        if ct.starts_with("image/") {
+            return Ok(ct.to_string());
+        }
+    }
+    if let Some(kind) = infer::get(bytes) {
+        let mime = kind.mime_type();
+        if mime.starts_with("image/") {
+            return Ok(mime.to_string());
+        }
+    }
+    let text = String::from_utf8_lossy(bytes);
+    let trimmed = text.trim_start();
+    if trimmed.starts_with("<?xml") || trimmed.starts_with("<svg") || text.contains("<svg") {
+        return Ok("image/svg+xml".to_string());
+    }
+    Err(AppError::BadRequest(
+        "embedded icon asset must be an image".into(),
+    ))
+}
+
+fn exported_asset_ext(content_type: &str, filename: Option<&str>) -> &'static str {
+    if let Some(lower) = filename.map(|v| v.to_ascii_lowercase()) {
+        if lower.ends_with(".svg") {
+            return "svg";
+        }
+        if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+            return "jpg";
+        }
+        if lower.ends_with(".png") {
+            return "png";
+        }
+        if lower.ends_with(".webp") {
+            return "webp";
+        }
+        if lower.ends_with(".gif") {
+            return "gif";
+        }
+        if lower.ends_with(".ico") {
+            return "ico";
+        }
+    }
+    match content_type {
+        "image/svg+xml" => "svg",
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
+        _ => "bin",
+    }
+}
+
+fn scan_svg_for_active_content(bytes: &[u8]) -> Result<(), &'static str> {
+    let text = std::str::from_utf8(bytes).map_err(|_| "not valid UTF-8")?;
+    let lower = text.to_ascii_lowercase();
+    if lower.contains("<script") || lower.contains("</script") {
+        return Err("contains <script>");
+    }
+    if lower.contains("<foreignobject") {
+        return Err("contains <foreignObject>");
+    }
+    if lower.contains("javascript:") || lower.contains("vbscript:") {
+        return Err("contains script: URI");
+    }
+    if lower.contains("data:text/html") || lower.contains("data:application/xhtml") {
+        return Err("contains data:text/html");
+    }
+    if lower.contains("@import") {
+        return Err("contains @import");
+    }
+    if has_event_handler(&lower) {
+        return Err("contains inline event handler");
+    }
+    Ok(())
+}
+
+fn has_event_handler(lower: &str) -> bool {
+    let bytes = lower.as_bytes();
+    for i in 0..bytes.len().saturating_sub(3) {
+        let c = bytes[i];
+        let is_attr_boundary = c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b'\x0c';
+        if !is_attr_boundary {
+            continue;
+        }
+        if bytes.get(i + 1).copied() != Some(b'o') || bytes.get(i + 2).copied() != Some(b'n') {
+            continue;
+        }
+        let mut j = i + 3;
+        let mut saw_letter = false;
+        while j < bytes.len() && bytes[j].is_ascii_lowercase() {
+            saw_letter = true;
+            j += 1;
+        }
+        if !saw_letter {
+            continue;
+        }
+        while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
+            j += 1;
+        }
+        if bytes.get(j).copied() == Some(b'=') {
+            return true;
+        }
+    }
+    false
 }

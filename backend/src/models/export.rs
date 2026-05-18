@@ -12,7 +12,12 @@ pub struct GroupExportData {
 #[serde(rename_all = "camelCase")]
 pub struct GroupData {
     pub name: String,
+    #[serde(default = "default_group_icon")]
     pub icon: String,
+}
+
+fn default_group_icon() -> String {
+    "grid".into()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,6 +32,8 @@ pub struct IconExportData {
     pub letter: Option<String>,
     pub color: i32,
     pub image_url: Option<String>,
+    #[serde(default)]
+    pub image_asset: Option<ExportedAssetData>,
     pub image_style: String,
     pub image_radius: String,
     pub is_folder: bool,
@@ -55,6 +62,8 @@ pub struct FolderItemData {
     pub color: i32,
     pub url: Option<String>,
     pub image_url: Option<String>,
+    #[serde(default)]
+    pub image_asset: Option<ExportedAssetData>,
     pub image_style: String,
     pub image_radius: String,
     pub sort_order: i32,
@@ -68,4 +77,13 @@ pub struct WidgetData {
     pub w_row: Option<i32>,
     pub config: serde_json::Value,
     pub sort_order: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportedAssetData {
+    pub data: String,
+    pub content_type: Option<String>,
+    pub filename: Option<String>,
+    pub sha256: Option<String>,
 }
