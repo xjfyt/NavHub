@@ -401,17 +401,21 @@ export const api = {
     city?: string,
     lat?: number,
     lon?: number,
+    signal?: AbortSignal,
   ): Promise<WeatherResp> {
     const qs = new URLSearchParams();
     if (city) qs.set("city", city);
     if (lat != null) qs.set("lat", String(lat));
     if (lon != null) qs.set("lon", String(lon));
     const tail = qs.toString() ? `?${qs}` : "";
-    return request(`/api/widgets/weather${tail}`);
+    return request(`/api/widgets/weather${tail}`, { signal });
   },
-  async hot(source?: "weibo" | "zhihu" | "bilibili" | "juejin"): Promise<HotItem[]> {
+  async hot(
+    source?: "weibo" | "zhihu" | "bilibili" | "juejin",
+    signal?: AbortSignal,
+  ): Promise<HotItem[]> {
     const tail = source ? `?source=${source}` : "";
-    return request(`/api/widgets/hot${tail}`);
+    return request(`/api/widgets/hot${tail}`, { signal });
   },
   async musicSearch(q: string, limit = 20): Promise<{ songs: NeteaseSong[] }> {
     const qs = new URLSearchParams({ q, limit: String(limit) });

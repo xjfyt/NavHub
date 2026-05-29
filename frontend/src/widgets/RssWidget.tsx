@@ -22,7 +22,7 @@ export const RssWidget = ({ w }: WidgetProps<RssConfig> = {}) => {
   const { config } = useWidgetConfig<RssConfig>(w, DEFAULTS);
   const source = config.source ?? "weibo";
   const { data, loading, error } = useWidgetData(
-    () => api.hot(source),
+    (signal) => api.hot(source, signal),
     [source],
     { refreshMs: 5 * 60_000 },
   );
@@ -80,7 +80,7 @@ export const RssDetail = ({ w }: WidgetProps<RssConfig> = {}) => {
   const { config, update } = useWidgetConfig<RssConfig>(w, DEFAULTS);
   const source = config.source ?? "weibo";
   const { data, loading, error } = useWidgetData(
-    () => api.hot(source),
+    (signal) => api.hot(source, signal),
     [source],
     { refreshMs: 5 * 60_000 },
   );

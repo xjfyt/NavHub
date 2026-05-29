@@ -13,7 +13,7 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   const { config } = useWidgetConfig<WeatherConfig>(w, DEFAULTS);
   const city = (config.city ?? "").trim();
   const { data, loading, error } = useWidgetData(
-    () => api.weather(city || undefined),
+    (signal) => api.weather(city || undefined, undefined, undefined, signal),
     [city],
     { refreshMs: 30 * 60_000 },
   );
@@ -85,7 +85,7 @@ export const WeatherDetail = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   const { config } = useWidgetConfig<WeatherConfig>(w, DEFAULTS);
   const city = (config.city ?? "").trim();
   const { data, loading, error } = useWidgetData(
-    () => api.weather(city || undefined),
+    (signal) => api.weather(city || undefined, undefined, undefined, signal),
     [city],
     { refreshMs: 30 * 60_000 },
   );
