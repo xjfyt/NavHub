@@ -1,6 +1,7 @@
 import { Icon } from "../components/Icon";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { addMonths, buildMonthGrid, MONTH_NAMES_CN, type TodayRef } from "./calendarMath";
+import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
 interface CalendarConfig {
@@ -35,6 +36,8 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
   const td = todayRef();
   const { year, month } = resolveView(config, td);
   const cells = buildMonthGrid(year, month, td);
+  // WIDGET-7: 小尺寸隐藏「星期」副标题,让出垂直空间给月历网格,避免裁切。
+  const tier = widgetTier(w?.wSpan, w?.wRow);
 
   const go = (delta: number) => {
     const next = addMonths(year, month, delta);
@@ -47,9 +50,11 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
       <div className="cal-head">
         <div style={{ minWidth: 0, overflow: "hidden" }}>
           <div className="cal-month">{year} · {MONTH_NAMES_CN[month]}</div>
-          <div className="muted" style={{ fontSize: 11, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {new Date(td.year, td.month, td.day).toLocaleDateString('zh-CN', { weekday: 'long' })}
-          </div>
+          {tier !== "sm" && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {new Date(td.year, td.month, td.day).toLocaleDateString('zh-CN', { weekday: 'long' })}
+            </div>
+          )}
         </div>
         <div className="cal-nav">
           <button onClick={(e) => { e.stopPropagation(); go(-1); }} onMouseDown={(e) => e.stopPropagation()}><Icon name="chevron-left" size={12} /></button>

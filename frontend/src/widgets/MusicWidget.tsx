@@ -3,6 +3,7 @@ import { Icon } from "../components/Icon";
 import { api } from "../api";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { cycleLoopMode, fmtTime, nextIndex, seekTime, type LoopMode } from "./musicMath";
+import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
 interface NeteaseSong {
@@ -41,6 +42,8 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
   const current = playlist.find((s) => s.id === config.currentId) ?? playlist[0];
   const loop: LoopMode = config.loop ?? "all";
   const volume = config.volume ?? 1;
+  // WIDGET-7: 小尺寸隐藏剩余时间行与音量滑块,只留封面/标题/进度/播放控制,防溢出。
+  const tier = widgetTier(w?.wSpan, w?.wRow);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -224,10 +227,12 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
       >
         <div style={{ width: `${progress}%`, transition: seeking ? "none" : undefined }} />
       </div>
-      <div className="ptime">
-        <span>{fmtTime(pos)}</span>
-        <span>-{fmtTime(Math.max(0, dur - pos))}</span>
-      </div>
+      {tier !== "sm" && (
+        <div className="ptime">
+          <span>{fmtTime(pos)}</span>
+          <span>-{fmtTime(Math.max(0, dur - pos))}</span>
+        </div>
+      )}
       <div className="ctrls">
         <button onClick={(e) => { e.stopPropagation(); skip(-1); }} onMouseDown={(e) => e.stopPropagation()}><Icon name="skip-prev" size={14} /></button>
         <button className="play" onClick={(e) => { e.stopPropagation(); toggle(); }} onMouseDown={(e) => e.stopPropagation()}>
@@ -235,23 +240,25 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
         </button>
         <button onClick={(e) => { e.stopPropagation(); skip(1); }} onMouseDown={(e) => e.stopPropagation()}><Icon name="skip-next" size={14} /></button>
       </div>
-      {/* WIDGET-4(c): 音量控制 */}
-      <div className="mvol" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-        <Icon name={volume === 0 ? "volume-x" : "volume"} size={12} />
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={volume}
-          aria-label="音量"
-          style={{ flex: 1, accentColor: "#fff" }}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        />
-      </div>
+      {/* WIDGET-4(c): 音量控制(WIDGET-7:小尺寸隐藏以让出垂直空间) */}
+      {tier !== "sm" && (
+        <div className="mvol" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+          <Icon name={volume === 0 ? "volume-x" : "volume"} size={12} />
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            aria-label="音量"
+            style={{ flex: 1, accentColor: "#fff" }}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       <audio
         ref={audioRef}
         onTimeUpdate={(e) => { if (!seeking) setPos(e.currentTarget.currentTime); }}

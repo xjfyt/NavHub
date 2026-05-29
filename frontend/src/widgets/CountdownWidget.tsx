@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { countdownDays, countdownParts } from "./countdownMath";
+import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
 interface CountdownConfig {
@@ -35,6 +36,8 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
   const mode = config.mode ?? "down";
   const now = useMinuteTick();
   const result = countdownDays(config.targetDate, mode, now);
+  // WIDGET-7: 小尺寸隐藏底部日期行,只留天数 + 标签,避免四行堆叠溢出胶囊。
+  const tier = widgetTier(w?.wSpan, w?.wRow);
 
   if (!result) {
     return (
@@ -67,7 +70,7 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
         <span className="unit">{result.suffix}</span>
       </div>
       <div className="event">{result.label}</div>
-      <div className="date">{dateText}{dateSuffix}</div>
+      {tier !== "sm" && <div className="date">{dateText}{dateSuffix}</div>}
     </div>
   );
 };

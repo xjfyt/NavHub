@@ -7,6 +7,7 @@ import {
   shouldShowWeatherSetup,
   type TempUnit,
 } from "./weatherFormat";
+import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
 interface WeatherConfig {
@@ -21,6 +22,8 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   const { config, update } = useWidgetConfig<WeatherConfig>(w, DEFAULTS);
   const city = (config.city ?? "").trim();
   const unit: TempUnit = config.unit === "f" ? "f" : "c";
+  // WIDGET-7: 小尺寸只保留温度+天气,隐藏湿度/风向/AQI 与逐时预报,防溢出。
+  const tier = widgetTier(w?.wSpan, w?.wRow);
   const { data, loading, error } = useWidgetData(
     (signal) => api.weather(city || undefined, undefined, undefined, signal),
     [city],
@@ -119,18 +122,22 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
           </div>
         </div>
       </div>
-      <div className="meta">
-        <div>湿度<span>{data.humidity}</span></div>
-        <div>风向<span>{data.wind}</span></div>
-        <div>AQI<span>{data.aqi}</span></div>
-      </div>
-      <div className="hours">
-        {hours.slice(0, 5).map((x, i) => (
-          <div key={i} className="hour">
-            {x.h}<b>{convertTempString(x.t, unit)}</b><span style={{ fontSize: 14 }}>{x.i}</span>
+      {tier !== "sm" && (
+        <>
+          <div className="meta">
+            <div>湿度<span>{data.humidity}</span></div>
+            <div>风向<span>{data.wind}</span></div>
+            <div>AQI<span>{data.aqi}</span></div>
           </div>
-        ))}
-      </div>
+          <div className="hours">
+            {hours.slice(0, 5).map((x, i) => (
+              <div key={i} className="hour">
+                {x.h}<b>{convertTempString(x.t, unit)}</b><span style={{ fontSize: 14 }}>{x.i}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

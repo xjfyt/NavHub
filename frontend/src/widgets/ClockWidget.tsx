@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { formatClock, greetingByHour, hourInZone } from "./clockFormat";
+import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
 interface ClockConfig {
@@ -28,6 +29,8 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
   const { config } = useWidgetConfig<ClockConfig>(w, DEFAULTS);
   const hour12 = config.hour12 ?? false;
   const timeZone = config.timeZone || undefined;
+  // WIDGET-7: 小尺寸隐藏模拟表盘、收敛日期为短格式,避免溢出/裁切。
+  const tier = widgetTier(w?.wSpan, w?.wRow);
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -40,11 +43,11 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
   const timeStr = formatClock(now, { hour12, timeZone, seconds: true });
 
   // 日期/星期按所选时区显示(本地时区直接用 Date 取值)。
+  // 小尺寸用短格式(月/日 周X),避免「2026 年 5 月 29 日 星期五」过长换行。
   const dateStr = new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
+    ...(tier === "sm"
+      ? { month: "numeric", day: "numeric", weekday: "short" }
+      : { year: "numeric", month: "long", day: "numeric", weekday: "long" }),
     ...(timeZone ? { timeZone } : {}),
   }).format(now);
 
@@ -75,11 +78,13 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
           </div>
           <div className="d">{dateStr}</div>
         </div>
-        <div className="analog">
-          <div className="dot" />
-          <span style={{ transform: `translateX(-50%) rotate(${(h % 12) * 30 + m * 0.5}deg)`, width: 2, height: 14, background: '#fff', position: 'absolute', left: '50%', bottom: '50%' }} />
-          <span style={{ transform: `translateX(-50%) rotate(${m * 6}deg)`, width: 1.5, height: 20, background: '#ffd7a5', position: 'absolute', left: '50%', bottom: '50%' }} />
-        </div>
+        {tier !== "sm" && (
+          <div className="analog">
+            <div className="dot" />
+            <span style={{ transform: `translateX(-50%) rotate(${(h % 12) * 30 + m * 0.5}deg)`, width: 2, height: 14, background: '#fff', position: 'absolute', left: '50%', bottom: '50%' }} />
+            <span style={{ transform: `translateX(-50%) rotate(${m * 6}deg)`, width: 1.5, height: 20, background: '#ffd7a5', position: 'absolute', left: '50%', bottom: '50%' }} />
+          </div>
+        )}
       </div>
     </div>
   );
