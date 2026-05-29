@@ -194,7 +194,7 @@ export function App() {
 
       if (statusResult.appName) {
         document.title = statusResult.appName;
-        (window as any).appName = statusResult.appName;
+        window.appName = statusResult.appName;
       }
       setState({ stage: "ready", status: statusResult, me, workspace });
       writeSwr({ status: statusResult, me, workspace });

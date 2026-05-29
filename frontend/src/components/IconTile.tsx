@@ -210,7 +210,7 @@ const IconTileImpl = ({
               );
 
               return (
-                <div key={it.id} className="fg-item direct-link" style={{ WebkitUserDrag: 'none' } as any} onClick={e => {
+                <div key={it.id} className="fg-item direct-link" style={{ WebkitUserDrag: 'none' } as React.CSSProperties & { WebkitUserDrag?: string }} onClick={e => {
                   e.stopPropagation();
                   if (isLink) { const safe = safeHttpUrl(it.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); }
                   else onClick?.(e, icon);

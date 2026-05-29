@@ -5,7 +5,7 @@ import { DocumentModal, TermsContent, PrivacyContent } from "./DocumentModal";
 import { api } from "../api";
 import { toast } from "sonner";
 import type { UserMessage, CustomEngine, RemoteWallpaperItem, PublicWallpaperSource } from "../types";
-import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
+import { BUILTIN_ENGINES, EngineLogo, type EngineDef } from "../utils/engines";
 import { validateEngineInput } from "../utils/engineHelpers";
 import { useI18n, LANG_OPTIONS } from "../i18n";
 import {
@@ -732,7 +732,9 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
       ? (workspace.preferences.customEngines as CustomEngine[])
       : [];
 
-    const allEngines = [...Object.values(BUILTIN_ENGINES), ...customEngines];
+    // QUAL-13: CustomEngine 结构上可赋给 EngineDef(后者的 builtin/color/label 均可选),
+    // 故显式标注元素类型为 EngineDef[],EngineLogo 不再需要 `as any`。
+    const allEngines: EngineDef[] = [...Object.values(BUILTIN_ENGINES), ...customEngines];
 
     return (
       <div className="tw-content">
@@ -744,7 +746,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               return (
                 <div key={e.id} className="tw-row tw-row-click" style={{ padding: '12px 16px', borderBottom: '1px solid var(--glass-border-soft)' }} onClick={() => set("searchEngine", e.id)}>
                   <div className="tw-row-label" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <EngineLogo engine={e as any} size={20} />
+                    <EngineLogo engine={e} size={20} />
                     <span>{e.name}</span>
                   </div>
                   <div className="tw-row-ctrl" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

@@ -43,6 +43,16 @@ const BUILTIN_ICON_OPTIONS = [
   "key", "activity", "link", "external", "sun", "moon", "sparkle", "play",
 ] as const;
 
+type BuiltinIconName = (typeof BUILTIN_ICON_OPTIONS)[number];
+
+// QUAL-13: 把任意字符串收敛为合法的内置图标名(不在白名单里就回退 "globe"),
+// 取代原先的 `as any` 强制断言。
+function toBuiltinIconName(value: string | null | undefined): BuiltinIconName {
+  return value && (BUILTIN_ICON_OPTIONS as readonly string[]).includes(value)
+    ? (value as BuiltinIconName)
+    : "globe";
+}
+
 type IconSourceMode = (typeof SOURCE_OPTIONS)[number]["id"];
 
 const IMAGE_STYLE_OPTIONS: { id: IconImageStyle; name: string }[] = [
@@ -127,8 +137,8 @@ export function AddIconModal({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(sourceMode === "upload" ? (initialIcon?.imageUrl || null) : null);
-  const [builtinIcon, setBuiltinIcon] = useState<(typeof BUILTIN_ICON_OPTIONS)[number]>(
-    (parseBuiltinIconUrl(initialIcon?.imageUrl) as any) || "globe"
+  const [builtinIcon, setBuiltinIcon] = useState<BuiltinIconName>(
+    toBuiltinIconName(parseBuiltinIconUrl(initialIcon?.imageUrl))
   );
   const [librarySelectedUrl, setLibrarySelectedUrl] = useState<string | null>(sourceMode === "library" ? (initialIcon?.imageUrl || null) : null);
   const [libraries, setLibraries] = useState<any[]>([]);
@@ -438,7 +448,7 @@ export function AddIconModal({
                    <div 
                      key={opt.id}
                      className={"source-opt " + (sourceMode === opt.id ? "active" : "")}
-                     onClick={() => setSourceMode(opt.id as any)}
+                     onClick={() => setSourceMode(opt.id)}
                      style={{
                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px',
                        padding: '14px 0', borderRadius: '12px', cursor: 'pointer',

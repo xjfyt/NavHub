@@ -64,7 +64,7 @@ export const AdminDashboard = () => {
         <div>
           <h2 style={{ fontSize: 24, margin: "0 0 6px 0" }}>总览</h2>
           <div style={{ fontSize: 13, color: "var(--text-soft)" }}>
-            实例概况 · {(window as any).appName || "NavHub"} M2
+            实例概况 · {window.appName || "NavHub"} M2
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>

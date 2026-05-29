@@ -61,7 +61,7 @@ export const AdminShell = ({
         }}
       >
         <h1 style={{ padding: "20px", fontSize: "18px", fontWeight: 600 }}>
-          {(window as any).appName || "NavHub"}{" "}
+          {window.appName || "NavHub"}{" "}
           <span
             className="badge"
             style={{
