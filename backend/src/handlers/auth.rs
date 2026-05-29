@@ -89,11 +89,13 @@ pub async fn callback(
     let display = info.display_name.clone().or(info.name.clone());
     let avatar = info.avatar.clone().or(info.picture.clone());
 
-    // If a superadmin exists with this email but no casdoor_id, bind it.
+    // If a superadmin exists with this email but no casdoor_id, bind it
+    // (only when the IdP asserts the email is verified — see AUTH-2).
     let user = upsert_sso_user(
         &state,
         &info.sub,
         &email,
+        info.email_verified,
         &username,
         display.as_deref(),
         avatar.as_deref(),
@@ -248,10 +250,21 @@ pub async fn public_config(State(state): State<Arc<AppState>>) -> Json<PublicCon
     })
 }
 
+/// AUTH-2: decide whether an SSO identity may auto-bind to an EXISTING local
+/// account matched by email. Binding silently grants the SSO user the existing
+/// (possibly privileged) account, so we require the IdP to assert the email is
+/// verified. A missing claim (`None`) or `Some(false)` refuses the bind — an
+/// attacker who can register an unverified address at the IdP that collides
+/// with an admin's email must not be able to take it over.
+fn sso_email_bind_allowed(email_verified: Option<bool>) -> bool {
+    matches!(email_verified, Some(true))
+}
+
 async fn upsert_sso_user(
     state: &Arc<AppState>,
     sub: &str,
     email: &str,
+    email_verified: Option<bool>,
     username: &str,
     display_name: Option<&str>,
     avatar: Option<&str>,
@@ -286,6 +299,20 @@ async fn upsert_sso_user(
     .fetch_optional(&state.pg)
     .await?
     {
+        // AUTH-2: only auto-bind to a pre-existing (possibly privileged) account
+        // when the IdP asserts the email is verified. Otherwise refuse: an
+        // attacker registering an unverified address that collides with an
+        // admin's email must not silently inherit that account. We reject rather
+        // than fall through to a fresh insert because `email` is UNIQUE — a
+        // fall-through would only produce an opaque 500.
+        if !sso_email_bind_allowed(email_verified) {
+            tracing::warn!(
+                email = %email,
+                sub = %sub,
+                "refusing SSO bind to existing account: email not verified by IdP (AUTH-2)"
+            );
+            return Err(AppError::Forbidden("sso_email_unverified"));
+        }
         sqlx::query(
             "UPDATE users SET casdoor_id=$1, display_name=COALESCE($2, display_name), \
              avatar_url=COALESCE($3, avatar_url), last_seen_at=now(), updated_at=now() WHERE id=$4",
@@ -400,4 +427,21 @@ pub async fn change_password(
     resp.headers_mut()
         .insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
     Ok(resp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // AUTH-2: email-bind decision.
+    #[test]
+    fn bind_allowed_only_when_email_verified() {
+        assert!(sso_email_bind_allowed(Some(true)));
+    }
+
+    #[test]
+    fn bind_refused_when_email_unverified_or_missing() {
+        assert!(!sso_email_bind_allowed(Some(false)));
+        assert!(!sso_email_bind_allowed(None));
+    }
 }

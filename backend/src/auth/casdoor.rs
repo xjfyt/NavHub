@@ -25,6 +25,11 @@ pub struct UserInfo {
     pub preferred_username: Option<String>,
     #[serde(default)]
     pub email: Option<String>,
+    /// AUTH-2: whether the IdP asserts this email is verified. Optional because
+    /// not every provider sends it; a missing claim is treated as "not verified"
+    /// at the binding decision (see `sso_email_bind_allowed`).
+    #[serde(default)]
+    pub email_verified: Option<bool>,
     #[serde(default)]
     pub picture: Option<String>,
     #[serde(default, rename = "displayName")]
