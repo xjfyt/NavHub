@@ -59,6 +59,21 @@ pub fn group_writable_by(group: &Group, user: &SessionUser) -> bool {
     group.owner_id == Some(user.id)
 }
 
+/// 流式读取响应体,累计超过 `max` 字节立即报错;避免无 Content-Length 或谎报长度的响应撑爆内存。
+pub async fn read_body_capped(resp: reqwest::Response, max: u64) -> anyhow::Result<bytes::Bytes> {
+    use futures::StreamExt;
+    let mut stream = resp.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if buf.len() as u64 + chunk.len() as u64 > max {
+            anyhow::bail!("download too large: exceeds {max} bytes");
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(bytes::Bytes::from(buf))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

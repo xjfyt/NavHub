@@ -39,7 +39,7 @@ fn default_size() -> u16 {
 /// Probe a host through DNS and reject any address pointing at private / loopback /
 /// link-local / multicast / reserved space, covering both IPv4 and IPv6.
 /// `allow_private` opens a homelab escape hatch that still blocks loopback/multicast/unspecified.
-async fn ensure_safe_target(host: &str, allow_private: bool) -> AppResult<()> {
+pub(crate) async fn ensure_safe_target(host: &str, allow_private: bool) -> AppResult<()> {
     if host.eq_ignore_ascii_case("localhost") {
         return Err(AppError::BadRequest("invalid host".into()));
     }
@@ -406,7 +406,7 @@ fn placeholder_response(host: &str) -> Response {
         .unwrap()
 }
 
-fn extract_host(input: &str) -> Option<String> {
+pub(crate) fn extract_host(input: &str) -> Option<String> {
     let s = input.trim();
     if s.is_empty() {
         return None;

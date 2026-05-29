@@ -291,6 +291,8 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
     let http = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (compatible; NavHub/1.0)")
         .timeout(std::time::Duration::from_secs(120))
+        // SEC-10: 禁用自动重定向,防止 302 跳到内网/云元数据绕过 SSRF 校验。
+        .redirect(reqwest::redirect::Policy::none())
         .build()?;
 
     let max_size_bytes: u64 = 100 * 1024 * 1024; // 100 MB limit per file
@@ -444,6 +446,14 @@ async fn download_to_storage(
     prefix: &str,
     max_bytes: u64,
 ) -> anyhow::Result<(String, u64, Option<i32>, Option<i32>)> {
+    // SEC-10: 抓取来的 URL 其内容站点可控,下载前做 SSRF 校验(禁私网/内网/云元数据);
+    // 下载客户端已禁用自动重定向,避免 302 跳转绕过校验。
+    let host = crate::handlers::favicon::extract_host(url)
+        .ok_or_else(|| anyhow::anyhow!("invalid download url: {url}"))?;
+    crate::handlers::favicon::ensure_safe_target(&host, false)
+        .await
+        .map_err(|e| anyhow::anyhow!("blocked download target {host}: {e:?}"))?;
+
     let resp = client.get(url).send().await?;
     if !resp.status().is_success() {
         anyhow::bail!("http {} downloading {url}", resp.status());
@@ -467,10 +477,8 @@ async fn download_to_storage(
         .trim()
         .to_string();
 
-    let bytes: Bytes = resp.bytes().await?;
-    if bytes.len() as u64 > max_bytes {
-        anyhow::bail!("file too large after download: {} bytes", bytes.len());
-    }
+    // SEC-6: 流式读取并限额,避免无/谎报 Content-Length 的响应撑爆内存。
+    let bytes: Bytes = crate::handlers::util::read_body_capped(resp, max_bytes).await?;
 
     let ext = ext_from_content_type(&content_type, url);
     let hash = {
