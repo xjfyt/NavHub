@@ -10,6 +10,18 @@ pub mod wikimedia;
 
 use anyhow::Result;
 
+/// INFRA-8: 此前各爬虫在 new() 里用 `build().unwrap_or_default()` 构造客户端,
+/// 一旦构建失败(如 TLS 后端初始化错误)会被静默吞掉、退化成一个无超时、无 UA 的
+/// 默认客户端,反而更危险。统一改用此 helper 集中构造并向上传播错误。
+/// 同时承载 INFRA-1 的超时:连接超时 10s、整体请求超时 30s。
+pub(crate) fn build_scraper_client(user_agent: &str) -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(user_agent.to_string())
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+}
+
 #[derive(Debug, Clone)]
 pub struct ScrapedWallpaper {
     pub title: Option<String>,
@@ -122,19 +134,20 @@ impl Scraper for BuiltinScraper {
     }
 }
 
-pub fn get_scraper(scraper_type: &str) -> Box<dyn Scraper> {
-    match scraper_type {
+pub fn get_scraper(scraper_type: &str) -> Result<Box<dyn Scraper>> {
+    // INFRA-8: 构造失败时向上传播,而非静默退化成默认客户端。
+    Ok(match scraper_type {
         "builtin" => Box::new(BuiltinScraper),
         "bing" => Box::new(bing::BingScraper::new()),
-        "desktophut" => Box::new(desktophut::DesktopHutScraper::new()),
-        "wikimedia" => Box::new(wikimedia::WikimediaScraper::new()),
-        "nasa" => Box::new(nasa::NasaScraper::new()),
-        "unsplash" => Box::new(unsplash::UnsplashScraper::new()),
-        "wallhaven" => Box::new(wallhaven::WallhavenScraper::new()),
-        "pexels" => Box::new(pexels::PexelsScraper::new()),
-        "pixabay" => Box::new(pixabay::PixabayScraper::new()),
-        _ => Box::new(desktophut::DesktopHutScraper::new()),
-    }
+        "desktophut" => Box::new(desktophut::DesktopHutScraper::new()?),
+        "wikimedia" => Box::new(wikimedia::WikimediaScraper::new()?),
+        "nasa" => Box::new(nasa::NasaScraper::new()?),
+        "unsplash" => Box::new(unsplash::UnsplashScraper::new()?),
+        "wallhaven" => Box::new(wallhaven::WallhavenScraper::new()?),
+        "pexels" => Box::new(pexels::PexelsScraper::new()?),
+        "pixabay" => Box::new(pixabay::PixabayScraper::new()?),
+        _ => Box::new(desktophut::DesktopHutScraper::new()?),
+    })
 }
 
 #[derive(Debug, Clone)]

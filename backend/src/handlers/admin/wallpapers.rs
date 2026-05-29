@@ -281,7 +281,7 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
         source.site_url
     );
 
-    let scraper = get_scraper(&source.scraper_type);
+    let scraper = get_scraper(&source.scraper_type)?;
     let scraped = scraper
         .scrape(&source.site_url, source.fetch_batch_size as usize)
         .await?;
