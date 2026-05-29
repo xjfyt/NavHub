@@ -8,6 +8,9 @@ host = "0.0.0.0"
 port = 8088
 # 生产环境反代域名,用于 Cookie domain 与 OIDC redirect 推导
 public_url = "http://localhost:8088"
+# 受信反向代理的 IP/CIDR 列表(IPv4/IPv6)。仅当直连对端命中此列表时,登录限流才信任
+# X-Forwarded-For 的来源地址;否则一律用 socket 对端地址,防止伪造 XFF 绕过限流。默认空=不信任任何 XFF。
+# trusted_proxies = ["10.0.0.0/8", "172.18.0.1"]
 
 [database]
 host = "127.0.0.1"
@@ -32,8 +35,11 @@ email = "admin@example.com"
 display_name = "Super Admin"
 # 是否允许超管用账号密码登录;关闭后 /auth/password 返回 403
 # password_login_enabled = true
-# 首位完成 SSO 登录的用户自动升级为 superadmin
+# 首位完成 SSO 登录的用户自动升级为 superadmin(危险,默认关闭)
 # first_sso_bind = false
+# first_sso_bind 的身份白名单(邮箱或 OIDC sub)。为空且 first_sso_bind=true 时,任意首位 SSO
+# 登录者都会被提权;强烈建议填入允许提权的邮箱/sub,避免被人抢注提权。仅在 first_sso_bind=true 时生效。
+# first_sso_bind_allowlist = ["admin@example.com"]
 # 是否要求超管在首次登录时强制修改密码。默认 true。
 # 关闭此项意味着配置文件中的明文 password 直接生效为永久密码,仅在受控演示环境考虑关闭。
 # force_change_password = true
@@ -46,12 +52,19 @@ client_id = "CHANGE_ME"
 client_secret = "CHANGE_ME"
 redirect_uri = "http://localhost:8088/auth/callback"
 scopes = ["openid", "profile", "email"]
+# ID Token 签名校验用的 JWKS 端点;留空则按 Casdoor 约定从 issuer 推导(<issuer>/.well-known/jwks)。
+# jwks_uri = ""
 
 [app]
 audit_retention_days = 90
 session_ttl_days = 7
 upload_max_mb = 2
 log_level = "info"
+# 日志输出格式:pretty(人类可读,默认)或 json(结构化,便于生产采集)。
+# 亦可用环境变量 NAVHUB_LOG_FORMAT 覆盖。
+# log_format = "pretty"
+# 管理员手动触发的抓取任务最大并发数(受信号量限制,纳入优雅关停排空)。默认 2,下限 1。
+# admin_fetch_max_concurrency = 2
 # 关闭后端出站 HTTPS 证书校验,仅在调试自签名证书时开启,生产环境严禁开启
 # tls_accept_invalid_certs = false
 # 是否允许 favicon 代理访问私有/内网 IP(SSRF 开关,默认 false;link-local/云元数据始终拒绝)

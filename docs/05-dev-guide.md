@@ -45,10 +45,10 @@ cd ../backend && cargo build --release
 
 ```bash
 # 重置数据库（谨慎）
-psql -h 10.12.31.129 -p 5433 -U xjfyt -d navigation -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+psql -h <DB_HOST> -p 5432 -U <DB_USER> -d <DB_NAME> -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
-# 查看活跃 session
-redis-cli -h 10.12.31.129 -a w20010129 -n 3 keys 'session:*'
+# 查看活跃 session（-a 后填 redis 密码，无则省略；-n 为 redis.db）
+redis-cli -h <REDIS_HOST> -a <REDIS_PASSWORD> -n 0 keys 'session:*'
 
 # 迁移命令（sqlx-cli）
 cargo install sqlx-cli --no-default-features --features rustls,postgres
