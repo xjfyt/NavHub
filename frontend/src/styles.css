@@ -4504,3 +4504,36 @@ html[data-mode="light"] .milkdown-wrap .ProseMirror:focus-visible {
 html[data-mode="light"] .tile:focus-visible {
   outline-color: #2b6cff;
 }
+
+/* ===== A11Y-3: 尊重「减少动态效果」(prefers-reduced-motion) =====
+   对请求减弱动效的用户:
+   - 关闭无限循环的装饰性脉冲 / 漂浮动画(拖拽脉冲、磁贴占位脉冲、背景渐显);
+   - 把入场 / 滑入 / 弹出等大幅位移动画压成几乎瞬时,去掉位移与缩放;
+   - 仅保留加载指示器(spinner)旋转作为进度反馈,但放慢以降低眩晕。 */
+@media (prefers-reduced-motion: reduce) {
+  /* 全局兜底:任何动画 / 过渡都压到接近瞬时,且只跑一次。 */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* 彻底关掉纯装饰性的无限脉冲 / 渐显,避免持续晃动。 */
+  .drop-target.merge-target .tile-icon,
+  .tile.drop-target,
+  .widget-tile-fallback,
+  .bg-wallpaper-frame-fade {
+    animation: none !important;
+  }
+
+  /* 加载 spinner 是进度反馈,保留旋转但放慢,避免快速旋转引发不适。
+     用单独的 duration 覆盖上面的全局压制。 */
+  .iframe-loading-spinner,
+  [class*="spin"] {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
