@@ -1,12 +1,10 @@
 name: Build and Push Docker Images
 
-# OPS-7 供应链加固:第三方 Action 建议固定到 commit SHA(防 tag 被重打)。
-# 首方 actions/* 维持 @v4 大版本即可。对安全敏感的第三方 Action(docker/*、
-# aquasecurity/trivy-action、anchore/sbom-action、github/codeql-action)推荐改为:
-#   uses: docker/build-push-action@<40 位 commit SHA>  # v6
-# 获取 SHA:在该 Action 仓库对应 release tag 上 `git rev-parse <tag>`,或用
-# pinact/ratchet 等工具批量固定。此处保留版本标签 + 注释,SHA 由维护者按需补全
-# (离线环境无法解析真实 SHA,不臆造)。
+# 仅使用 docker/* 官方 Action(@v3/@v6 稳定大版本)与 actions/checkout@v4,避免第三方
+# 复合 Action 的传递性 tag 被回收导致整作业在 setup 阶段就无法解析(曾因
+# aquasecurity/trivy-action 传递依赖 setup-trivy@v0.2.1 被删而反复失败)。
+# 镜像的 SBOM 与 provenance 证明由 build-push-action 原生生成并随镜像推送(无需额外 Action)。
+# 如需重新引入 Trivy 漏洞扫描 / 独立 SBOM 工件,请固定到经验证存在的版本或 commit SHA 后再加回。
 
 on:
   release:
@@ -18,8 +16,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # Trivy 把扫描结果以 SARIF 上传到 GitHub 代码扫描需要此权限。
-      security-events: write
 
     steps:
     - name: Checkout repository
@@ -50,39 +46,6 @@ jobs:
           ghcr.io/${{ github.repository_owner }}/navhub:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        # build-push-action 原生生成并随镜像推送 SBOM 与 provenance 证明。
+        # 原生生成并随镜像推送 SBOM 与 provenance 证明。
         sbom: true
         provenance: mode=max
-
-    # 用 syft 额外导出一份 SPDX SBOM 工件,便于离线留存 / 合规审计。
-    - name: Generate SBOM (SPDX JSON) artifact
-      uses: anchore/sbom-action@v0
-      with:
-        image: ghcr.io/${{ github.repository_owner }}/navhub@${{ steps.build.outputs.digest }}
-        format: spdx-json
-        output-file: navhub-sbom.spdx.json
-
-    - name: Upload SBOM artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: navhub-sbom
-        path: navhub-sbom.spdx.json
-
-    # Trivy 镜像漏洞扫描。按摘要扫描刚推送的镜像;结果上传到代码扫描。
-    # 不阻断发布(continue-on-error),仅作可见性与告警。
-    - name: Trivy image vulnerability scan
-      uses: aquasecurity/trivy-action@v0.28.0
-      continue-on-error: true
-      with:
-        image-ref: ghcr.io/${{ github.repository_owner }}/navhub@${{ steps.build.outputs.digest }}
-        format: sarif
-        output: trivy-results.sarif
-        severity: CRITICAL,HIGH
-        ignore-unfixed: true
-
-    - name: Upload Trivy results to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3
-      continue-on-error: true
-      with:
-        sarif_file: trivy-results.sarif
-
