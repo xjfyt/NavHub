@@ -408,7 +408,7 @@ async fn materialize_exported_asset(
 
     let content_type = detect_exported_asset_mime(&data, asset.content_type.as_deref())?;
     if content_type == "image/svg+xml" {
-        scan_svg_for_active_content(&data)
+        util::scan_svg_for_active_content(&data)
             .map_err(|reason| AppError::BadRequest(format!("SVG rejected: {reason}")))?;
     }
 
@@ -528,56 +528,3 @@ fn exported_asset_ext(content_type: &str, filename: Option<&str>) -> &'static st
     }
 }
 
-fn scan_svg_for_active_content(bytes: &[u8]) -> Result<(), &'static str> {
-    let text = std::str::from_utf8(bytes).map_err(|_| "not valid UTF-8")?;
-    let lower = text.to_ascii_lowercase();
-    if lower.contains("<script") || lower.contains("</script") {
-        return Err("contains <script>");
-    }
-    if lower.contains("<foreignobject") {
-        return Err("contains <foreignObject>");
-    }
-    if lower.contains("javascript:") || lower.contains("vbscript:") {
-        return Err("contains script: URI");
-    }
-    if lower.contains("data:text/html") || lower.contains("data:application/xhtml") {
-        return Err("contains data:text/html");
-    }
-    if lower.contains("@import") {
-        return Err("contains @import");
-    }
-    if has_event_handler(&lower) {
-        return Err("contains inline event handler");
-    }
-    Ok(())
-}
-
-fn has_event_handler(lower: &str) -> bool {
-    let bytes = lower.as_bytes();
-    for i in 0..bytes.len().saturating_sub(3) {
-        let c = bytes[i];
-        let is_attr_boundary = c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b'\x0c';
-        if !is_attr_boundary {
-            continue;
-        }
-        if bytes.get(i + 1).copied() != Some(b'o') || bytes.get(i + 2).copied() != Some(b'n') {
-            continue;
-        }
-        let mut j = i + 3;
-        let mut saw_letter = false;
-        while j < bytes.len() && bytes[j].is_ascii_lowercase() {
-            saw_letter = true;
-            j += 1;
-        }
-        if !saw_letter {
-            continue;
-        }
-        while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
-            j += 1;
-        }
-        if bytes.get(j).copied() == Some(b'=') {
-            return true;
-        }
-    }
-    false
-}

@@ -117,6 +117,70 @@ pub fn group_writable_by(group: &Group, user: &SessionUser) -> bool {
     group.owner_id == Some(user.id)
 }
 
+/// 拒绝携带 JavaScript / 外部资源、无法安全清洗的 SVG。
+/// NavHub 以 `<img src>` 渲染 SVG(无脚本执行上下文),但预签名直链可能被直接在
+/// 浏览器标签打开,故仍需拦截。封禁:<script>、on* 内联事件处理器、
+/// javascript:/data:text/html URI、<foreignObject>、`<style>@import` 等。
+///
+/// API-6: 提取为共享纯函数,供手动上传、导入、以及抓取入库三条路径统一使用。
+pub fn scan_svg_for_active_content(bytes: &[u8]) -> Result<(), &'static str> {
+    let text = match std::str::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => return Err("not valid UTF-8"),
+    };
+    let lower = text.to_ascii_lowercase();
+
+    if lower.contains("<script") || lower.contains("</script") {
+        return Err("contains <script>");
+    }
+    if lower.contains("<foreignobject") {
+        return Err("contains <foreignObject>");
+    }
+    if lower.contains("javascript:") || lower.contains("vbscript:") {
+        return Err("contains script: URI");
+    }
+    if lower.contains("data:text/html") || lower.contains("data:application/xhtml") {
+        return Err("contains data:text/html");
+    }
+    if lower.contains("@import") {
+        return Err("contains @import");
+    }
+    if has_event_handler(&lower) {
+        return Err("contains inline event handler");
+    }
+    Ok(())
+}
+
+fn has_event_handler(lower: &str) -> bool {
+    let bytes = lower.as_bytes();
+    for i in 0..bytes.len().saturating_sub(3) {
+        let c = bytes[i];
+        let is_attr_boundary = c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' || c == b'\x0c';
+        if !is_attr_boundary {
+            continue;
+        }
+        if bytes.get(i + 1).copied() != Some(b'o') || bytes.get(i + 2).copied() != Some(b'n') {
+            continue;
+        }
+        let mut j = i + 3;
+        let mut saw_letter = false;
+        while j < bytes.len() && bytes[j].is_ascii_lowercase() {
+            saw_letter = true;
+            j += 1;
+        }
+        if !saw_letter {
+            continue;
+        }
+        while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
+            j += 1;
+        }
+        if bytes.get(j).copied() == Some(b'=') {
+            return true;
+        }
+    }
+    false
+}
+
 /// API-5: 分页参数最大每页条数。
 pub const MAX_PAGE_LIMIT: i64 = 200;
 
@@ -355,5 +419,42 @@ mod tests {
     fn clamp_page_negative_offset_becomes_zero() {
         assert_eq!(clamp_page(50, -100), (50, 0));
         assert_eq!(clamp_page(50, i64::MIN), (50, 0));
+    }
+
+    // API-6: SVG 活动内容扫描
+    #[test]
+    fn scan_svg_clean_passes() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M1 1h22v22H1z"/></svg>"#;
+        assert!(scan_svg_for_active_content(svg).is_ok());
+    }
+
+    #[test]
+    fn scan_svg_with_script_flagged() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>"#;
+        assert!(scan_svg_for_active_content(svg).is_err());
+    }
+
+    #[test]
+    fn scan_svg_with_event_handler_flagged() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><rect onclick="evil()" /></svg>"#;
+        assert!(scan_svg_for_active_content(svg).is_err());
+    }
+
+    #[test]
+    fn scan_svg_with_javascript_uri_flagged() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><rect/></a></svg>"#;
+        assert!(scan_svg_for_active_content(svg).is_err());
+    }
+
+    #[test]
+    fn scan_svg_with_foreign_object_flagged() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><body/></foreignObject></svg>"#;
+        assert!(scan_svg_for_active_content(svg).is_err());
+    }
+
+    #[test]
+    fn scan_svg_with_css_import_flagged() {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><style>@import url(evil.css)</style></svg>"#;
+        assert!(scan_svg_for_active_content(svg).is_err());
     }
 }

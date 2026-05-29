@@ -285,8 +285,10 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &IconAssetSource) -> anyho
         ).await {
             Ok((key, size)) => (Some(key), Some(size as i64)),
             Err(e) => {
-                tracing::warn!("download failed for {}: {e}", item.svg_url);
-                (None, None)
+                // API-6: 下载失败或 SVG 被活动内容扫描拒绝时,跳过整条记录,
+                // 不再插入仅含元数据的空壳行(避免落库被拒/不可用的图标)。
+                tracing::warn!("download/scan failed for {}: {e}", item.svg_url);
+                continue;
             }
         };
 
@@ -363,6 +365,11 @@ async fn download_to_storage(
 
     // SEC-6: 流式读取并限额。
     let bytes: Bytes = crate::handlers::util::read_body_capped(resp, max_bytes).await?;
+
+    // API-6: 抓取来的 SVG 此前直接入库,绕过了手动上传所做的活动内容清洗。这里统一
+    // 走共享扫描器:含 <script>/事件处理器/javascript: 等的 SVG 一律拒绝,不入库。
+    crate::handlers::util::scan_svg_for_active_content(&bytes)
+        .map_err(|reason| anyhow::anyhow!("scraped SVG rejected ({reason}): {url}"))?;
 
     let ext = "svg";
     let file_size = bytes.len() as u64;
