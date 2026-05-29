@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
+import { countdownDays, countdownParts } from "./countdownMath";
 import type { WidgetProps } from "./types";
 
 interface CountdownConfig {
@@ -9,20 +11,32 @@ interface CountdownConfig {
 
 const DEFAULTS: CountdownConfig = { mode: "down" };
 
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
-
 function formatDateCn(s: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
   if (!m) return s;
   return `${m[1]} 年 ${Number(m[2])} 月 ${Number(m[3])} 日`;
 }
 
+/**
+ * 低频时钟:磁贴按天显示,每分钟刷新一次即可让“距离 N 天”跨过午夜后更新;
+ * 详情显示到分钟,同样每分钟刷新。卸载时清理。
+ */
+function useMinuteTick(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return now;
+}
+
 export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
   const { config } = useWidgetConfig<CountdownConfig>(w, DEFAULTS);
   const mode = config.mode ?? "down";
-  const target = config.targetDate ? new Date(config.targetDate).getTime() : NaN;
+  const now = useMinuteTick();
+  const result = countdownDays(config.targetDate, mode, now);
 
-  if (!config.targetDate || Number.isNaN(target)) {
+  if (!result) {
     return (
       <div className="widget w-countdown">
         <div className="widget-header">
@@ -36,31 +50,8 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
     );
   }
 
-  const now = Date.now();
-  const diffDays = (target - now) / MS_PER_DAY;
-  let days: number;
-  let label: string;
-  let suffix: string;
-
-  if (mode === "up") {
-    days = Math.max(0, Math.floor((now - target) / MS_PER_DAY));
-    label = days === 0 ? "今天" : "已过";
-    suffix = "天";
-  } else {
-    const raw = Math.ceil(diffDays);
-    if (raw >= 0) {
-      days = raw;
-      label = days === 0 ? "就在今天" : "距离";
-      suffix = days === 0 ? "" : "天";
-    } else {
-      days = Math.abs(Math.floor(diffDays));
-      label = "已过";
-      suffix = "天";
-    }
-  }
-
   const title = config.title?.trim() || "我的事件";
-  const dateText = formatDateCn(config.targetDate);
+  const dateText = formatDateCn(config.targetDate!);
   const dateSuffix = mode === "up" ? "起" : "";
 
   return (
@@ -72,10 +63,10 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-        <span className="n">{days.toLocaleString()}</span>
-        <span className="unit">{suffix}</span>
+        <span className="n">{result.days.toLocaleString()}</span>
+        <span className="unit">{result.suffix}</span>
       </div>
-      <div className="event">{label}</div>
+      <div className="event">{result.label}</div>
       <div className="date">{dateText}{dateSuffix}</div>
     </div>
   );
@@ -84,30 +75,24 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
 export const CountdownDetail = ({ w }: WidgetProps<CountdownConfig> = {}) => {
   const { config } = useWidgetConfig<CountdownConfig>(w, DEFAULTS);
   const mode = config.mode ?? "down";
-  const target = config.targetDate ? new Date(config.targetDate).getTime() : NaN;
-  if (!config.targetDate || Number.isNaN(target)) {
+  const now = useMinuteTick();
+  const parts = countdownParts(config.targetDate, mode, now);
+  if (!parts) {
     return <div className="muted" style={{ fontSize: 13 }}>请先通过右键菜单的"编辑"设置目标日期。</div>;
   }
-  const now = Date.now();
-  const diffMs = mode === "up" ? now - target : target - now;
-  const absDays = Math.floor(Math.abs(diffMs) / MS_PER_DAY);
-  const hours = Math.floor((Math.abs(diffMs) % MS_PER_DAY) / 3600_000);
-  const minutes = Math.floor((Math.abs(diffMs) % 3600_000) / 60_000);
   const title = config.title?.trim() || "我的事件";
-  const isPast = mode === "up" ? diffMs >= 0 : diffMs < 0;
-  const phrase = isPast ? "已过" : "距离";
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <div style={{ textAlign: "center" }}>
-        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{phrase}</div>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{parts.phrase}</div>
         <div style={{ fontSize: 18, marginBottom: 4 }}>{title}</div>
-        <div className="muted" style={{ fontSize: 12 }}>{formatDateCn(config.targetDate)}</div>
+        <div className="muted" style={{ fontSize: 12 }}>{formatDateCn(config.targetDate!)}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
         {[
-          { label: "天", v: absDays },
-          { label: "小时", v: hours },
-          { label: "分钟", v: minutes },
+          { label: "天", v: parts.days },
+          { label: "小时", v: parts.hours },
+          { label: "分钟", v: parts.minutes },
         ].map((u) => (
           <div key={u.label} style={{ padding: "16px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 10, textAlign: "center" }}>
             <div style={{ fontSize: 32, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{u.v}</div>
