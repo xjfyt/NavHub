@@ -192,7 +192,7 @@
 
 ## 🔵 M4 — 性能（R1 P2）
 
-- [ ] M4 完成
+- [x] M4 完成(2026-05-29,分支 opt/v0.2.0;前端 build 通过 + 278 单测全绿;context 拆分/磁贴 memo/widgetData TTL/分包/content-visibility)
 
 | ID | 严重 | 工作量 | 位置 | 说明 |
 |---|---|---|---|---|
