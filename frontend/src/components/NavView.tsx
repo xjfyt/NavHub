@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DragOverlay } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -181,59 +181,40 @@ export const NavView = ({
     dismissed: dragHintDismissed,
   });
 
-  // ----- 单个 grid item 的内容 -----
-  const renderItemContent = (item: NavGridItem) => {
-    if (item.kind === "widget") {
-      const w = item.widget;
-      const r = WIDGET_REGISTRY[w.widget];
-      if (!r) {
-        return (
-          <div className="widget-slot widget-invalid" data-nav-item-id={w.id} data-nav-item-type="widget">
-            无效小组件
-          </div>
-        );
-      }
-      const canExpand = !!r.renderDetail && !!onExpandWidget;
-      return (
-        <div
-          className={"widget-slot" + (canExpand ? " expandable" : "")}
-          data-nav-item-id={w.id}
-          data-nav-item-type="widget"
-          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onCtxTile(e, w); }}
-        >
-          <div
-            className="widget-content"
-            onClick={
-              canExpand
-                ? (e) => {
-                    if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [data-nobubble]")) return;
-                    onExpandWidget!(w);
-                  }
-                : undefined
-            }
-          >
-            {r.render(w)}
-          </div>
-        </div>
-      );
-    }
-    const ic = item.icon;
-    return (
-      <div
-        className={"icon-cell-inner" + (newIconIds.has(ic.id) ? " icon-pop" : "")}
-        data-nav-item-id={ic.id}
-        data-nav-item-type="icon"
-        data-nav-item-folder={ic.isFolder ? "true" : undefined}
-      >
-        <IconTile
-          icon={ic}
-          newTab={(tweaks.iconOpen || "newtab") !== "current"}
-          onClick={(e, x) => onOpenIcon(e as React.MouseEvent, x)}
-          onContext={(e, x) => onCtxTile(e, x)}
-        />
-      </div>
-    );
-  };
+  // PERF-2: 把来自 Shell 的回调(onOpenIcon/onCtxTile/onExpandWidget,均为内联箭头、
+  // 每次 Shell 渲染换引用)镜像进 ref,再用 useCallback([]) 暴露恒稳的包装回调。
+  // 这样传给每个磁贴/单元格的 handler 引用永不变,React.memo 的浅比较才真正生效——
+  // 拖拽/编辑某一项时,其余项的 props 全等不变,不再重渲染。
+  const handlersRef = useRef({ onOpenIcon, onCtxTile, onExpandWidget });
+  handlersRef.current = { onOpenIcon, onCtxTile, onExpandWidget };
+  const handleOpenIcon = useCallback(
+    (e: React.MouseEvent, x: IconView) => handlersRef.current.onOpenIcon(e as React.MouseEvent, x),
+    [],
+  );
+  const handleCtxTile = useCallback(
+    (e: React.MouseEvent, item: IconView | WidgetView) => handlersRef.current.onCtxTile(e, item),
+    [],
+  );
+  const handleExpandWidget = useCallback((w: WidgetView) => {
+    handlersRef.current.onExpandWidget?.(w);
+  }, []);
+
+  const newTab = (tweaks.iconOpen || "newtab") !== "current";
+  // 保留原门控:仅当父级提供了 onExpandWidget 时,带 renderDetail 的小组件才「可展开」。
+  const widgetsExpandable = !!onExpandWidget;
+
+  // DragOverlay 用的一次性内容渲染(单个、瞬时,不进入 memo 网格,无需稳定化)。
+  const renderItemContent = (item: NavGridItem) => (
+    <NavCellContent
+      item={item}
+      newTab={newTab}
+      isNew={item.kind === "icon" && newIconIds.has(item.id)}
+      widgetsExpandable={widgetsExpandable}
+      onOpenIcon={handleOpenIcon}
+      onCtxTile={handleCtxTile}
+      onExpandWidget={handleExpandWidget}
+    />
+  );
 
   return (
     <div
@@ -384,9 +365,16 @@ export const NavView = ({
           ) : null}
           <div className="nav-grid">
             {gridItems.map((item) => (
-              <SortableCell key={item.id} item={item}>
-                {renderItemContent(item)}
-              </SortableCell>
+              <NavGridCell
+                key={item.id}
+                item={item}
+                newTab={newTab}
+                isNew={item.kind === "icon" && newIconIds.has(item.id)}
+                widgetsExpandable={widgetsExpandable}
+                onOpenIcon={handleOpenIcon}
+                onCtxTile={handleCtxTile}
+                onExpandWidget={handleExpandWidget}
+              />
             ))}
             {!tweaks.hideAddIcon && (
               <button
@@ -414,12 +402,98 @@ export const NavView = ({
   );
 };
 
-const SortableCell = ({
+// PERF-2: 单元格内容(widget 槽 / 图标磁贴)。所有交互回调由父级以恒稳引用传入,
+// item 来自 gridItems memo 逐项稳定,newTab/isNew 为基元 —— 故可安全 React.memo,
+// 拖拽/编辑某一项时其余单元格 props 全等不变,跳过重渲染。
+const NavCellContentImpl = ({
   item,
-  children,
+  newTab,
+  isNew,
+  widgetsExpandable,
+  onOpenIcon,
+  onCtxTile,
+  onExpandWidget,
 }: {
   item: NavGridItem;
-  children: React.ReactNode;
+  newTab: boolean;
+  isNew: boolean;
+  widgetsExpandable: boolean;
+  onOpenIcon: (e: React.MouseEvent, icon: IconView) => void;
+  onCtxTile: (e: React.MouseEvent, item: IconView | WidgetView) => void;
+  onExpandWidget: (w: WidgetView) => void;
+}) => {
+  if (item.kind === "widget") {
+    const w = item.widget;
+    const r = WIDGET_REGISTRY[w.widget];
+    if (!r) {
+      return (
+        <div className="widget-slot widget-invalid" data-nav-item-id={w.id} data-nav-item-type="widget">
+          无效小组件
+        </div>
+      );
+    }
+    const canExpand = !!r.renderDetail && widgetsExpandable;
+    return (
+      <div
+        className={"widget-slot" + (canExpand ? " expandable" : "")}
+        data-nav-item-id={w.id}
+        data-nav-item-type="widget"
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onCtxTile(e, w); }}
+      >
+        <div
+          className="widget-content"
+          onClick={
+            canExpand
+              ? (e) => {
+                  if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [data-nobubble]")) return;
+                  onExpandWidget(w);
+                }
+              : undefined
+          }
+        >
+          {r.render(w)}
+        </div>
+      </div>
+    );
+  }
+  const ic = item.icon;
+  return (
+    <div
+      className={"icon-cell-inner" + (isNew ? " icon-pop" : "")}
+      data-nav-item-id={ic.id}
+      data-nav-item-type="icon"
+      data-nav-item-folder={ic.isFolder ? "true" : undefined}
+    >
+      <IconTile
+        icon={ic}
+        newTab={newTab}
+        onClick={onOpenIcon}
+        onContext={onCtxTile}
+      />
+    </div>
+  );
+};
+const NavCellContent = React.memo(NavCellContentImpl);
+
+// PERF-2: 排序单元格(原 SortableCell)。useSortable 的 transform/transition/isDragging
+// 只在「本格正被拖拽或正给被拖项让位」时变化,其余格的这些值不变 —— 配合 memo,
+// 拖动一项不再触发全网格重渲染。content 交给同样 memo 的 NavCellContent。
+const NavGridCellImpl = ({
+  item,
+  newTab,
+  isNew,
+  widgetsExpandable,
+  onOpenIcon,
+  onCtxTile,
+  onExpandWidget,
+}: {
+  item: NavGridItem;
+  newTab: boolean;
+  isNew: boolean;
+  widgetsExpandable: boolean;
+  onOpenIcon: (e: React.MouseEvent, icon: IconView) => void;
+  onCtxTile: (e: React.MouseEvent, item: IconView | WidgetView) => void;
+  onExpandWidget: (w: WidgetView) => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
@@ -436,7 +510,16 @@ const SortableCell = ({
       {...attributes}
       {...listeners}
     >
-      {children}
+      <NavCellContent
+        item={item}
+        newTab={newTab}
+        isNew={isNew}
+        widgetsExpandable={widgetsExpandable}
+        onOpenIcon={onOpenIcon}
+        onCtxTile={onCtxTile}
+        onExpandWidget={onExpandWidget}
+      />
     </div>
   );
 };
+const NavGridCell = React.memo(NavGridCellImpl);

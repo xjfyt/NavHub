@@ -9,7 +9,13 @@ type TileRenderable = Pick<
   "imageUrl" | "imageStyle" | "imageRadius" | "letter" | "name"
 >;
 
-export const IconTile = ({
+// PERF-2: 用 React.memo 包裹,避免拖拽/编辑某一个磁贴时其余磁贴跟着重渲染。
+// 默认浅比较即可——前提是父级(NavView)传入的 props 全部稳定:
+//   • icon:来自 useNavDnd 的 gridItems memo,逐项引用稳定;
+//   • onClick / onContext:NavView 用 useCallback + ref 提供的恒稳回调;
+//   • newTab:布尔基元;
+//   • dragProps:NavView 路径下恒为 undefined(拖拽 listeners 挂在外层 SortableCell)。
+const IconTileImpl = ({
   icon,
   onClick,
   onContext,
@@ -310,3 +316,7 @@ export const IconTile = ({
     </>,
   );
 };
+
+// PERF-2: 浅比较 memo。所有调用点(NavView 主网格、AddIconModal 预览、DragOverlay 等)
+// 传入的 icon 对象在无关重渲染时引用稳定,故默认浅比较安全有效。
+export const IconTile = React.memo(IconTileImpl);
