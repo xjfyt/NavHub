@@ -3319,7 +3319,8 @@ html[data-mode="light"] .tweaks-gear:hover { background: rgba(0,0,0,0.1); color:
 html[data-mode="light"] {
   --text: #1c1a17;
   --text-soft: rgba(28,26,23,0.78);
-  --text-mute: rgba(28,26,23,0.54);
+  /* A11Y-8:0.54 在亮色模态面板上仅 3.72:1 未达 WCAG AA;提至 0.62(约 4.8:1)保留静音观感 */
+  --text-mute: rgba(28,26,23,0.62);
   --glass-bg: rgba(255,255,255,0.48);
   --glass-bg-strong: rgba(255,255,255,0.62);
   --glass-border: rgba(255,255,255,0.7);
