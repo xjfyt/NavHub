@@ -386,15 +386,19 @@ pub async fn add_manual_icons(
     Extension(user): Extension<SessionUser>,
     Path(source_id): Path<Uuid>,
     Json(reqs): Json<Vec<AddRemoteIconReq>>,
-) -> AppResult<StatusCode> {
+) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
     require_at_least_admin(user.role)?;
-    let mut count = 0;
+    // API-2: 之前用 ON CONFLICT DO UPDATE,导致已存在的行也被算作「新增」(更新同样
+    // 计入 rows_affected),计数虚高。改为 DO NOTHING + RETURNING id,仅统计真正插入的
+    // 新行。
+    let mut count: i64 = 0;
     for req in reqs {
-        let res = sqlx::query(
-            "INSERT INTO remote_icon_assets 
+        let inserted: Option<Uuid> = sqlx::query_scalar(
+            "INSERT INTO remote_icon_assets
                 (source_id, title, original_url, storage_key, media_type, file_size_bytes, author, expires_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
-             ON CONFLICT (source_id, original_url) DO UPDATE SET updated_at = now()",
+             ON CONFLICT (source_id, original_url) DO NOTHING
+             RETURNING id",
         )
         .bind(source_id)
         .bind(req.title)
@@ -403,16 +407,21 @@ pub async fn add_manual_icons(
         .bind("svg")
         .bind(req.file_size_bytes)
         .bind("Admin Upload")
-        .execute(&state.pg)
+        .fetch_optional(&state.pg)
         .await?;
-        if res.rows_affected() > 0 {
+        if inserted.is_some() {
             count += 1;
         }
     }
-    sqlx::query("UPDATE icon_asset_sources SET total_fetched = total_fetched + $2, updated_at = now() WHERE id = $1")
-        .bind(source_id)
-        .bind(count as i32)
-        .execute(&state.pg)
-        .await?;
-    Ok(StatusCode::OK)
+    // API-2/API-3: total_fetched 以 COUNT 重算,避免在并发或重复上传下计数漂移。
+    sqlx::query(
+        "UPDATE icon_asset_sources
+            SET total_fetched = (SELECT COUNT(*)::int FROM remote_icon_assets WHERE source_id = $1),
+                updated_at = now()
+          WHERE id = $1",
+    )
+    .bind(source_id)
+    .execute(&state.pg)
+    .await?;
+    Ok((StatusCode::OK, Json(serde_json::json!({ "added": count }))))
 }
