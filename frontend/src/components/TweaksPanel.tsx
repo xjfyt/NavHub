@@ -6,6 +6,7 @@ import { api } from "../api";
 import { toast } from "sonner";
 import type { UserMessage, CustomEngine, RemoteWallpaperItem, PublicWallpaperSource } from "../types";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
+import { validateEngineInput } from "../utils/engineHelpers";
 import {
   composeShuffleInterval,
   decomposeShuffleInterval,
@@ -112,10 +113,12 @@ const WallpaperDetailPreview = ({ wallpaper }: { wallpaper: RemoteWallpaperItem 
 };
 
 export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
-  const { me, workspace, updateTweaks, addCustomEngine, deleteCustomEngine } = useWorkspace();
+  const { me, workspace, updateTweaks, addCustomEngine, updateCustomEngine, deleteCustomEngine } = useWorkspace();
   const s = workspace.preferences.tweaks || {};
   const [activeNav, setActiveNav] = useState("general");
   const [sub, setSub] = useState<string | null>(null);
+  // UX-7: 正在编辑的自定义引擎(null = 新增模式)。
+  const [editingEngine, setEditingEngine] = useState<CustomEngine | null>(null);
   const [messages, setMessages] = useState<UserMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [remoteWallpapers, setRemoteWallpapers] = useState<RemoteWallpaperItem[]>([]);
@@ -671,37 +674,46 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   const renderSearch = () => {
-    if (sub === "addCustomEngine") {
+    if (sub === "engineForm") {
+      const isEdit = editingEngine !== null;
+      const closeForm = () => { setSub(null); setEditingEngine(null); };
       return (
         <form className="tw-content" onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
-          const name = fd.get("name") as string;
-          const url = fd.get("url") as string;
-          if (!name || (!url.includes("{q}"))) return toast.error("名称不能为空，且 URL 必须包含 {q}");
-          const colors = ["#ef4444", "#f97316", "#f59e0b", "#10b981", "#3b82f6", "#6366f1", "#8b5cf6", "#ec4899"];
-          const color = colors[Math.floor(Math.random() * colors.length)];
-          addCustomEngine({ name, url, color }).then(() => {
-            setSub(null);
-            toast.success("已添加搜索引擎");
-          }).catch((err: any) => toast.error("添加失败: " + err.message));
+          const result = validateEngineInput((fd.get("name") as string) || "", (fd.get("url") as string) || "");
+          if (!result.ok) return toast.error(result.error);
+          const { name, url } = result.value;
+          if (isEdit && editingEngine) {
+            updateCustomEngine(editingEngine.id, { name, url }).then(() => {
+              closeForm();
+              toast.success("已更新搜索引擎");
+            }).catch(() => { /* hook 已弹 toast */ });
+          } else {
+            const colors = ["#ef4444", "#f97316", "#f59e0b", "#10b981", "#3b82f6", "#6366f1", "#8b5cf6", "#ec4899"];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            addCustomEngine({ name, url, color }).then(() => {
+              closeForm();
+              toast.success("已添加搜索引擎");
+            }).catch((err: any) => toast.error("添加失败: " + err.message));
+          }
         }}>
           <div className="tw-section">
             <div className="tw-section-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button type="button" onClick={() => setSub(null)}><Icon name="chevron-left" size={16} /></button>
-              添加自定义搜索引擎
+              <button type="button" onClick={closeForm}><Icon name="chevron-left" size={16} /></button>
+              {isEdit ? "编辑搜索引擎" : "添加自定义搜索引擎"}
             </div>
             <div className="tw-section-card">
               <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>名称</div>
-                  <input name="name" className="nh-input" required placeholder="如：GitHub" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
+                  <input name="name" className="nh-input" required defaultValue={editingEngine?.name ?? ""} placeholder="如：GitHub" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
                 </div>
                 <div>
                   <div style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>搜索 URL</div>
-                  <input name="url" className="nh-input" required placeholder="包含 {q}，如：https://github.com/search?q={q}" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
+                  <input name="url" className="nh-input" required defaultValue={editingEngine?.url ?? ""} placeholder="包含 {q}，如：https://github.com/search?q={q}" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
                 </div>
-                <button type="submit" className="pill-btn primary" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }}>保存并添加</button>
+                <button type="submit" className="pill-btn primary" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }}>{isEdit ? "保存修改" : "保存并添加"}</button>
               </div>
             </div>
           </div>
@@ -730,9 +742,14 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
                   </div>
                   <div className="tw-row-ctrl" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {isCustom && (
-                      <button type="button" onClick={(ev) => { ev.stopPropagation(); deleteCustomEngine(e.id); }} style={{ color: 'var(--danger)', padding: 4 }}>
-                        <Icon name="trash" size={14} />
-                      </button>
+                      <>
+                        <button type="button" title="编辑" onClick={(ev) => { ev.stopPropagation(); setEditingEngine(e as CustomEngine); setSub("engineForm"); }} style={{ color: 'var(--text-soft)', padding: 4 }}>
+                          <Icon name="edit" size={14} />
+                        </button>
+                        <button type="button" title="删除" onClick={(ev) => { ev.stopPropagation(); deleteCustomEngine(e.id); }} style={{ color: 'var(--danger)', padding: 4 }}>
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </>
                     )}
                     {s.searchEngine === e.id ? <svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 8l3 3 5-6" stroke="#007aff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg> : <div style={{width:16,height:16}}/>}
                   </div>
@@ -740,7 +757,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               );
             })}
           </div>
-          <button type="button" className="pill-btn" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => setSub("addCustomEngine")}>
+          <button type="button" className="pill-btn" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => { setEditingEngine(null); setSub("engineForm"); }}>
             <Icon name="plus" size={14} /> 添加自定义搜索引擎
           </button>
         </div>

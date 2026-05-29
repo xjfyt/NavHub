@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from "react";
 import {
+  CustomEngine,
   GroupView,
   IconView,
   Me,
@@ -50,6 +51,7 @@ interface WorkspaceContextProps {
   addGroup: (name: string, icon?: string) => Promise<void>;
   canEditGroup: (groupId: string) => boolean;
   addCustomEngine: (input: { name: string; url: string; color?: string; label?: string }) => Promise<void>;
+  updateCustomEngine: (id: string, patch: { name?: string; url?: string }) => Promise<void>;
   deleteCustomEngine: (id: string) => Promise<void>;
   refreshWorkspace: () => void;
   updateMe: (patch: { avatarUrl?: string | null; displayName?: string | null }) => Promise<void>;
@@ -556,6 +558,29 @@ export function WorkspaceProvider({
     [],
   );
 
+  const updateCustomEngine = useCallback(
+    async (id: string, patch: { name?: string; url?: string }) => {
+      // UX-7: 后端无单条引擎编辑接口,但 PATCH /me/preferences 接受整份 custom_engines。
+      // 这里在本地数组上就地改名/改 URL,再整体回写,并以返回值更新本地状态。
+      const cur = Array.isArray(workspace.preferences.customEngines)
+        ? (workspace.preferences.customEngines as CustomEngine[])
+        : [];
+      const next = cur.map((e) => (e.id === id ? { ...e, ...patch } : e));
+      try {
+        const prefs = await api.patchPrefs({ customEngines: next });
+        setWorkspace((ws) => ({
+          ...ws,
+          preferences: { ...ws.preferences, customEngines: prefs.customEngines },
+        }));
+      } catch (e) {
+        console.error("updateCustomEngine failed", e);
+        toast.error("更新搜索引擎失败");
+        throw e;
+      }
+    },
+    [workspace.preferences.customEngines],
+  );
+
   const deleteCustomEngine = useCallback(
     async (id: string) => {
       // FE-7: 该方法被 fire-and-forget 调用,无 .catch,失败前会静默丢失。
@@ -617,6 +642,7 @@ export function WorkspaceProvider({
       addGroup,
       canEditGroup,
       addCustomEngine,
+      updateCustomEngine,
       deleteCustomEngine,
       refreshWorkspace,
       updateMe,
@@ -646,6 +672,7 @@ export function WorkspaceProvider({
       addGroup,
       canEditGroup,
       addCustomEngine,
+      updateCustomEngine,
       deleteCustomEngine,
       refreshWorkspace,
       updateMe,
