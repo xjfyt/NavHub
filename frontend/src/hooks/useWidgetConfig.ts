@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { WidgetView } from "../types";
 import { api } from "../api";
 import { PREVIEW_WIDGET_ID } from "../widgets/types";
@@ -14,6 +15,8 @@ interface Result<T> {
   replace: (next: T) => void;
   saving: boolean;
   savedAt: number | null;
+  /** UX-16: 最近一次自动保存是否失败(用于 UI 显示「保存失败」)。 */
+  saveError: boolean;
 }
 
 export function useWidgetConfig<T extends object>(
@@ -31,10 +34,13 @@ export function useWidgetConfig<T extends object>(
   }));
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState(false);
 
   const timerRef = useRef<number | null>(null);
   const latestRef = useRef<T>(config);
   const inFlightRef = useRef(false);
+  // 防止失败 toast 刷屏:同一次故障期间只提示一次,保存成功后复位。
+  const errorNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (!w) return;
@@ -60,8 +66,17 @@ export function useWidgetConfig<T extends object>(
       await api.updateWidget(w.id, { config: snapshot as unknown as Record<string, unknown> });
       updateWidgetLocal(w.id, snapshot as unknown as Record<string, unknown>);
       setSavedAt(Date.now());
+      // UX-16: 保存成功,清除失败态并允许下次故障再次提示。
+      setSaveError(false);
+      errorNotifiedRef.current = false;
     } catch (e) {
       console.error("useWidgetConfig save failed", e);
+      // UX-16: 自动保存失败不再静默——置失败态并(每段故障)提示一次。
+      setSaveError(true);
+      if (!errorNotifiedRef.current) {
+        errorNotifiedRef.current = true;
+        toast.error("自动保存失败，修改可能未生效");
+      }
     } finally {
       inFlightRef.current = false;
       if (pendingRef.current) {
@@ -109,5 +124,5 @@ export function useWidgetConfig<T extends object>(
     };
   }, []);
 
-  return { config, update, replace, saving, savedAt };
+  return { config, update, replace, saving, savedAt, saveError };
 }
