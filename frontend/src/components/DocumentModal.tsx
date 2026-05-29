@@ -40,6 +40,7 @@ export const DocumentModal = ({
         </h2>
         <button
           onClick={onClose}
+          aria-label="关闭"
           style={{
             background: "transparent",
             border: "none",

@@ -139,6 +139,7 @@ export const WidgetEditModal = ({
         <button
           className="wcc-btn-cancel"
           onClick={onClose}
+          aria-label="关闭"
           style={{ padding: 4 }}
         >
           <Icon name="close" size={16} />

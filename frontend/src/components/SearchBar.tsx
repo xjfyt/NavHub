@@ -196,6 +196,7 @@ export const SearchBar = () => {
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
         placeholder="输入搜索内容"
+        aria-label="搜索"
       />
     </div>
   );
