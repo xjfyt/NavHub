@@ -270,6 +270,18 @@ pub async fn sha256_hex_blocking(bytes: bytes::Bytes) -> anyhow::Result<String> 
         .map_err(|e| anyhow::anyhow!("hash task failed: {e}"))
 }
 
+/// DATA-9: 校验 `bytes` 的 SHA-256 是否等于 `expected_hex`(十六进制摘要)。导入侧用于
+/// 校验内嵌资产的完整性,不匹配则拒绝。比较大小写不敏感、两侧空白裁剪;`expected_hex`
+/// 非法(长度/字符不对)时返回 false(视为校验失败)。纯函数,便于单测。
+pub fn verify_sha256(bytes: &[u8], expected_hex: &str) -> bool {
+    let expected = expected_hex.trim();
+    // SHA-256 摘要固定 64 个十六进制字符;长度不符或含非法字符直接判失败。
+    if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return false;
+    }
+    sha256_hex(bytes).eq_ignore_ascii_case(expected)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -542,5 +554,31 @@ mod tests {
         let h = sha256_hex(b"navhub");
         assert_eq!(h.len(), 64);
         assert!(h.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    }
+
+    // DATA-9: 导入完整性校验。
+    #[test]
+    fn verify_sha256_matching_returns_true() {
+        let expected = sha256_hex(b"hello world");
+        assert!(verify_sha256(b"hello world", &expected));
+        // 大小写不敏感 + 两侧空白裁剪。
+        assert!(verify_sha256(b"hello world", &format!("  {}  ", expected.to_uppercase())));
+    }
+
+    #[test]
+    fn verify_sha256_mismatch_returns_false() {
+        let expected = sha256_hex(b"hello world");
+        assert!(!verify_sha256(b"goodbye world", &expected));
+    }
+
+    #[test]
+    fn verify_sha256_bad_hex_returns_false() {
+        // 长度不对。
+        assert!(!verify_sha256(b"x", "abc"));
+        // 含非十六进制字符(64 长度但有 g/z)。
+        let bad: String = std::iter::repeat('g').take(64).collect();
+        assert!(!verify_sha256(b"x", &bad));
+        // 空串。
+        assert!(!verify_sha256(b"x", ""));
     }
 }
