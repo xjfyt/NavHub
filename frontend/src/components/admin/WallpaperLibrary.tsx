@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { confirmDialog, promptDialog } from "../Dialogs";
 import { Icon } from "../Icon";
 import { ContextMenu, type CtxItem, type CtxMenuState } from "../ContextMenu";
+import { safeHttpUrl } from "../../utils/iconSources";
 import type { WallpaperSourceView, AdminRemoteWallpaper } from "../../types";
 
 interface ScraperConfig {
@@ -491,8 +492,15 @@ export const AdminWallpaperLibrary = () => {
       items.push({
         icon: "external",
         label: "打开原始链接",
-        onClick: () =>
-          window.open(w.originalUrl, "_blank", "noopener,noreferrer"),
+        onClick: () => {
+          // SEC(防御纵深): 抓取来源的媒体 URL 同样仅放行 http/https。
+          const safe = safeHttpUrl(w.originalUrl);
+          if (!safe) {
+            toast.error("无效的链接地址");
+            return;
+          }
+          window.open(safe, "_blank", "noopener,noreferrer");
+        },
       });
     }
     const copyTarget = w.storageKey

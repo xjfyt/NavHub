@@ -33,6 +33,40 @@ describe("validateEngineInput", () => {
     const r = validateEngineInput("", "nope");
     expect(r.ok).toBe(false);
   });
+
+  // SEC: 自定义引擎 URL 的协议校验 —— 仅放行 http/https,拦截 javascript:/data: 等伪协议自 XSS。
+  it("接受 http 协议的 URL", () => {
+    const r = validateEngineInput("X", "http://x.com/search?q={q}");
+    expect(r.ok).toBe(true);
+  });
+
+  it("接受缺省协议(无 scheme)的站点 URL", () => {
+    const r = validateEngineInput("X", "x.com/s?q={q}");
+    expect(r.ok).toBe(true);
+  });
+
+  it("拒绝 javascript: 协议", () => {
+    const r = validateEngineInput("Evil", "javascript:alert(1)//{q}");
+    expect(r.ok).toBe(false);
+  });
+
+  it("拒绝 data: 协议", () => {
+    const r = validateEngineInput("Evil", "data:text/html,{q}");
+    expect(r.ok).toBe(false);
+  });
+
+  it("拒绝大小写变体的伪协议(JavaScript:/JAVASCRIPT:)", () => {
+    expect(validateEngineInput("E", "JavaScript:alert(1)//{q}").ok).toBe(false);
+    expect(validateEngineInput("E", "JAVASCRIPT:alert(1)//{q}").ok).toBe(false);
+    expect(validateEngineInput("E", "  javascript:alert(1)//{q}  ").ok).toBe(
+      false,
+    );
+  });
+
+  it("拒绝 vbscript: 协议", () => {
+    const r = validateEngineInput("Evil", "vbscript:msgbox(1)//{q}");
+    expect(r.ok).toBe(false);
+  });
 });
 
 describe("nextEngineId", () => {

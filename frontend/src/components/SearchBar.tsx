@@ -3,8 +3,10 @@ import { Icon } from "./Icon";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import { nextEngineId } from "../utils/engineHelpers";
+import { safeHttpUrl } from "../utils/iconSources";
 import { rovingIndex } from "../utils/focusTrap";
 import { CustomEngine } from "../types";
+import { toast } from "sonner";
 
 export const SearchBar = () => {
   const { workspace, updateTweaks } = useWorkspace();
@@ -110,7 +112,13 @@ export const SearchBar = () => {
       const targetUrl = cur.url.includes("{q}")
         ? cur.url.replace("{q}", encodeURIComponent(val))
         : cur.url + encodeURIComponent(val);
-      window.open(targetUrl, "_blank");
+      // SEC(自 XSS 防御纵深): 仅放行 http/https,拦截 javascript:/data: 等伪协议引擎 URL。
+      const safe = safeHttpUrl(targetUrl);
+      if (!safe) {
+        toast.error("无效的搜索引擎地址");
+        return;
+      }
+      window.open(safe, "_blank", "noopener");
     }
   };
 
