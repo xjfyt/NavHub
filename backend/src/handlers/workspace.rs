@@ -46,10 +46,10 @@ pub async fn get_workspace(
                     COALESCE(u.display_name, u.username) AS owner_name
              FROM groups g 
              LEFT JOIN users u ON g.owner_id = u.id 
-             ORDER BY g.sort_order ASC, g.created_at ASC"
+             ORDER BY g.sort_order ASC, g.created_at ASC",
         )
-            .fetch_all(&state.pg)
-            .await?
+        .fetch_all(&state.pg)
+        .await?
     } else if let Some(uid) = user_id {
         sqlx::query_as(
             "SELECT g.*, 
@@ -62,7 +62,7 @@ pub async fn get_workspace(
                        (g.push_target_type = 'role' AND g.push_target_role = $2) OR 
                        (g.push_target_type = 'user' AND g.push_target_user_id = $1)
                    ))
-             ORDER BY g.sort_order ASC, g.created_at ASC"
+             ORDER BY g.sort_order ASC, g.created_at ASC",
         )
         .bind(uid)
         .bind(user_role.as_str())
@@ -79,7 +79,7 @@ pub async fn get_workspace(
                  g.push_target_type = 'all' OR 
                  (g.push_target_type = 'role' AND g.push_target_role = 'guest')
              )
-             ORDER BY g.sort_order ASC, g.created_at ASC"
+             ORDER BY g.sort_order ASC, g.created_at ASC",
         )
         .fetch_all(&state.pg)
         .await?
@@ -130,7 +130,9 @@ pub async fn get_workspace(
             return true;
         }
         match (group_ro.get(&gid), user_id) {
-            (Some((pushed, owner, push_allow_edit)), Some(uid)) => (!*pushed && *owner == Some(uid)) || (*pushed && *push_allow_edit),
+            (Some((pushed, owner, push_allow_edit)), Some(uid)) => {
+                (!*pushed && *owner == Some(uid)) || (*pushed && *push_allow_edit)
+            }
             _ => false,
         }
     };

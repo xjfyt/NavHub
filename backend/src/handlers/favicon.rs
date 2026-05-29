@@ -674,7 +674,9 @@ mod tests {
 
     #[test]
     fn valid_icon_accepts_svg_text() {
-        assert!(is_valid_icon(br#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#));
+        assert!(is_valid_icon(
+            br#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#
+        ));
         assert!(is_valid_icon(
             br#"<?xml version="1.0"?><svg width="16"></svg>"#
         ));

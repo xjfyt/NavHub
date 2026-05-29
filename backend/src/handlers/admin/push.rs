@@ -409,7 +409,12 @@ async fn materialize_exported_asset(
     // DATA-9: 导出文档内嵌了资产的 sha256。导入时校验解码后的字节与之匹配,确保传输/
     // 篡改完整性;不匹配则拒绝整个导入(BadRequest),不落库/不写对象。校验值缺失时
     // 跳过(兼容不带 sha256 的旧格式)。
-    if let Some(expected) = asset.sha256.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+    if let Some(expected) = asset
+        .sha256
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
         if !util::verify_sha256(&data, expected) {
             return Err(AppError::BadRequest(format!(
                 "embedded asset sha256 mismatch for '{display_name}' — corrupted or tampered payload"
@@ -513,4 +518,3 @@ fn exported_asset_ext(content_type: &str, filename: Option<&str>) -> &'static st
         _ => "bin",
     }
 }
-

@@ -25,7 +25,11 @@ pub fn validate_push_target(
 ) -> AppResult<(String, Option<String>, Option<Uuid>)> {
     match target_type.trim() {
         "all" => {
-            if target_role.map(str::trim).filter(|v| !v.is_empty()).is_some() {
+            if target_role
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .is_some()
+            {
                 return Err(AppError::BadRequest(
                     "target_type=all must not include a role".into(),
                 ));
@@ -51,7 +55,11 @@ pub fn validate_push_target(
             Ok(("role".into(), Some(role.as_str().to_string()), None))
         }
         "user" => {
-            if target_role.map(str::trim).filter(|v| !v.is_empty()).is_some() {
+            if target_role
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .is_some()
+            {
                 return Err(AppError::BadRequest(
                     "target_type=user must not include a role".into(),
                 ));
@@ -341,7 +349,10 @@ mod tests {
     #[test]
     fn admin_can_write_any_group() {
         let admin = session(Uuid::new_v4(), Role::Admin);
-        assert!(group_writable_by(&owned_group(Some(Uuid::new_v4())), &admin));
+        assert!(group_writable_by(
+            &owned_group(Some(Uuid::new_v4())),
+            &admin
+        ));
         assert!(group_writable_by(
             &pushed_group("user", None, Some(Uuid::new_v4()), false),
             &admin
@@ -381,7 +392,10 @@ mod tests {
     #[test]
     fn target_all_allows_any_user_when_editable() {
         let u = session(Uuid::new_v4(), Role::User);
-        assert!(group_writable_by(&pushed_group("all", None, None, true), &u));
+        assert!(group_writable_by(
+            &pushed_group("all", None, None, true),
+            &u
+        ));
     }
 
     #[test]
@@ -553,7 +567,9 @@ mod tests {
     fn sha256_hex_is_lowercase_64_hex() {
         let h = sha256_hex(b"navhub");
         assert_eq!(h.len(), 64);
-        assert!(h.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(h
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
     }
 
     // DATA-9: 导入完整性校验。
@@ -562,7 +578,10 @@ mod tests {
         let expected = sha256_hex(b"hello world");
         assert!(verify_sha256(b"hello world", &expected));
         // 大小写不敏感 + 两侧空白裁剪。
-        assert!(verify_sha256(b"hello world", &format!("  {}  ", expected.to_uppercase())));
+        assert!(verify_sha256(
+            b"hello world",
+            &format!("  {}  ", expected.to_uppercase())
+        ));
     }
 
     #[test]

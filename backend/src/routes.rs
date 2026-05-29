@@ -1,11 +1,7 @@
 //! HTTP route table. Kept separate from `main.rs` so the wiring is reviewable
 //! without skipping past several hundred lines of boilerplate.
 
-use crate::{
-    auth,
-    handlers,
-    state::AppState,
-};
+use crate::{auth, handlers, state::AppState};
 use axum::{
     extract::DefaultBodyLimit,
     http::{header, HeaderValue},
@@ -23,7 +19,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
     let api_guest = Router::new()
         .route("/workspace", get(handlers::workspace::get_workspace))
         .route("/wallpapers", get(handlers::wallpapers::list_wallpapers))
-        .route("/wallpaper-sources", get(handlers::wallpapers::list_sources))
+        .route(
+            "/wallpaper-sources",
+            get(handlers::wallpapers::list_sources),
+        )
         .route("/favicon", get(handlers::favicon::proxy))
         .route("/favicon/search", get(handlers::favicon::search))
         .route("/healthz", get(crate::healthz))
@@ -34,7 +33,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         ));
 
     let api = Router::new()
-        .route("/me", get(handlers::me::get_me).patch(handlers::me::patch_me))
+        .route(
+            "/me",
+            get(handlers::me::get_me).patch(handlers::me::patch_me),
+        )
         // DATA-8: 个人全量数据导出(GDPR 可携带)。仅导出会话用户本人数据,无 IDOR。
         .route("/me/export", get(handlers::me_export::export_my_data))
         .route(
@@ -46,7 +48,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
             get(handlers::prefs::list_engines).post(handlers::prefs::add_engine),
         )
         .route("/me/messages", get(handlers::messages::list))
-        .route("/me/messages/read-all", post(handlers::messages::mark_all_read))
+        .route(
+            "/me/messages/read-all",
+            post(handlers::messages::mark_all_read),
+        )
         .route("/me/messages/:id/read", post(handlers::messages::mark_read))
         .route(
             "/me/engines/:id",
@@ -58,7 +63,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
             patch(handlers::groups::update).delete(handlers::groups::delete),
         )
         .route("/groups/reorder", post(handlers::groups::reorder))
-        .route("/groups/:id/reorder-items", post(handlers::groups::reorder_items))
+        .route(
+            "/groups/:id/reorder-items",
+            post(handlers::groups::reorder_items),
+        )
         .route("/icons", post(handlers::icons::create))
         .route(
             "/icons/:id",
@@ -92,7 +100,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/widgets/hot", get(handlers::widgets::hot))
         .route("/widgets/music/search", get(handlers::music::search))
         .route("/widgets/music/song/:id", get(handlers::music::song))
-        .route("/auth/password/change", post(handlers::auth::change_password))
+        .route(
+            "/auth/password/change",
+            post(handlers::auth::change_password),
+        )
         .route(
             "/admin/dashboard",
             get(handlers::admin::dashboard::get_dashboard),
@@ -106,7 +117,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
             "/admin/groups/:id/push",
             post(handlers::admin::push::push).delete(handlers::admin::push::unpush),
         )
-        .route("/admin/groups/:id/export", get(handlers::admin::push::export))
+        .route(
+            "/admin/groups/:id/export",
+            get(handlers::admin::push::export),
+        )
         .route("/admin/groups/import", post(handlers::admin::push::import))
         .route("/admin/audit", get(handlers::admin::audit::list))
         .route(
@@ -171,9 +185,8 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         )
         .route(
             "/admin/wallpaper-sources/:id/upload",
-            post(handlers::admin::wallpapers::upload_wallpaper).layer(
-                DefaultBodyLimit::max(200 * 1024 * 1024),
-            ),
+            post(handlers::admin::wallpapers::upload_wallpaper)
+                .layer(DefaultBodyLimit::max(200 * 1024 * 1024)),
         )
         .route(
             "/admin/remote-wallpapers",
@@ -217,21 +230,16 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         .merge(api_guest);
 
     let password_login = post(handlers::auth::password).layer(
-        axum::middleware::from_fn_with_state(
-            state.clone(),
-            auth::rate_limit::password_login_limit,
-        ),
+        axum::middleware::from_fn_with_state(state.clone(), auth::rate_limit::password_login_limit),
     );
 
     // AUTH-4: the SSO start endpoint is also rate-limited by source IP — it mints
     // Redis oauth_state keys per hit, so an unthrottled flood is its own small DoS
     // and brute-forces the same auth surface. Same per-IP limiter as password.
-    let sso_login = get(handlers::auth::login).layer(
-        axum::middleware::from_fn_with_state(
-            state.clone(),
-            auth::rate_limit::password_login_limit,
-        ),
-    );
+    let sso_login = get(handlers::auth::login).layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        auth::rate_limit::password_login_limit,
+    ));
 
     let public = Router::new()
         .route("/auth/login", sso_login)
@@ -241,8 +249,7 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/auth/status", get(handlers::auth::status))
         .route("/api/config/public", get(handlers::auth::public_config));
 
-    let uploads =
-        Router::new().route("/uploads/*path", get(handlers::upload::serve));
+    let uploads = Router::new().route("/uploads/*path", get(handlers::upload::serve));
 
     // `Cache-Control: no-store` on every dynamic response so an upstream reverse
     // proxy (we've seen openresty in front of this app) can't accidentally cache
@@ -254,8 +261,10 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         .merge(public)
         .merge(uploads)
         .nest("/api", api)
-        .layer(tower_http::set_header::SetResponseHeaderLayer::if_not_present(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("no-store"),
-        ))
+        .layer(
+            tower_http::set_header::SetResponseHeaderLayer::if_not_present(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("no-store"),
+            ),
+        )
 }

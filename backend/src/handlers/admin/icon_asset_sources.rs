@@ -2,7 +2,9 @@ use crate::{
     auth::require_at_least_admin,
     error::{AppError, AppResult},
     models::{
-        icon_asset::{CreateIconAssetSourceReq, RemoteIconAsset, UpdateIconAssetSourceReq, IconAssetSource},
+        icon_asset::{
+            CreateIconAssetSourceReq, IconAssetSource, RemoteIconAsset, UpdateIconAssetSourceReq,
+        },
         SessionUser,
     },
     scraper::get_icon_scraper,
@@ -81,11 +83,12 @@ pub async fn update_source(
     Json(req): Json<UpdateIconAssetSourceReq>,
 ) -> AppResult<Json<IconAssetSource>> {
     require_at_least_admin(user.role)?;
-    let existing = sqlx::query_as::<_, IconAssetSource>("SELECT * FROM icon_asset_sources WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.pg)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let existing =
+        sqlx::query_as::<_, IconAssetSource>("SELECT * FROM icon_asset_sources WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pg)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, IconAssetSource>(
         "UPDATE icon_asset_sources SET
@@ -105,11 +108,27 @@ pub async fn update_source(
     .bind(req.name.as_deref().unwrap_or(&existing.name).trim())
     .bind(req.site_url.as_deref().unwrap_or(&existing.site_url).trim())
     .bind(req.enabled.unwrap_or(existing.enabled))
-    .bind(req.fetch_batch_size.unwrap_or(existing.fetch_batch_size).clamp(1, 200))
-    .bind(req.cache_ttl_hours.unwrap_or(existing.cache_ttl_hours).max(1))
-    .bind(req.fetch_interval_hours.unwrap_or(existing.fetch_interval_hours).max(1))
+    .bind(
+        req.fetch_batch_size
+            .unwrap_or(existing.fetch_batch_size)
+            .clamp(1, 200),
+    )
+    .bind(
+        req.cache_ttl_hours
+            .unwrap_or(existing.cache_ttl_hours)
+            .max(1),
+    )
+    .bind(
+        req.fetch_interval_hours
+            .unwrap_or(existing.fetch_interval_hours)
+            .max(1),
+    )
     .bind(req.source_type.as_deref().unwrap_or(&existing.source_type))
-    .bind(req.scraper_type.as_deref().unwrap_or(&existing.scraper_type))
+    .bind(
+        req.scraper_type
+            .as_deref()
+            .unwrap_or(&existing.scraper_type),
+    )
     .fetch_one(&state.pg)
     .await?;
     Ok(Json(row))
@@ -134,11 +153,12 @@ pub async fn trigger_fetch(
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<serde_json::Value>> {
     require_at_least_admin(user.role)?;
-    let source = sqlx::query_as::<_, IconAssetSource>("SELECT * FROM icon_asset_sources WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.pg)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let source =
+        sqlx::query_as::<_, IconAssetSource>("SELECT * FROM icon_asset_sources WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.pg)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     // INFRA-4: 不再裸 tokio::spawn 脱管。改为通过 bg_tasks(TaskTracker)跟踪,
     // 优雅关停时可排空;并先拿 admin_fetch_sem 许可限流,避免反复点击堆出无界并发。
@@ -176,7 +196,10 @@ pub async fn list_icons(
     let (limit, offset) =
         crate::handlers::util::clamp_page(q.limit.unwrap_or(100), q.offset.unwrap_or(0));
 
-    let search_pattern = q.search.as_deref().map(|s| format!("%{}%", s.to_lowercase()));
+    let search_pattern = q
+        .search
+        .as_deref()
+        .map(|s| format!("%{}%", s.to_lowercase()));
 
     let (items, total) = if let Some(sid) = q.source_id {
         if let Some(pat) = &search_pattern {
@@ -186,22 +209,30 @@ pub async fn list_icons(
                 .bind(sid).bind(pat).bind(limit).bind(offset).fetch_all(&state.pg).await?;
             (rows, total)
         } else {
-            let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_icon_assets WHERE source_id = $1")
-                .bind(sid).fetch_one(&state.pg).await?;
+            let total: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM remote_icon_assets WHERE source_id = $1")
+                    .bind(sid)
+                    .fetch_one(&state.pg)
+                    .await?;
             let rows = sqlx::query_as::<_, RemoteIconAsset>("SELECT * FROM remote_icon_assets WHERE source_id = $1 ORDER BY fetched_at DESC, id DESC LIMIT $2 OFFSET $3")
                 .bind(sid).bind(limit).bind(offset).fetch_all(&state.pg).await?;
             (rows, total)
         }
     } else {
         if let Some(pat) = &search_pattern {
-            let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_icon_assets WHERE LOWER(title) LIKE $1")
-                .bind(pat).fetch_one(&state.pg).await?;
+            let total: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM remote_icon_assets WHERE LOWER(title) LIKE $1",
+            )
+            .bind(pat)
+            .fetch_one(&state.pg)
+            .await?;
             let rows = sqlx::query_as::<_, RemoteIconAsset>("SELECT * FROM remote_icon_assets WHERE LOWER(title) LIKE $1 ORDER BY fetched_at DESC, id DESC LIMIT $2 OFFSET $3")
                 .bind(pat).bind(limit).bind(offset).fetch_all(&state.pg).await?;
             (rows, total)
         } else {
             let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_icon_assets")
-                .fetch_one(&state.pg).await?;
+                .fetch_one(&state.pg)
+                .await?;
             let rows = sqlx::query_as::<_, RemoteIconAsset>("SELECT * FROM remote_icon_assets ORDER BY fetched_at DESC, id DESC LIMIT $1 OFFSET $2")
                 .bind(limit).bind(offset).fetch_all(&state.pg).await?;
             (rows, total)
@@ -242,10 +273,16 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &IconAssetSource) -> anyho
         return Ok(());
     }
 
-    tracing::info!("fetching icons from source '{}' ({})", source.name, source.site_url);
+    tracing::info!(
+        "fetching icons from source '{}' ({})",
+        source.name,
+        source.site_url
+    );
 
     let scraper = get_icon_scraper(&source.scraper_type)?;
-    let scraped = scraper.scrape(&source.site_url, source.fetch_batch_size as usize).await?;
+    let scraped = scraper
+        .scrape(&source.site_url, source.fetch_batch_size as usize)
+        .await?;
 
     tracing::info!("scraped {} icons, downloading...", scraped.len());
 
@@ -283,7 +320,9 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &IconAssetSource) -> anyho
             &item.svg_url,
             "icons/remote",
             max_size_bytes,
-        ).await {
+        )
+        .await
+        {
             Ok((key, size)) => (Some(key), Some(size as i64)),
             Err(e) => {
                 // API-6: 下载失败或 SVG 被活动内容扫描拒绝时,跳过整条记录,
@@ -334,7 +373,10 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &IconAssetSource) -> anyho
     .execute(&state.pg)
     .await?;
 
-    tracing::info!("fetch complete: stored {stored_count} new icons from '{}'", source.name);
+    tracing::info!(
+        "fetch complete: stored {stored_count} new icons from '{}'",
+        source.name
+    );
     Ok(())
 }
 

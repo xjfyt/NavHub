@@ -5,7 +5,7 @@ use crate::{
     state::AppState,
 };
 use axum::{
-    extract::{Multipart, Path, State, Query},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     response::Redirect,
     Extension, Json,
@@ -55,7 +55,7 @@ pub async fn upload(
                 max_bytes
             )));
         }
-        
+
         let mut mime = "application/octet-stream".to_string();
         let mut ext = ".bin".to_string();
 
@@ -65,31 +65,41 @@ pub async fn upload(
         }
 
         // SVG fallback detection since infer might return text/xml or fail to detect
-        if mime == "application/octet-stream" || mime == "text/xml" || mime == "application/xml" || mime == "text/plain" {
+        if mime == "application/octet-stream"
+            || mime == "text/xml"
+            || mime == "application/xml"
+            || mime == "text/plain"
+        {
             let text = String::from_utf8_lossy(&data);
-            if filename.to_lowercase().ends_with(".svg") && (text.trim().starts_with("<?xml") || text.trim().starts_with("<svg") || text.contains("<svg")) {
+            if filename.to_lowercase().ends_with(".svg")
+                && (text.trim().starts_with("<?xml")
+                    || text.trim().starts_with("<svg")
+                    || text.contains("<svg"))
+            {
                 mime = "image/svg+xml".to_string();
                 ext = ".svg".to_string();
             }
         }
 
         if !mime.starts_with("image/") && !mime.starts_with("video/") {
-            return Err(AppError::BadRequest("Only images and videos are allowed".into()));
+            return Err(AppError::BadRequest(
+                "Only images and videos are allowed".into(),
+            ));
         }
-        
+
         if mime == "image/svg+xml" {
             if let Err(reason) = util::scan_svg_for_active_content(&data) {
                 return Err(AppError::BadRequest(format!("SVG rejected: {reason}")));
             }
         }
-        
+
         let ct = mime.to_string();
 
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(&data);
         let sha_hex = hex::encode(hasher.finalize());
-        
+
         let purpose = query.purpose.as_deref().unwrap_or("icon");
         let prefix = match purpose {
             "wallpaper" => "wallpapers",
@@ -99,10 +109,10 @@ pub async fn upload(
         };
         let name = format!("{}/{}{}", prefix, sha_hex, ext);
         let size = data.len();
-        
+
         let url = if purpose == "icon" {
             let existing = sqlx::query_scalar::<_, String>(
-                "SELECT url FROM library_icons WHERE sha256 = $1 LIMIT 1"
+                "SELECT url FROM library_icons WHERE sha256 = $1 LIMIT 1",
             )
             .bind(&sha_hex)
             .fetch_optional(&state.pg)
@@ -112,9 +122,12 @@ pub async fn upload(
             if let Some(existing_url) = existing {
                 existing_url
             } else {
-                state.storage.put_bytes(&name, Some(&ct), data.clone()).await?;
+                state
+                    .storage
+                    .put_bytes(&name, Some(&ct), data.clone())
+                    .await?;
                 let new_url = format!("/uploads/{name}");
-                
+
                 sqlx::query(
                     "INSERT INTO library_icons (sha256, name, url, uploader_id, size, content_type) VALUES ($1, $2, $3, $4, $5, $6)"
                 )
@@ -127,14 +140,17 @@ pub async fn upload(
                 .execute(&state.pg)
                 .await
                 .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
-                
+
                 new_url
             }
         } else {
-            state.storage.put_bytes(&name, Some(&ct), data.clone()).await?;
+            state
+                .storage
+                .put_bytes(&name, Some(&ct), data.clone())
+                .await?;
             format!("/uploads/{}", name)
         };
-        
+
         let local_name = name.clone();
         util::audit(
             &state,
@@ -165,4 +181,3 @@ pub async fn serve(
     let url = state.storage.presign_get_url(&path).await?;
     Ok(Redirect::temporary(&url))
 }
-

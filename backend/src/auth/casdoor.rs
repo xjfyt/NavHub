@@ -105,7 +105,11 @@ pub async fn exchange_code(
     Ok(tok)
 }
 
-pub async fn fetch_userinfo(client: &reqwest::Client, sso: &SsoCache, access_token: &str) -> AppResult<UserInfo> {
+pub async fn fetch_userinfo(
+    client: &reqwest::Client,
+    sso: &SsoCache,
+    access_token: &str,
+) -> AppResult<UserInfo> {
     let url = format!("{}/api/userinfo", sso.issuer.trim_end_matches('/'));
     let resp = client.get(&url).bearer_auth(access_token).send().await?;
     let status = resp.status();

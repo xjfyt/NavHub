@@ -396,10 +396,7 @@ mod tests {
     #[test]
     fn env_overrides_config() {
         // 环境变量优先于配置文件。
-        assert_eq!(
-            resolve_log_format("pretty", Some("json")),
-            LogFormat::Json
-        );
+        assert_eq!(resolve_log_format("pretty", Some("json")), LogFormat::Json);
         assert_eq!(
             resolve_log_format("json", Some("pretty")),
             LogFormat::Pretty
@@ -416,6 +413,9 @@ mod tests {
     #[test]
     fn matching_is_case_and_whitespace_insensitive() {
         assert_eq!(resolve_log_format("  JSON  ", None), LogFormat::Json);
-        assert_eq!(resolve_log_format("Pretty", Some("  Json ")), LogFormat::Json);
+        assert_eq!(
+            resolve_log_format("Pretty", Some("  Json ")),
+            LogFormat::Json
+        );
     }
 }

@@ -5,14 +5,14 @@ use crate::{
     },
     error::{AppError, AppResult},
     handlers::util,
-    models::{User, SessionUser},
+    models::{SessionUser, User},
     state::AppState,
 };
 use axum::{
     extract::{Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Redirect, Response},
-    Json, Extension,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -38,7 +38,10 @@ pub async fn login(State(state): State<Arc<AppState>>) -> AppResult<Response> {
     // binds the auth code to the verifier this browser holds.
     let flow = oidc::OauthFlow::generate();
     let url = casdoor::build_authorize_url(&sso, &flow.state, &flow.nonce, &flow.code_challenge());
-    let cookie = oidc::build_flow_cookie(&flow.encode_cookie_value(), session::is_https_public(&state));
+    let cookie = oidc::build_flow_cookie(
+        &flow.encode_cookie_value(),
+        session::is_https_public(&state),
+    );
     let mut resp = Redirect::temporary(&url).into_response();
     resp.headers_mut()
         .insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
@@ -583,10 +586,28 @@ mod tests {
     fn first_bind_allowlist_gates_identity() {
         let allow = vec!["admin@example.com".to_string(), "sub-trusted".to_string()];
         // email match (case-insensitive)
-        assert!(first_sso_bind_allowed(true, true, &allow, "Admin@Example.com", "sub-x"));
+        assert!(first_sso_bind_allowed(
+            true,
+            true,
+            &allow,
+            "Admin@Example.com",
+            "sub-x"
+        ));
         // subject match
-        assert!(first_sso_bind_allowed(true, true, &allow, "other@x.com", "sub-trusted"));
+        assert!(first_sso_bind_allowed(
+            true,
+            true,
+            &allow,
+            "other@x.com",
+            "sub-trusted"
+        ));
         // neither matches => refused even though enabled and no superadmin
-        assert!(!first_sso_bind_allowed(true, true, &allow, "evil@x.com", "sub-evil"));
+        assert!(!first_sso_bind_allowed(
+            true,
+            true,
+            &allow,
+            "evil@x.com",
+            "sub-evil"
+        ));
     }
 }

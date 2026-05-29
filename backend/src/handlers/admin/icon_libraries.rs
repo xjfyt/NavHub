@@ -69,7 +69,7 @@ pub async fn create_library(
     if !user.role.at_least_admin() {
         return Err(AppError::Forbidden("admin only"));
     }
-    
+
     if req.name.trim().is_empty() {
         return Err(AppError::BadRequest("name required".into()));
     }
@@ -119,7 +119,10 @@ pub async fn list_icons(
 ) -> AppResult<Json<Vec<LibraryIcon>>> {
     // (Admin check removed: accessible to all logged-in users)
 
-    let search_pattern = query.search.as_deref().map(|s| format!("%{}%", s.to_lowercase()));
+    let search_pattern = query
+        .search
+        .as_deref()
+        .map(|s| format!("%{}%", s.to_lowercase()));
     let base_sql = "SELECT li.id, li.library_id, li.sha256, li.name, li.url, li.uploader_id, li.size, li.content_type, li.created_at, li.updated_at, u.display_name as uploader_name FROM library_icons li LEFT JOIN users u ON u.id = li.uploader_id";
 
     let icons = if let Some(lib_id) = query.library_id {
@@ -127,24 +130,46 @@ pub async fn list_icons(
             sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id = $1 AND LOWER(li.name) LIKE $2 ORDER BY li.created_at DESC, li.id DESC", base_sql))
                 .bind(lib_id).bind(pat).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
         } else {
-            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id = $1 ORDER BY li.created_at DESC, li.id DESC", base_sql))
-                .bind(lib_id).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+            sqlx::query_as::<_, LibraryIcon>(&format!(
+                "{} WHERE li.library_id = $1 ORDER BY li.created_at DESC, li.id DESC",
+                base_sql
+            ))
+            .bind(lib_id)
+            .fetch_all(&state.pg)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
         }
     } else if query.user_uploads_only.unwrap_or(false) {
         if let Some(pat) = &search_pattern {
             sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id IS NULL AND LOWER(li.name) LIKE $1 ORDER BY li.created_at DESC, li.id DESC", base_sql))
                 .bind(pat).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
         } else {
-            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE li.library_id IS NULL ORDER BY li.created_at DESC, li.id DESC", base_sql))
-                .fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+            sqlx::query_as::<_, LibraryIcon>(&format!(
+                "{} WHERE li.library_id IS NULL ORDER BY li.created_at DESC, li.id DESC",
+                base_sql
+            ))
+            .fetch_all(&state.pg)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
         }
     } else {
         if let Some(pat) = &search_pattern {
-            sqlx::query_as::<_, LibraryIcon>(&format!("{} WHERE LOWER(li.name) LIKE $1 ORDER BY li.created_at DESC, li.id DESC", base_sql))
-                .bind(pat).fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+            sqlx::query_as::<_, LibraryIcon>(&format!(
+                "{} WHERE LOWER(li.name) LIKE $1 ORDER BY li.created_at DESC, li.id DESC",
+                base_sql
+            ))
+            .bind(pat)
+            .fetch_all(&state.pg)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
         } else {
-            sqlx::query_as::<_, LibraryIcon>(&format!("{} ORDER BY li.created_at DESC, li.id DESC", base_sql))
-                .fetch_all(&state.pg).await.map_err(|e| AppError::Internal(e.to_string()))?
+            sqlx::query_as::<_, LibraryIcon>(&format!(
+                "{} ORDER BY li.created_at DESC, li.id DESC",
+                base_sql
+            ))
+            .fetch_all(&state.pg)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
         }
     };
 
@@ -200,7 +225,7 @@ pub async fn delete_icon(
     if !user.role.at_least_admin() {
         return Err(AppError::Forbidden("admin only"));
     }
-    
+
     // We only delete the DB record. The S3 object might be shared so we don't delete it physically.
     sqlx::query("DELETE FROM library_icons WHERE id = $1")
         .bind(id)
@@ -228,14 +253,14 @@ pub async fn export_library(
     }
 
     let lib = sqlx::query_as::<_, IconLibrary>(
-        "SELECT id, name, description, created_at, updated_at FROM icon_libraries WHERE id = $1"
+        "SELECT id, name, description, created_at, updated_at FROM icon_libraries WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.pg)
     .await
     .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?
     .ok_or_else(|| AppError::NotFound)?;
-    
+
     let icons = sqlx::query_as::<_, LibraryIcon>(
         r#"
         SELECT li.id, li.library_id, li.sha256, li.name, li.url, li.uploader_id, li.size, li.content_type, li.created_at, li.updated_at,
@@ -250,8 +275,11 @@ pub async fn export_library(
     .fetch_all(&state.pg)
     .await
     .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
-    
-    Ok(Json(LibraryExport { library: lib, icons }))
+
+    Ok(Json(LibraryExport {
+        library: lib,
+        icons,
+    }))
 }
 
 pub async fn import_library(
@@ -262,18 +290,22 @@ pub async fn import_library(
     if !user.role.at_least_admin() {
         return Err(AppError::Forbidden("admin only"));
     }
-    
-    let mut tx = state.pg.begin().await.map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
-    
+
+    let mut tx = state
+        .pg
+        .begin()
+        .await
+        .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
+
     let lib_id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO icon_libraries (name, description) VALUES ($1, $2) RETURNING id"
+        "INSERT INTO icon_libraries (name, description) VALUES ($1, $2) RETURNING id",
     )
     .bind(&export.library.name)
     .bind(&export.library.description)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
-    
+
     for icon in export.icons {
         sqlx::query(
             "INSERT INTO library_icons (library_id, sha256, name, url, uploader_id, size, content_type)
@@ -291,9 +323,11 @@ pub async fn import_library(
         .await
         .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
     }
-    
-    tx.commit().await.map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
-    
+
+    tx.commit()
+        .await
+        .map_err(|e: sqlx::Error| AppError::Internal(e.to_string()))?;
+
     Ok(StatusCode::CREATED)
 }
 

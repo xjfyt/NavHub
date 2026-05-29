@@ -13,8 +13,8 @@ use crate::{
     models::{IconAssetSource, WallpaperSource},
     state::AppState,
 };
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
@@ -47,7 +47,10 @@ impl BackgroundHandles {
             }
         };
         if tokio::time::timeout(timeout, drain).await.is_err() {
-            tracing::warn!("background workers did not drain within {:?}, abandoning", timeout);
+            tracing::warn!(
+                "background workers did not drain within {:?}, abandoning",
+                timeout
+            );
         }
     }
 }
@@ -209,26 +212,26 @@ async fn library_icon_gc_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
             };
 
             // 当前仍被 icons / folder_items 引用的 url 集合(只取候选涉及的 url,避免全表扫)。
-            let candidate_urls: Vec<String> =
-                candidates.iter().map(|(_, u)| u.clone()).collect();
-            let referenced: std::collections::HashSet<String> = match sqlx::query_scalar::<_, String>(
-                "SELECT image_url FROM icons \
+            let candidate_urls: Vec<String> = candidates.iter().map(|(_, u)| u.clone()).collect();
+            let referenced: std::collections::HashSet<String> =
+                match sqlx::query_scalar::<_, String>(
+                    "SELECT image_url FROM icons \
                    WHERE image_url = ANY($1) \
                  UNION \
                  SELECT image_url FROM folder_items \
                    WHERE image_url = ANY($1)",
-            )
-            .bind(&candidate_urls)
-            .fetch_all(&state.pg)
-            .await
-            {
-                Ok(rows) => rows.into_iter().collect(),
-                Err(e) => {
-                    // 查询引用失败时保守跳过本批(宁可不删,绝不误删)。
-                    tracing::warn!("library icon GC reference query failed: {e}");
-                    break;
-                }
-            };
+                )
+                .bind(&candidate_urls)
+                .fetch_all(&state.pg)
+                .await
+                {
+                    Ok(rows) => rows.into_iter().collect(),
+                    Err(e) => {
+                        // 查询引用失败时保守跳过本批(宁可不删,绝不误删)。
+                        tracing::warn!("library icon GC reference query failed: {e}");
+                        break;
+                    }
+                };
 
             let orphan_ids = filter_orphan_icons(candidates.clone(), &referenced);
             if orphan_ids.is_empty() {
@@ -260,13 +263,12 @@ async fn library_icon_gc_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
             // 一 url 的极端情况);仅当彻底无引用时才删 S3 对象,避免误删共享 blob。
             let mut keys: Vec<String> = Vec::new();
             for (_, url) in &orphans {
-                let still_used: bool = sqlx::query_scalar(
-                    "SELECT EXISTS(SELECT 1 FROM library_icons WHERE url = $1)",
-                )
-                .bind(url)
-                .fetch_one(&state.pg)
-                .await
-                .unwrap_or(true); // 查询失败时保守认为仍在用,不删对象。
+                let still_used: bool =
+                    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM library_icons WHERE url = $1)")
+                        .bind(url)
+                        .fetch_one(&state.pg)
+                        .await
+                        .unwrap_or(true); // 查询失败时保守认为仍在用,不删对象。
                 if !still_used {
                     if let Some(k) = crate::storage::key_from_stored_value(url) {
                         keys.push(k);
@@ -443,7 +445,10 @@ mod tests {
     fn clamp_batch_keeps_in_range() {
         assert_eq!(clamp_cleanup_batch(1), 1);
         assert_eq!(clamp_cleanup_batch(2_500), 2_500);
-        assert_eq!(clamp_cleanup_batch(MESSAGE_CLEANUP_BATCH), MESSAGE_CLEANUP_BATCH);
+        assert_eq!(
+            clamp_cleanup_batch(MESSAGE_CLEANUP_BATCH),
+            MESSAGE_CLEANUP_BATCH
+        );
     }
 
     // DATA-4: 孤儿筛选纯逻辑。

@@ -47,7 +47,11 @@ pub async fn search(
     }
     let limit = q.limit.unwrap_or(20).clamp(1, 50);
 
-    let cache_key = format!("widget:music:search:{}:{}", limit, urlencoding::encode(term));
+    let cache_key = format!(
+        "widget:music:search:{}:{}",
+        limit,
+        urlencoding::encode(term)
+    );
     if let Ok(mut conn) = state.redis.get().await {
         let cached: Option<String> = conn.get(&cache_key).await.unwrap_or(None);
         if let Some(s) = cached {
@@ -57,10 +61,12 @@ pub async fn search(
         }
     }
 
-    let songs = fetch_netease_search(&state.reqwest_client, term, limit).await.map_err(|e| {
-        tracing::warn!("netease search failed: {e}");
-        AppError::Internal(format!("netease: {e}"))
-    })?;
+    let songs = fetch_netease_search(&state.reqwest_client, term, limit)
+        .await
+        .map_err(|e| {
+            tracing::warn!("netease search failed: {e}");
+            AppError::Internal(format!("netease: {e}"))
+        })?;
 
     let resp = SearchResp { songs };
     if let Ok(payload) = serde_json::to_string(&resp) {
@@ -71,17 +77,17 @@ pub async fn search(
     Ok(Json(resp))
 }
 
-pub async fn song(
-    Extension(_user): Extension<SessionUser>,
-    Path(id): Path<u64>,
-) -> Redirect {
+pub async fn song(Extension(_user): Extension<SessionUser>, Path(id): Path<u64>) -> Redirect {
     Redirect::temporary(&format!(
         "https://music.163.com/song/media/outer/url?id={id}.mp3"
     ))
 }
 
-async fn fetch_netease_search(client: &reqwest::Client, q: &str, limit: u32) -> anyhow::Result<Vec<NeteaseSong>> {
-
+async fn fetch_netease_search(
+    client: &reqwest::Client,
+    q: &str,
+    limit: u32,
+) -> anyhow::Result<Vec<NeteaseSong>> {
     let form = [
         ("s", q.to_string()),
         ("type", "1".to_string()),

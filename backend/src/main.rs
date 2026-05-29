@@ -197,10 +197,7 @@ fn is_dev_mode(debug_build: bool, navhub_dev_env: Option<&str>) -> bool {
     debug_build || navhub_dev_env == Some("1")
 }
 
-fn with_global_layers(
-    app: Router<Arc<AppState>>,
-    state: &Arc<AppState>,
-) -> Router<Arc<AppState>> {
+fn with_global_layers(app: Router<Arc<AppState>>, state: &Arc<AppState>) -> Router<Arc<AppState>> {
     let dev = is_dev_mode(
         cfg!(debug_assertions),
         std::env::var("NAVHUB_DEV").ok().as_deref(),

@@ -49,11 +49,10 @@ async fn apply_migrations(pool: &PgPool) -> anyhow::Result<()> {
     // API-7: 启动期迁移完整性检查。检测「磁盘上重复的版本号」与「已记录 checksum
     // 与磁盘文件不一致(被静默编辑/改名)」两类隐患。生产环境直接 FAIL 启动;开发
     // 环境仅 warn 以便迭代。检测逻辑下沉为纯函数 check_migration_integrity 便于测试。
-    let recorded: Vec<(i64, Vec<u8>)> = sqlx::query_as::<_, (i64, Vec<u8>)>(
-        "SELECT version, checksum FROM _sqlx_migrations",
-    )
-    .fetch_all(&mut *conn)
-    .await?;
+    let recorded: Vec<(i64, Vec<u8>)> =
+        sqlx::query_as::<_, (i64, Vec<u8>)>("SELECT version, checksum FROM _sqlx_migrations")
+            .fetch_all(&mut *conn)
+            .await?;
 
     let on_disk: Vec<(i64, &[u8])> = MIGRATOR
         .iter()
@@ -74,7 +73,9 @@ async fn apply_migrations(pool: &PgPool) -> anyhow::Result<()> {
         if !dups.is_empty() {
             let summary = dups.join("; ");
             if dev {
-                tracing::warn!("migration duplicate-version issues (dev mode, continuing): {summary}");
+                tracing::warn!(
+                    "migration duplicate-version issues (dev mode, continuing): {summary}"
+                );
             } else {
                 anyhow::bail!("migration integrity check failed (duplicate versions): {summary}");
             }
@@ -99,7 +100,8 @@ async fn apply_migrations(pool: &PgPool) -> anyhow::Result<()> {
         if applied.contains(&m.version) {
             tracing::debug!(
                 "migration {} ({}) already applied, skipping",
-                m.version, m.description
+                m.version,
+                m.description
             );
             continue;
         }
@@ -110,10 +112,7 @@ async fn apply_migrations(pool: &PgPool) -> anyhow::Result<()> {
             );
             continue;
         }
-        tracing::info!(
-            "applying migration {} ({})",
-            m.version, m.description
-        );
+        tracing::info!("applying migration {} ({})", m.version, m.description);
         conn.apply(m).await?;
     }
     Ok(())
@@ -209,7 +208,9 @@ mod tests {
         let on_disk: Vec<(i64, &[u8])> = vec![(1, b"aaa"), (2, b"bbb"), (2, b"bbb2")];
         let recorded: Vec<(i64, Vec<u8>)> = vec![];
         let err = check_migration_integrity(&on_disk, &recorded).unwrap_err();
-        assert!(err.iter().any(|p| p.contains("duplicate") && p.contains('2')));
+        assert!(err
+            .iter()
+            .any(|p| p.contains("duplicate") && p.contains('2')));
     }
 
     #[test]
@@ -218,7 +219,9 @@ mod tests {
         let on_disk: Vec<(i64, &[u8])> = vec![(1, b"aaa"), (2, b"EDITED")];
         let recorded = vec![(1, b"aaa".to_vec()), (2, b"bbb".to_vec())];
         let err = check_migration_integrity(&on_disk, &recorded).unwrap_err();
-        assert!(err.iter().any(|p| p.contains("checksum mismatch") && p.contains('2')));
+        assert!(err
+            .iter()
+            .any(|p| p.contains("checksum mismatch") && p.contains('2')));
     }
 
     #[test]

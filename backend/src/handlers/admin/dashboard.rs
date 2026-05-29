@@ -64,8 +64,8 @@ pub async fn get_dashboard(
     )
     .fetch_one(&pool);
 
-    let query_roles = sqlx::query("SELECT role, COUNT(*) as count FROM users GROUP BY role")
-        .fetch_all(&pool);
+    let query_roles =
+        sqlx::query("SELECT role, COUNT(*) as count FROM users GROUP BY role").fetch_all(&pool);
 
     let query_audit = sqlx::query_as::<_, AuditEntry>(
         "SELECT id, ts, actor_id, actor_name, action, target, kind, detail \

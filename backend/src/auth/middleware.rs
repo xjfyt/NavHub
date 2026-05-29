@@ -83,9 +83,7 @@ pub async fn optional_login(
     let maybe_user: Option<SessionUser> = match session::extract_sid(req.headers()) {
         Some(sid) => match session::get_session(&state, &sid).await? {
             Some(data) => {
-                if data.must_change_password
-                    && !is_must_change_password_allowed(req.uri().path())
-                {
+                if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
                     return Err(AppError::Forbidden("must_change_password"));
                 }
                 let user = SessionUser {

@@ -201,9 +201,7 @@ pub fn verify_id_token(
     now: i64,
 ) -> Result<IdTokenClaims, IdTokenError> {
     let header = decode_header(jwt).map_err(|_| IdTokenError::Malformed("bad header"))?;
-    let kid = header
-        .kid
-        .ok_or(IdTokenError::Malformed("missing kid"))?;
+    let kid = header.kid.ok_or(IdTokenError::Malformed("missing kid"))?;
     let jwk: &Jwk = jwks
         .find(&kid)
         .ok_or(IdTokenError::Malformed("no jwk for kid"))?;

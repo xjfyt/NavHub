@@ -1,7 +1,7 @@
 use crate::{
     error::{AppError, AppResult},
     handlers::util,
-    models::{Group, Icon, IconView, IconCreate, IconReorderRequest, IconUpdate, SessionUser},
+    models::{Group, Icon, IconCreate, IconReorderRequest, IconUpdate, IconView, SessionUser},
     state::AppState,
 };
 use axum::{
@@ -166,14 +166,16 @@ pub async fn update(
 
 pub async fn load_icon_view(state: Arc<AppState>, icon: &Icon) -> AppResult<IconView> {
     let items = if icon.is_folder {
-        sqlx::query_as::<_, crate::models::FolderItem>("SELECT * FROM folder_items WHERE folder_icon_id = $1 ORDER BY sort_order ASC")
-            .bind(icon.id)
-            .fetch_all(&state.pg)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|i| i.into())
-            .collect()
+        sqlx::query_as::<_, crate::models::FolderItem>(
+            "SELECT * FROM folder_items WHERE folder_icon_id = $1 ORDER BY sort_order ASC",
+        )
+        .bind(icon.id)
+        .fetch_all(&state.pg)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|i| i.into())
+        .collect()
     } else {
         vec![]
     };
@@ -348,7 +350,7 @@ pub async fn merge_into(
         None,
     )
     .await;
-    
+
     // load updated target
     let updated_tgt: Icon = sqlx::query_as("SELECT * FROM icons WHERE id = $1")
         .bind(tgt.id)
@@ -380,12 +382,14 @@ pub async fn reorder_folder_items(
     }
     let mut tx = state.pg.begin().await?;
     for (i, iid) in body.order.iter().enumerate() {
-        sqlx::query("UPDATE folder_items SET sort_order = $1 WHERE id = $2 AND folder_icon_id = $3")
-            .bind(i as i32)
-            .bind(iid)
-            .bind(folder_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE folder_items SET sort_order = $1 WHERE id = $2 AND folder_icon_id = $3",
+        )
+        .bind(i as i32)
+        .bind(iid)
+        .bind(folder_id)
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
@@ -405,15 +409,16 @@ pub async fn extract_item(
     if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
-    
+
     let mut tx = state.pg.begin().await?;
-    let item: crate::models::FolderItem = sqlx::query_as("SELECT * FROM folder_items WHERE id = $1 AND folder_icon_id = $2")
-        .bind(item_id)
-        .bind(folder_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
-        
+    let item: crate::models::FolderItem =
+        sqlx::query_as("SELECT * FROM folder_items WHERE id = $1 AND folder_icon_id = $2")
+            .bind(item_id)
+            .bind(folder_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
     let extracted_icon: Icon = sqlx::query_as(
         "INSERT INTO icons (group_id, name, letter, color, url, image_url, image_style, image_radius, sort_order) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE((SELECT MAX(sort_order)+1 FROM icons WHERE group_id=$1), 0)) RETURNING *"
@@ -428,14 +433,22 @@ pub async fn extract_item(
     .bind(&item.image_radius)
     .fetch_one(&mut *tx)
     .await?;
-    
+
     sqlx::query("DELETE FROM folder_items WHERE id = $1")
         .bind(item_id)
         .execute(&mut *tx)
         .await?;
-        
+
     tx.commit().await?;
-    util::audit(&state, Some(&user), "extract_folder_item", Some(item.name.clone()), "icon", None).await;
+    util::audit(
+        &state,
+        Some(&user),
+        "extract_folder_item",
+        Some(item.name.clone()),
+        "icon",
+        None,
+    )
+    .await;
 
     let updated_folder: Icon = sqlx::query_as("SELECT * FROM icons WHERE id = $1")
         .bind(folder.id)

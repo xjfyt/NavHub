@@ -1,7 +1,7 @@
 use crate::{
     error::{AppError, AppResult},
     handlers::util,
-    models::{Group, GroupView, GroupCreate, GroupUpdate, ReorderRequest, SessionUser},
+    models::{Group, GroupCreate, GroupUpdate, GroupView, ReorderRequest, SessionUser},
     state::AppState,
 };
 use axum::{
@@ -223,10 +223,11 @@ pub async fn reorder_items(
         .bind(id)
         .fetch_one(&state.pg)
         .await?;
-    let expected_widgets: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM widgets WHERE group_id = $1")
-        .bind(id)
-        .fetch_one(&state.pg)
-        .await?;
+    let expected_widgets: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM widgets WHERE group_id = $1")
+            .bind(id)
+            .fetch_one(&state.pg)
+            .await?;
     let expected_total = (expected_icons + expected_widgets) as usize;
     if body.order.len() > expected_total {
         return Err(AppError::BadRequest(format!(

@@ -12,8 +12,7 @@ impl BingScraper {
         // QUAL-7: 此前在 scrape() 里每次现场 build 客户端(且绕过集中 builder)。改为
         // 在 new() 里经集中 builder 构造一次并复用(连接超时 10s、整体 30s)。Bing 需要
         // 浏览器 UA,不能共用 NavHub/1.0 的 default_client。构造失败向上传播。
-        let client =
-            super::build_scraper_client("Mozilla/5.0 (compatible; NavHub/1.0)")?;
+        let client = super::build_scraper_client("Mozilla/5.0 (compatible; NavHub/1.0)")?;
         Ok(Self { client })
     }
 }

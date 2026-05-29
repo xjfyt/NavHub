@@ -189,7 +189,11 @@ where
 }
 
 /// DATA-7: 删除单张壁纸对应的 S3 对象(视频/图片 + 缩略图)。尽力而为:失败仅告警。
-async fn delete_wallpaper_objects(storage: &Storage, storage_key: Option<&str>, thumb_key: Option<&str>) {
+async fn delete_wallpaper_objects(
+    storage: &Storage,
+    storage_key: Option<&str>,
+    thumb_key: Option<&str>,
+) {
     let keys = collect_wallpaper_keys([(storage_key, thumb_key)]);
     if keys.is_empty() {
         return;
@@ -724,7 +728,10 @@ mod tests {
     #[test]
     fn collects_storage_and_thumb_keys() {
         let rows = [
-            (Some("wallpapers/remote/a.mp4"), Some("wallpapers/remote/thumbs/a.jpg")),
+            (
+                Some("wallpapers/remote/a.mp4"),
+                Some("wallpapers/remote/thumbs/a.jpg"),
+            ),
             (Some("wallpapers/remote/b.mp4"), None),
         ];
         let keys = collect_wallpaper_keys(rows);
@@ -758,7 +765,10 @@ mod tests {
         let keys = collect_wallpaper_keys(rows);
         assert_eq!(
             keys,
-            vec!["shared.jpg".to_string(), "wallpapers/remote/x.mp4".to_string()]
+            vec![
+                "shared.jpg".to_string(),
+                "wallpapers/remote/x.mp4".to_string()
+            ]
         );
     }
 

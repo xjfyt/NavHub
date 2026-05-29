@@ -129,10 +129,7 @@ pub fn public_url_is_insecure_public(public_url: &str) -> bool {
         None => return false,
     };
     // Strip path/query/fragment, then userinfo, then port to isolate the host.
-    let authority = rest
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or("");
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
     let host_port = authority.rsplit('@').next().unwrap_or(authority);
     let host = strip_port(host_port);
     if host.is_empty() {
@@ -228,7 +225,9 @@ mod tests {
     #[test]
     fn public_http_origin_warns() {
         assert!(public_url_is_insecure_public("http://nav.example.com"));
-        assert!(public_url_is_insecure_public("http://nav.example.com:8080/path"));
+        assert!(public_url_is_insecure_public(
+            "http://nav.example.com:8080/path"
+        ));
         assert!(public_url_is_insecure_public("http://203.0.113.7"));
         assert!(public_url_is_insecure_public("http://8.8.8.8:80"));
     }

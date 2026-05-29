@@ -66,7 +66,7 @@ pub async fn patch_me(
     if body.display_name.is_some() || body.avatar_url.is_some() {
         let dn = body.display_name.unwrap_or(u.display_name);
         let av = body.avatar_url.unwrap_or(u.avatar_url);
-        
+
         let u_upd = sqlx::query_as::<_, User>(
             "UPDATE users SET display_name = $1, avatar_url = $2, updated_at = now() WHERE id = $3 \
              RETURNING id, username, email, display_name, avatar_url, role, password_hash, casdoor_id, created_at, updated_at, last_seen_at"
@@ -76,10 +76,10 @@ pub async fn patch_me(
         .bind(user.id)
         .fetch_one(&state.pg)
         .await?;
-        
+
         u = u_upd;
     }
-    
+
     Ok(Json(MeResp {
         id: u.id,
         username: u.username,

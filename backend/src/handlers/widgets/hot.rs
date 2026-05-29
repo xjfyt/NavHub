@@ -145,11 +145,14 @@ async fn fetch_zhihu(client: &reqwest::Client) -> anyhow::Result<Vec<HotItem>> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let qid = it.pointer("/target/id").and_then(|v| v.as_u64()).or_else(|| {
-                it.pointer("/target/id")
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
-            });
+            let qid = it
+                .pointer("/target/id")
+                .and_then(|v| v.as_u64())
+                .or_else(|| {
+                    it.pointer("/target/id")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| s.parse().ok())
+                });
             let url = qid.map(|q| format!("https://www.zhihu.com/question/{}", q));
             Some(HotItem { title, heat, url })
         })
@@ -176,7 +179,10 @@ async fn fetch_bilibili(client: &reqwest::Client) -> anyhow::Result<Vec<HotItem>
         .take(10)
         .filter_map(|it| {
             let title = it.get("title")?.as_str()?.to_string();
-            let views = it.pointer("/stat/view").and_then(|v| v.as_i64()).unwrap_or(0);
+            let views = it
+                .pointer("/stat/view")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
             let heat = if views >= 10_000_000 {
                 format!("{:.1}M 播放", views as f64 / 1_000_000.0)
             } else if views >= 10_000 {

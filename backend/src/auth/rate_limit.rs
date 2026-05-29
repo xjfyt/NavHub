@@ -97,12 +97,8 @@ fn parse_cidr(s: &str) -> Option<(IpAddr, u8)> {
 /// Does `ip` fall inside `network/prefix`? Both must be the same family.
 fn ip_in_cidr(ip: IpAddr, network: IpAddr, prefix: u8) -> bool {
     match (ip, network) {
-        (IpAddr::V4(ip), IpAddr::V4(net)) => {
-            v4_in(ip, net, prefix)
-        }
-        (IpAddr::V6(ip), IpAddr::V6(net)) => {
-            v6_in(ip, net, prefix)
-        }
+        (IpAddr::V4(ip), IpAddr::V4(net)) => v4_in(ip, net, prefix),
+        (IpAddr::V6(ip), IpAddr::V6(net)) => v6_in(ip, net, prefix),
         _ => false,
     }
 }
@@ -143,12 +139,7 @@ fn client_ip(req: &Request, state: &Arc<AppState>) -> String {
 
 /// Shared sliding-window INCR/EXPIRE against a Redis key. Returns Err(429-ish
 /// BadRequest) once `max` is exceeded within `window`.
-async fn bump_and_check(
-    state: &Arc<AppState>,
-    key: &str,
-    window: u64,
-    max: u64,
-) -> AppResult<()> {
+async fn bump_and_check(state: &Arc<AppState>, key: &str, window: u64, max: u64) -> AppResult<()> {
     let mut conn = state.redis.get().await?;
     // INCR + EXPIRE in one roundtrip via a pipeline. EXPIRE only takes effect on
     // the first INCR (after the key was missing) but issuing it every call is
@@ -247,12 +238,24 @@ mod tests {
 
     #[test]
     fn peer_is_trusted_matches_cidr_and_host() {
-        assert!(peer_is_trusted(ip("10.255.0.1"), &["10.0.0.0/8".to_string()]));
-        assert!(!peer_is_trusted(ip("11.0.0.1"), &["10.0.0.0/8".to_string()]));
+        assert!(peer_is_trusted(
+            ip("10.255.0.1"),
+            &["10.0.0.0/8".to_string()]
+        ));
+        assert!(!peer_is_trusted(
+            ip("11.0.0.1"),
+            &["10.0.0.0/8".to_string()]
+        ));
         assert!(peer_is_trusted(ip("127.0.0.1"), &["127.0.0.1".to_string()]));
-        assert!(!peer_is_trusted(ip("127.0.0.2"), &["127.0.0.1".to_string()]));
+        assert!(!peer_is_trusted(
+            ip("127.0.0.2"),
+            &["127.0.0.1".to_string()]
+        ));
         // IPv4-mapped IPv6 peer matches an IPv4 CIDR.
-        assert!(peer_is_trusted(ip("::ffff:10.0.0.1"), &["10.0.0.0/8".to_string()]));
+        assert!(peer_is_trusted(
+            ip("::ffff:10.0.0.1"),
+            &["10.0.0.0/8".to_string()]
+        ));
         // IPv6 CIDR
         assert!(peer_is_trusted(ip("fd00::5"), &["fd00::/8".to_string()]));
         assert!(!peer_is_trusted(ip("fe80::1"), &["fd00::/8".to_string()]));

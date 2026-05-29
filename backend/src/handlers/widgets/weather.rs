@@ -1,8 +1,4 @@
-use crate::{
-    error::AppResult,
-    models::SessionUser,
-    state::AppState,
-};
+use crate::{error::AppResult, models::SessionUser, state::AppState};
 use axum::{
     extract::{Query, State},
     Extension, Json,
@@ -56,7 +52,15 @@ pub async fn weather(
         }
     }
     let out = if !state.cfg.weather.key.is_empty() {
-        match fetch_hefeng(&state.reqwest_client, &city, q.lat, q.lon, &state.cfg.weather.key).await {
+        match fetch_hefeng(
+            &state.reqwest_client,
+            &city,
+            q.lat,
+            q.lon,
+            &state.cfg.weather.key,
+        )
+        .await
+        {
             Ok(v) => v,
             Err(e) => {
                 tracing::warn!("hefeng failed: {e}, falling back to open-meteo");
@@ -145,18 +149,29 @@ async fn fetch_open_meteo(
     );
     let fv: serde_json::Value = client.get(&forecast_url).send().await?.json().await?;
 
-    let current = fv.get("current").ok_or_else(|| anyhow::anyhow!("no current"))?;
-    let temp = current.get("temperature_2m").and_then(|x| x.as_f64()).unwrap_or(0.0);
+    let current = fv
+        .get("current")
+        .ok_or_else(|| anyhow::anyhow!("no current"))?;
+    let temp = current
+        .get("temperature_2m")
+        .and_then(|x| x.as_f64())
+        .unwrap_or(0.0);
     let apparent = current
         .get("apparent_temperature")
         .and_then(|x| x.as_f64())
         .unwrap_or(temp);
-    let code = current.get("weather_code").and_then(|x| x.as_i64()).unwrap_or(0) as u16;
+    let code = current
+        .get("weather_code")
+        .and_then(|x| x.as_i64())
+        .unwrap_or(0) as u16;
     let humidity = current
         .get("relative_humidity_2m")
         .and_then(|x| x.as_f64())
         .unwrap_or(0.0);
-    let wind_speed = current.get("wind_speed_10m").and_then(|x| x.as_f64()).unwrap_or(0.0);
+    let wind_speed = current
+        .get("wind_speed_10m")
+        .and_then(|x| x.as_f64())
+        .unwrap_or(0.0);
     let wind_dir = current
         .get("wind_direction_10m")
         .and_then(|x| x.as_f64())
@@ -167,8 +182,10 @@ async fn fetch_open_meteo(
     let mut hours: Vec<WeatherHour> = Vec::new();
     if let (Some(times), Some(temps), Some(codes)) = (
         fv.pointer("/hourly/time").and_then(|x| x.as_array()),
-        fv.pointer("/hourly/temperature_2m").and_then(|x| x.as_array()),
-        fv.pointer("/hourly/weather_code").and_then(|x| x.as_array()),
+        fv.pointer("/hourly/temperature_2m")
+            .and_then(|x| x.as_array()),
+        fv.pointer("/hourly/weather_code")
+            .and_then(|x| x.as_array()),
     ) {
         let cur_t = fv
             .pointer("/current/time")
@@ -180,7 +197,11 @@ async fn fetch_open_meteo(
             .unwrap_or(0);
         for i in start..(start + 5).min(times.len()) {
             let t = times.get(i).and_then(|x| x.as_str()).unwrap_or("");
-            let hh = t.split('T').nth(1).and_then(|s| s.split(':').next()).unwrap_or("--");
+            let hh = t
+                .split('T')
+                .nth(1)
+                .and_then(|s| s.split(':').next())
+                .unwrap_or("--");
             let te = temps.get(i).and_then(|x| x.as_f64()).unwrap_or(0.0);
             let co = codes.get(i).and_then(|x| x.as_i64()).unwrap_or(0) as u16;
             hours.push(WeatherHour {
@@ -223,8 +244,14 @@ async fn fetch_hefeng(
                 .get("location")
                 .and_then(|l| l.as_array())
                 .ok_or_else(|| anyhow::anyhow!("city not found in hefeng"))?;
-            let first = locs.first().ok_or_else(|| anyhow::anyhow!("empty location in hefeng"))?;
-            first.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string()
+            let first = locs
+                .first()
+                .ok_or_else(|| anyhow::anyhow!("empty location in hefeng"))?;
+            first
+                .get("id")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string()
         }
     };
 
@@ -238,7 +265,9 @@ async fn fetch_hefeng(
     );
     let v: serde_json::Value = client.get(&url).send().await?.json().await?;
 
-    let now = v.get("now").ok_or_else(|| anyhow::anyhow!("no 'now' in hefeng resp"))?;
+    let now = v
+        .get("now")
+        .ok_or_else(|| anyhow::anyhow!("no 'now' in hefeng resp"))?;
     let temp = now.get("temp").and_then(|x| x.as_str()).unwrap_or("0");
     let apparent = now.get("feelsLike").and_then(|x| x.as_str()).unwrap_or("0");
     let cond = now.get("text").and_then(|x| x.as_str()).unwrap_or("—");
@@ -258,7 +287,11 @@ async fn fetch_hefeng(
     if let Some(arr) = hv.get("hourly").and_then(|h| h.as_array()) {
         for it in arr.iter().take(5) {
             let t = it.get("fxTime").and_then(|x| x.as_str()).unwrap_or("");
-            let hh = t.split('T').nth(1).and_then(|s| s.split(':').next()).unwrap_or("--");
+            let hh = t
+                .split('T')
+                .nth(1)
+                .and_then(|s| s.split(':').next())
+                .unwrap_or("--");
             let te = it.get("temp").and_then(|x| x.as_str()).unwrap_or("0");
             let c_text = it.get("text").and_then(|x| x.as_str()).unwrap_or("—");
             hours.push(WeatherHour {

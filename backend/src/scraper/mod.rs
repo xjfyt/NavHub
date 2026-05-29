@@ -1,9 +1,9 @@
 pub mod bing;
 pub mod desktophut;
+pub mod iconify;
 pub mod nasa;
 pub mod pexels;
 pub mod pixabay;
-pub mod iconify;
 pub mod unsplash;
 pub mod wallhaven;
 pub mod wikimedia;
