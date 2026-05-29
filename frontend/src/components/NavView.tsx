@@ -27,6 +27,11 @@ import {
   touchActivationConstraint,
 } from "../utils/dndSensors";
 import {
+  meetsMergeOverlap,
+  shouldMergeWithTarget,
+  MERGE_DWELL_MS,
+} from "../utils/mergeDecision";
+import {
   WIDGET_REGISTRY,
   WidgetSizeId,
   snapWidgetSize,
@@ -303,6 +308,20 @@ export const NavView = ({
   // 文件夹合并目标（另一个 icon）
   const mergeTargetRef = useRef<string | null>(null);
   const mergeTargetElRef = useRef<HTMLElement | null>(null);
+  // UX-20: 合并需要「刻意停留」——记录当前候选(达到重叠门槛的那个 icon)及其首次达标的时间戳，
+  // 只有在该候选上持续达标超过 MERGE_DWELL_MS 才确认为合并目标（高亮 + 松手合并）。
+  // 候选切换 / 重叠跌破门槛都会重置计时，防止「擦过」误触发。
+  const mergeCandidateRef = useRef<string | null>(null);
+  const mergeCandidateSinceRef = useRef<number>(0);
+  // 停留确认定时器：达门槛后若指针停住不动(onDragMove 不再触发)，靠它在停留期满时补一次确认。
+  const mergeDwellTimerRef = useRef<number | null>(null);
+
+  const clearMergeDwellTimer = () => {
+    if (mergeDwellTimerRef.current !== null) {
+      window.clearTimeout(mergeDwellTimerRef.current);
+      mergeDwellTimerRef.current = null;
+    }
+  };
 
   const clearHoverSwitchTimer = () => {
     if (hoverSwitchTimerRef.current !== null) {
@@ -327,6 +346,29 @@ export const NavView = ({
       mergeTargetElRef.current = null;
     }
     mergeTargetRef.current = null;
+    mergeCandidateRef.current = null;
+    mergeCandidateSinceRef.current = 0;
+    clearMergeDwellTimer();
+  };
+
+  // 把某个候选 icon 元素「确认」为合并目标并上高亮（停留达标后调用）。
+  const confirmMergeHighlight = (el: HTMLElement, isFolder: boolean) => {
+    const id = el.dataset.navItemId ?? null;
+    if (!id || mergeTargetRef.current === id) return;
+    if (mergeTargetElRef.current && mergeTargetElRef.current !== el) {
+      mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
+      mergeTargetElRef.current.style.transform = "";
+      mergeTargetElRef.current.style.boxShadow = "";
+    }
+    mergeTargetRef.current = id;
+    mergeTargetElRef.current = el;
+    el.classList.add("merge-target-glow");
+    if (isFolder) el.classList.add("merge-target-folder");
+    el.style.transition = "transform .18s var(--spring), box-shadow .18s";
+    el.style.transform = isFolder ? "scale(1.10)" : "scale(1.06)";
+    el.style.boxShadow = isFolder
+      ? "0 0 0 4px rgba(155,231,180,0.85), 0 0 28px rgba(155,231,180,0.45)"
+      : "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
   };
 
   const onDragStart = (e: DragStartEvent) => {
@@ -384,10 +426,11 @@ export const NavView = ({
     }
     clearGroupTarget();
 
-    // 2) 合并 / 落入文件夹检测
+    // 2) 合并 / 落入文件夹检测（UX-20：收紧门槛 + 需刻意停留，避免擦一下就吸进文件夹）
     //    重叠率 = 交集面积 / 拖拽元素自身面积。以「拖动这张图标自己进去多少」为口径，
-    //    比之前 min(两边面积) 更稳定（受目标尺寸变化影响小，sortable 推开邻居时仍可命中）。
-    //    门槛大幅下调：普通图标 30%、文件夹 18%，使合并体验接近 iOS 那种"贴上去就吸"。
+    //    比 min(两边面积) 更稳定（受目标尺寸变化影响小，sortable 推开邻居时仍可命中）。
+    //    判定拆成两步：① 重叠率达门槛(普通 0.55 / 文件夹 0.45) → 记为「候选」；
+    //    ② 候选在目标上持续达标超过 MERGE_DWELL_MS 才「确认」为合并目标。详见 utils/mergeDecision.ts。
     const draggedItem = gridItems.find((it) => it.id === draggedId);
     if (!draggedItem || draggedItem.kind !== "icon") {
       clearMergeTarget();
@@ -409,7 +452,8 @@ export const NavView = ({
       return draggedArea > 0 ? inter / draggedArea : 0;
     };
     const iconEls = document.querySelectorAll<HTMLElement>("[data-nav-item-type='icon']");
-    let foundMergeEl: HTMLElement | null = null;
+    let foundEl: HTMLElement | null = null;
+    let foundIsFolder = false;
     let bestRatio = 0;
     for (const el of Array.from(iconEls)) {
       const id = el.dataset.navItemId;
@@ -417,31 +461,58 @@ export const NavView = ({
       const r = el.getBoundingClientRect();
       if (r.width === 0) continue;
       const isFolder = el.dataset.navItemFolder === "true";
-      const threshold = isFolder ? 0.18 : 0.3;
       const ratio = overlapRatio(draggedRect, r);
-      if (ratio >= threshold && ratio > bestRatio) {
-        foundMergeEl = el;
+      // 仅在达到合并重叠门槛后才作为候选；同时取重叠率最高者。
+      if (meetsMergeOverlap(ratio, isFolder) && ratio > bestRatio) {
+        foundEl = el;
+        foundIsFolder = isFolder;
         bestRatio = ratio;
       }
     }
-    if (foundMergeEl) {
-      const id = foundMergeEl.dataset.navItemId!;
-      const isFolder = foundMergeEl.dataset.navItemFolder === "true";
-      if (mergeTargetRef.current !== id) {
-        clearMergeTarget();
-        mergeTargetRef.current = id;
-        mergeTargetElRef.current = foundMergeEl;
-        foundMergeEl.classList.add("merge-target-glow");
-        if (isFolder) foundMergeEl.classList.add("merge-target-folder");
-        foundMergeEl.style.transition =
-          "transform .18s var(--spring), box-shadow .18s";
-        foundMergeEl.style.transform = isFolder ? "scale(1.10)" : "scale(1.06)";
-        foundMergeEl.style.boxShadow = isFolder
-          ? "0 0 0 4px rgba(155,231,180,0.85), 0 0 28px rgba(155,231,180,0.45)"
-          : "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
-      }
-    } else {
+
+    if (!foundEl) {
+      // 没有任何候选达到重叠门槛：重置候选 + 已确认的目标高亮。
       clearMergeTarget();
+      return;
+    }
+
+    const candidateId = foundEl.dataset.navItemId!;
+    const now = Date.now();
+    // 候选切换：重新开始计时并撤销旧的停留定时器；候选不变则沿用起始时间戳累积停留。
+    if (mergeCandidateRef.current !== candidateId) {
+      mergeCandidateRef.current = candidateId;
+      mergeCandidateSinceRef.current = now;
+      clearMergeDwellTimer();
+    }
+    const dwellMs = now - mergeCandidateSinceRef.current;
+
+    if (shouldMergeWithTarget({ overlapRatio: bestRatio, dwellMs, isFolder: foundIsFolder })) {
+      clearMergeDwellTimer();
+      confirmMergeHighlight(foundEl, foundIsFolder);
+      return;
+    }
+
+    // 达门槛但停留还不够。若之前已确认过别的目标，撤掉它的高亮（仅高亮，保留候选计时）。
+    if (mergeTargetRef.current && mergeTargetRef.current !== candidateId) {
+      if (mergeTargetElRef.current) {
+        mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
+        mergeTargetElRef.current.style.transform = "";
+        mergeTargetElRef.current.style.boxShadow = "";
+        mergeTargetElRef.current = null;
+      }
+      mergeTargetRef.current = null;
+    }
+    // 兜底：指针可能停住不再触发 onDragMove，安排一次延时确认，到点若候选仍是它就确认。
+    if (mergeDwellTimerRef.current === null) {
+      const elToConfirm = foundEl;
+      const isFolderToConfirm = foundIsFolder;
+      const remaining = Math.max(0, MERGE_DWELL_MS - dwellMs);
+      mergeDwellTimerRef.current = window.setTimeout(() => {
+        mergeDwellTimerRef.current = null;
+        if (mergeCandidateRef.current === candidateId) {
+          confirmMergeHighlight(elToConfirm, isFolderToConfirm);
+        }
+      }, remaining);
     }
   };
 
@@ -500,8 +571,11 @@ export const NavView = ({
       const targetEl = mergeTargetElRef.current;
       mergeTargetRef.current = null;
       mergeTargetElRef.current = null;
+      mergeCandidateRef.current = null;
+      mergeCandidateSinceRef.current = 0;
+      clearMergeDwellTimer();
       if (targetEl) {
-        targetEl.classList.remove("merge-target-glow");
+        targetEl.classList.remove("merge-target-glow", "merge-target-folder");
         targetEl.style.transform = "";
         targetEl.style.boxShadow = "";
         targetEl.classList.add("merge-absorb");

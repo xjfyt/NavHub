@@ -254,19 +254,45 @@ export function WorkspaceProvider({
   const mergeIcon = useCallback(
     async (sourceId: string, targetId: string) => {
       if (isGuest) return;
+      // 合并前快照「被合并图标」的名字，供撤销提示文案使用。
+      const sourceName =
+        workspace.icons.find((i) => i.id === sourceId)?.name || "图标";
       try {
         const targetView = await api.mergeIcon(sourceId, targetId);
         setWorkspace((ws) => {
           const nextIcons = ws.icons.filter((i) => i.id !== sourceId).map((i) => (i.id === targetId ? targetView : i));
           return { ...ws, icons: nextIcons };
         });
-        toast.success("已合并到文件夹");
+        // UX-20: 合并易误触，松手后给一条可「撤销」的 toast——撤销即把刚合并进去的图标重新移出文件夹。
+        // 复用 extractFolderItem 的反向操作(targetId 此时是文件夹，sourceId 是其中的项)。
+        toast.success(`已合并「${sourceName}」到文件夹`, {
+          action: {
+            label: "撤销",
+            onClick: () => {
+              void (async () => {
+                try {
+                  const [folderView, newItemView] = await api.extractFolderItem(targetId, sourceId);
+                  setWorkspace((ws) => {
+                    const nextIcons = ws.icons.map((i) => (i.id === targetId ? folderView : i));
+                    nextIcons.push(newItemView);
+                    return { ...ws, icons: nextIcons };
+                  });
+                  toast.success("已撤销合并");
+                } catch (err) {
+                  console.error("undo mergeIcon failed", err);
+                  toast.error("撤销合并失败");
+                  if (onReload) onReload();
+                }
+              })();
+            },
+          },
+        });
       } catch (e) {
         console.error("mergeIcon failed", e);
         toast.error("合并图标失败");
       }
     },
-    [isGuest],
+    [isGuest, onReload, workspace.icons],
   );
 
   const reorderFolderItems = useCallback(
