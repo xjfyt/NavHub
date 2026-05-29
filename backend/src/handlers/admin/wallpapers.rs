@@ -271,10 +271,24 @@ pub async fn delete_wallpaper(
     Path(id): Path<Uuid>,
 ) -> AppResult<StatusCode> {
     require_at_least_admin(user.role)?;
-    sqlx::query("DELETE FROM remote_wallpapers WHERE id = $1")
-        .bind(id)
+    // API-3: 删除壁纸后,被影响来源的 total_fetched 必须随之回算,否则计数只增不减。
+    // 用 RETURNING source_id 拿到归属来源,再按 COUNT 重算(最稳妥,避免计数漂移)。
+    let source_id: Option<Uuid> =
+        sqlx::query_scalar("DELETE FROM remote_wallpapers WHERE id = $1 RETURNING source_id")
+            .bind(id)
+            .fetch_optional(&state.pg)
+            .await?;
+    if let Some(sid) = source_id {
+        sqlx::query(
+            "UPDATE wallpaper_sources
+                SET total_fetched = (SELECT COUNT(*)::int FROM remote_wallpapers WHERE source_id = $1),
+                    updated_at = now()
+              WHERE id = $1",
+        )
+        .bind(sid)
         .execute(&state.pg)
         .await?;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
