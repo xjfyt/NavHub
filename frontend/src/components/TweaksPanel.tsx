@@ -27,12 +27,20 @@ import {
   Chevron,
   SliderPopover,
   WallpaperPreview,
-  navIcons,
 } from "./TweaksPanelParts";
 import {
   WallpaperGridPreview,
   WallpaperDetailPreview,
 } from "./tweaks/WallpaperPreviews";
+import {
+  sidebarOpts,
+  sidebarPosOpts,
+  openOpts,
+  iconSizeOpts,
+  modeOpts,
+  navItems,
+  ABOUT_PROJECT_URL,
+} from "./tweaks/constants";
 
 export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const {
@@ -161,39 +169,6 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
-
-  const sidebarOpts = [
-    { id: "autohide", name: "自动隐藏" },
-    { id: "pinned", name: "一直显示" },
-    { id: "hidden", name: "一直隐藏" },
-  ];
-  const sidebarPosOpts = [
-    { id: "left", name: "左侧" },
-    { id: "right", name: "右侧" },
-  ];
-  const openOpts = [
-    { id: "newtab", name: "新标签页" },
-    { id: "current", name: "当前标签页" },
-  ];
-  const iconSizeOpts = [
-    { id: "auto", name: "自动" },
-    { id: "lg", name: "大" },
-    { id: "md", name: "中" },
-    { id: "sm", name: "小" },
-  ];
-  const modeOpts = [
-    { id: "light", name: "浅色" },
-    { id: "dark", name: "深色" },
-    { id: "auto", name: "跟随系统" },
-  ];
-
-  const navItems = [
-    { id: "general", icon: navIcons.general, label: "常规设置" },
-    { id: "wallpaper", icon: navIcons.wallpaper, label: "背景与壁纸" },
-    { id: "search", icon: navIcons.search, label: "搜索引擎" },
-    { id: "notify", icon: navIcons.notify, label: "消息通知" },
-    { id: "about", icon: navIcons.about, label: "关于我们" },
-  ];
 
   const renderGeneral = () => {
     if (sub === "iconWidth") {
@@ -1423,7 +1398,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
 
   const renderAbout = () => {
     // UX-9: 版本号由构建时注入的 __APP_VERSION__ 提供(来自 package.json),不硬编码。
-    const projectUrl = "https://github.com/xjfyt/NavHub";
+    const projectUrl = ABOUT_PROJECT_URL;
     return (
       <div className="tw-content">
         <div className="tw-section">
