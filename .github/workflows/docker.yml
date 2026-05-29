@@ -71,7 +71,7 @@ jobs:
     # Trivy 镜像漏洞扫描。按摘要扫描刚推送的镜像;结果上传到代码扫描。
     # 不阻断发布(continue-on-error),仅作可见性与告警。
     - name: Trivy image vulnerability scan
-      uses: aquasecurity/trivy-action@0.28.0
+      uses: aquasecurity/trivy-action@v0.28.0
       continue-on-error: true
       with:
         image-ref: ghcr.io/${{ github.repository_owner }}/navhub@${{ steps.build.outputs.digest }}

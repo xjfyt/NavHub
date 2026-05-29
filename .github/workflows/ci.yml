@@ -69,7 +69,18 @@ jobs:
 
       - name: Audit dependencies
         working-directory: backend
-        run: cargo audit
+        # 显式忽略「受传递性依赖牵制、暂无上游修复」的公告(unmaintained/unsound/
+        # 非运行时路径),保持该 advisory 任务为绿;新公告仍会浮现且本任务
+        # continue-on-error 不阻断主流程。来源:scraper→selectors→fxhash、
+        # aws-sdk-s3→lru、sqlx-mysql→rsa(本项目用 Postgres,不走 mysql/rsa 路径)。
+        run: >-
+          cargo audit
+          --ignore RUSTSEC-2023-0071
+          --ignore RUSTSEC-2025-0057
+          --ignore RUSTSEC-2026-0002
+          --ignore RUSTSEC-2026-0098
+          --ignore RUSTSEC-2026-0099
+          --ignore RUSTSEC-2026-0104
 
   frontend:
     name: Frontend (eslint / prettier / typecheck / test / build)
