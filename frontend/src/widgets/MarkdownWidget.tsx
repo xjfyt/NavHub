@@ -298,7 +298,7 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
                     title="删除笔记"
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if (await confirmDialog(`删除「${title}」？`)) deleteNote(n.id);
+                      if (await confirmDialog(`删除「${title}」？`, undefined, { danger: true })) deleteNote(n.id);
                     }}
                   >
                     <Icon name="close" size={12} />

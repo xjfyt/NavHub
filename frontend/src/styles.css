@@ -707,6 +707,9 @@ html[data-mode="light"] .sidebar-bottom::before {
 .pill-btn.primary:hover { background: #fff; }
 .pill-btn.danger { background: rgba(255,100,100,0.3); }
 .pill-btn.danger:hover { background: rgba(255,100,100,0.45); }
+/* UX-28: 危险确认主按钮 —— 实心红底白字,语义上提示破坏性操作。 */
+.pill-btn.primary.danger { background: #e5484d; color: #fff; border-color: transparent; }
+.pill-btn.primary.danger:hover { background: #f0595e; }
 
 /* ===== GROUPS (tabs) ===== */
 .groups {

@@ -433,7 +433,7 @@ export const Shell = ({
                   label: "删除图标",
                   danger: true,
                   onClick: async () => {
-                    if (await confirmDialog(`删除"${item.name}"?`)) void deleteIcon(item.id);
+                    if (await confirmDialog(`删除"${item.name}"?`, undefined, { danger: true })) void deleteIcon(item.id);
                   },
                 });
                 items.push({ divider: true });

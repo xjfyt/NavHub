@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { Modal } from "./Modal";
 
@@ -7,14 +7,22 @@ interface DialogProps {
   message: string;
   type: "confirm" | "prompt";
   defaultValue?: string;
+  /** UX-28: confirm 危险变体,确认按钮渲染为红色实心。 */
+  danger?: boolean;
   onClose: (result: any) => void;
 }
 
-const DialogComponent = ({ title, message, type, defaultValue, onClose }: DialogProps) => {
+const DialogComponent = ({ title, message, type, defaultValue, danger, onClose }: DialogProps) => {
   const [val, setVal] = useState(defaultValue || "");
 
   // 取消 / Esc 的返回值:prompt 返回 null,confirm 返回 false。
   const cancelResult = type === "prompt" ? null : false;
+  // 确认 / Enter 的返回值:prompt 返回当前输入,confirm 返回 true。
+  const submit = () => onClose(type === "prompt" ? val : true);
+
+  // UX-28: 危险变体只作用于 confirm 的主按钮。
+  const confirmBtnClass =
+    "pill-btn primary" + (type === "confirm" && danger ? " danger" : "");
 
   return (
     <Modal
@@ -24,6 +32,16 @@ const DialogComponent = ({ title, message, type, defaultValue, onClose }: Dialog
       overlayStyle={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}
       className="modal-content glass-strong"
       contentStyle={{ width: 400, padding: 24, borderRadius: 16, background: "var(--glass-bg-strong)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}
+      contentProps={{
+        // UX-28: confirm 没有输入框,在对话框层面捕获 Enter 直接确认;
+        // (prompt 的 Enter 由输入框自身处理,避免重复触发。)
+        onKeyDown: (e: ReactKeyboardEvent) => {
+          if (type === "confirm" && e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
+        },
+      }}
     >
         <h3 id="app-dialog-title" style={{ margin: "0 0 16px 0", fontSize: 18 }}>{title || (type === "confirm" ? "确认" : "输入")}</h3>
         <div style={{ fontSize: 13, marginBottom: 16, color: "var(--text)", whiteSpace: "pre-wrap" }}>
@@ -46,16 +64,21 @@ const DialogComponent = ({ title, message, type, defaultValue, onClose }: Dialog
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: type === "confirm" ? 20 : 0 }}>
           <button className="pill-btn" onClick={() => onClose(cancelResult)}>取消</button>
           {type === "confirm" ? (
-            <button className="pill-btn primary" onClick={() => onClose(true)}>确认</button>
+            // autoFocus 让确认按钮成为初始焦点,Enter 自然触发它。
+            <button autoFocus className={confirmBtnClass} onClick={submit}>确认</button>
           ) : (
-            <button className="pill-btn primary" onClick={() => onClose(val)}>确定</button>
+            <button className="pill-btn primary" onClick={submit}>确定</button>
           )}
         </div>
     </Modal>
   );
 };
 
-export const confirmDialog = (message: string, title?: string): Promise<boolean> => {
+export const confirmDialog = (
+  message: string,
+  title?: string,
+  opts?: { danger?: boolean },
+): Promise<boolean> => {
   return new Promise((resolve) => {
     const div = document.createElement("div");
     document.body.appendChild(div);
@@ -65,7 +88,15 @@ export const confirmDialog = (message: string, title?: string): Promise<boolean>
       div.remove();
       resolve(result);
     };
-    root.render(<DialogComponent type="confirm" message={message} title={title} onClose={cleanup} />);
+    root.render(
+      <DialogComponent
+        type="confirm"
+        message={message}
+        title={title}
+        danger={opts?.danger}
+        onClose={cleanup}
+      />,
+    );
   });
 };
 

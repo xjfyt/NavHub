@@ -304,7 +304,7 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleDeleteSource = async (id: string) => {
-    if (!(await confirmDialog("确定删除该壁纸来源？关联的壁纸也会一并删除。"))) return;
+    if (!(await confirmDialog("确定删除该壁纸来源？关联的壁纸也会一并删除。", undefined, { danger: true }))) return;
     try {
       await api.admin.deleteWallpaperSource(id);
       setSources((prev) => prev.filter((s) => s.id !== id));
@@ -316,7 +316,7 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleDeleteWallpaper = async (id: string) => {
-    if (!(await confirmDialog("确定删除该壁纸吗？操作不可撤销。"))) return;
+    if (!(await confirmDialog("确定删除该壁纸吗？操作不可撤销。", undefined, { danger: true }))) return;
     try {
       await api.admin.deleteRemoteWallpaper(id);
       setWallpapers((prev) => prev.filter((w) => w.id !== id));

@@ -74,7 +74,7 @@ export const AdminMessages = () => {
   };
 
   const remove = async (id: string) => {
-    if (!(await confirmDialog("删除后用户收件箱里也会消失，继续吗？"))) return;
+    if (!(await confirmDialog("删除后用户收件箱里也会消失，继续吗？", undefined, { danger: true }))) return;
     try {
       await api.admin.deleteMessage(id);
       setMessages((rows) => rows.filter((row) => row.id !== id));

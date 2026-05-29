@@ -195,7 +195,7 @@ export const AdminIconAssetLibrary = () => {
   };
 
   const handleDeleteSource = async (id: string) => {
-    if (!(await confirmDialog("确定删除该图标来源？关联的图标也会一并删除。"))) return;
+    if (!(await confirmDialog("确定删除该图标来源？关联的图标也会一并删除。", undefined, { danger: true }))) return;
     try {
       await api.admin.deleteIconAssetSource(id);
       setSources((prev) => prev.filter((s) => s.id !== id));
@@ -207,7 +207,7 @@ export const AdminIconAssetLibrary = () => {
   };
 
   const handleDeleteIcon = async (id: string) => {
-    if (!(await confirmDialog("确定删除该图标吗？操作不可撤销。"))) return;
+    if (!(await confirmDialog("确定删除该图标吗？操作不可撤销。", undefined, { danger: true }))) return;
     try {
       if (selectedSourceId === "user_uploads") {
         await api.admin.deleteIcon(id);

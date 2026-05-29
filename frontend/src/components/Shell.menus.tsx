@@ -128,7 +128,7 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
         label: "删除",
         danger: true,
         onClick: async () => {
-          if (await confirmDialog(`删除文件夹"${ic.name}"?`)) void ctx.deleteIcon(ic.id);
+          if (await confirmDialog(`删除文件夹"${ic.name}"?`, undefined, { danger: true })) void ctx.deleteIcon(ic.id);
         },
       },
     ]);
@@ -152,7 +152,7 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
       label: "删除图标",
       danger: true,
       onClick: async () => {
-        if (await confirmDialog(`删除"${ic.name}"?`)) void ctx.deleteIcon(ic.id);
+        if (await confirmDialog(`删除"${ic.name}"?`, undefined, { danger: true })) void ctx.deleteIcon(ic.id);
       },
     });
   }
@@ -178,7 +178,7 @@ export function buildGroupCtx(ctx: ShellMenuCtx, e: React.MouseEvent, groupId: s
       label: "删除分组",
       danger: true,
       onClick: async () => {
-        if (await confirmDialog(`删除"${g.name}"及其所有图标/组件?`)) void ctx.deleteGroup(groupId);
+        if (await confirmDialog(`删除"${g.name}"及其所有图标/组件?`, undefined, { danger: true })) void ctx.deleteGroup(groupId);
       },
     });
   }
