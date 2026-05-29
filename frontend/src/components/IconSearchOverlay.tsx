@@ -181,9 +181,9 @@ const SearchResultCard = ({
             <Icon name={builtin} size={28} stroke={1.8} />
           </div>
         ) : icon.imageUrl && plainImage ? (
-          <img className={"icon-search-art-image plain " + radiusClass} src={icon.imageUrl} alt="" />
+          <img className={"icon-search-art-image plain " + radiusClass} src={icon.imageUrl} alt={icon.name || ""} />
         ) : icon.imageUrl ? (
-          <img className={"icon-search-art-image framed " + radiusClass} src={icon.imageUrl} alt="" />
+          <img className={"icon-search-art-image framed " + radiusClass} src={icon.imageUrl} alt={icon.name || ""} />
         ) : (
           <div
             className={"icon-search-art icon-search-art-" + (icon.size || "sq")}

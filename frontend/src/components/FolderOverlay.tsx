@@ -75,7 +75,7 @@ export const FolderOverlay = ({
           className={"tile-image " + shapeClass + (plain ? " plain" : " framed")}
           src={item.imageUrl}
           draggable={false}
-          alt=""
+          alt={item.name || ""}
         />
       );
     }

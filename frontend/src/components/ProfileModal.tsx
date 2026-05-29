@@ -58,7 +58,7 @@ export const ProfileModal = ({ onClose }: { onClose: () => void }) => {
               overflow: 'hidden'
             }}>
               {me.avatarUrl ? (
-                <img src={me.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Avatar" />
+                <img src={me.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="用户头像" />
               ) : (
                 (me.displayName || me.username).substring(0, 2).toUpperCase()
               )}

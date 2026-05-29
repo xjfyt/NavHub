@@ -455,7 +455,7 @@ export function AddIconModal({
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 48, height: 48, borderRadius: 12, display: "grid", placeItems: "center", background: "var(--panel-bg)", border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                      {selectedAutoImageUrl ? <img src={selectedAutoImageUrl} alt="" style={{ width: "70%", height: "70%", objectFit: "contain" }} /> : <Icon name={isSearchingUrl ? "activity" : "globe"} size={18} color="var(--text-soft)" />}
+                      {selectedAutoImageUrl ? <img src={selectedAutoImageUrl} alt="已选图标预览" style={{ width: "70%", height: "70%", objectFit: "contain" }} /> : <Icon name={isSearchingUrl ? "activity" : "globe"} size={18} color="var(--text-soft)" />}
                     </div>
                     <div style={{ fontSize: 13, color: "var(--text-mute)", lineHeight: 1.6 }}>
                       {normalizedUrl ? (isSearchingUrl ? "正在深度检索站点图标..." : "已检索到图标候选，点击下方选择。") : "输入有效连结后，将自动尝试获取对应官方图标。"}
@@ -469,7 +469,7 @@ export function AddIconModal({
                              onClick={() => setSelectedAutoImageUrl(icon.url)}
                              title={icon.source}
                              style={{ background: selectedAutoImageUrl === icon.url ? 'var(--accent)' : 'var(--panel-bg)', borderColor: 'var(--border-color)', width: '100%', aspectRatio: '1', borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                          <img src={icon.url} style={{ maxWidth: 24, maxHeight: 24, objectFit: 'contain' }} onError={() => setFailedImageUrls(prev => new Set(prev).add(icon.url))} />
+                          <img src={icon.url} alt={`来自 ${icon.source} 的图标候选`} style={{ maxWidth: 24, maxHeight: 24, objectFit: 'contain' }} onError={() => setFailedImageUrls(prev => new Set(prev).add(icon.url))} />
                           <span style={{ fontSize: 9, position: 'absolute', bottom: 2, color: 'var(--text-mute)' }}>{icon.source}</span>
                         </div>
                       ))}
@@ -488,7 +488,7 @@ export function AddIconModal({
                   </div>
                   {uploadedImageUrl && (
                     <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: 'var(--text-mute)' }}>
-                      <img src={uploadedImageUrl} alt="" style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 8, background: "var(--panel-bg)", padding: 4 }} />
+                      <img src={uploadedImageUrl} alt="已上传图标预览" style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 8, background: "var(--panel-bg)", padding: 4 }} />
                       <div style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{uploadedImageUrl}</div>
                       <button type="button" className="pill-btn" style={{ height: 28, fontSize: 12 }} onClick={() => setUploadedImageUrl(null)}>移除</button>
                     </div>
@@ -535,7 +535,7 @@ export function AddIconModal({
                            onClick={() => setLibrarySelectedUrl(icon.url)}
                            title={icon.name}
                            style={{ background: librarySelectedUrl === icon.url ? 'var(--accent)' : 'var(--panel-bg)', borderColor: 'var(--border-color)', width: 44, height: 44, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <img src={icon.url} style={{ maxWidth: 28, maxHeight: 28, objectFit: 'contain' }} />
+                        <img src={icon.url} alt={icon.name || "图标"} style={{ maxWidth: 28, maxHeight: 28, objectFit: 'contain' }} />
                       </div>
                     ))}
                     {libraryIcons.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-mute)', gridColumn: 'span 6', textAlign: 'center', padding: '20px 0' }}>该图库暂无可选图标</div>}

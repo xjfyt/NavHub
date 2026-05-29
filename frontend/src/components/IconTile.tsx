@@ -128,7 +128,7 @@ export const IconTile = ({
         <img
           className={"tile-image " + shapeClass + (plain ? " plain" : " framed")}
           src={item.imageUrl}
-          alt=""
+          alt={item.name || ""}
           draggable={false}
         />
       );
