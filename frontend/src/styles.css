@@ -61,6 +61,19 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; padding: 0; }
 input, textarea { outline: none; }
 
+/* A11Y-4: 仅供读屏的视觉隐藏文本(如对话框 aria-labelledby 的标题锚点)。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ===== BACKGROUND ===== */
 .bg-layer {
   position: fixed; inset: 0; z-index: 0;
