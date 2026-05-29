@@ -807,6 +807,20 @@ html[data-mode="dark"] .widget-tile-fallback {
   padding: 8px 6px;
   border-radius: 18px;
 }
+/* A11Y-1: 站点磁贴改用真实 <a href>、普通方形文件夹改用 <button>。
+   把原生 anchor/button 的外观抹平,确保与改造前的 <div> 像素一致:
+   去下划线、颜色继承、文本左对齐(胶囊磁贴副标题靠左),按钮去掉默认 font/text-align。 */
+a.tile,
+button.tile {
+  text-decoration: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  background: none;
+  border: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
 
 .tile:hover { transform: translateY(-2px) scale(1.04); }
 .tile:hover .tile-icon {

@@ -43,6 +43,31 @@ export function safeHttpUrl(value?: string | null): string | null {
   }
 }
 
+/**
+ * A11Y-1: 把「站点 URL + 是否新标签页打开」决策成一个真实 <a> 的属性集合。
+ *
+ * 站点磁贴改用原生 <a href> 渲染后,中键 / Ctrl/Cmd-点击 / 右键复制链接等浏览器原生
+ * 行为即自动可用,无需 JS 重写。href 必须经 SEC-9 的 safeHttpUrl 过滤:
+ *   - 合法 http/https      → { href, (target/rel) }
+ *   - javascript:/data: 等 → null(调用方据此渲染为非跳转的禁用态,绝不输出不安全 href)
+ *   - 空 / null / "#" 占位  → null
+ *
+ * newTab 缺省为 true,以保持改造前「始终新标签页打开」的默认行为;传 false(对应
+ * iconOpen="current" 偏好)时同标签页打开,不带 target / rel。
+ */
+export function resolveSiteLink(
+  url?: string | null,
+  opts?: { newTab?: boolean },
+): { href: string; target?: string; rel?: string } | null {
+  if (!url || url === "#") return null;
+  const href = safeHttpUrl(url);
+  if (!href) return null;
+  const newTab = opts?.newTab ?? true;
+  return newTab
+    ? { href, target: "_blank", rel: "noopener noreferrer" }
+    : { href };
+}
+
 export function inferNameFromUrl(value: string): string {
   const normalized = normalizeSiteUrl(value);
   if (!normalized) return "";

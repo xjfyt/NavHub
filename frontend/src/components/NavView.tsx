@@ -596,6 +596,7 @@ export const NavView = ({
       >
         <IconTile
           icon={ic}
+          newTab={(tweaks.iconOpen || "newtab") !== "current"}
           onClick={(e, x) => onOpenIcon(e as React.MouseEvent, x)}
           onContext={(e, x) => onCtxTile(e, x)}
         />
