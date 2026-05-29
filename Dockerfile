@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Stage 1: Frontend builder ───────────────────────────────────────────────
+# OPS-6 供应链加固:基础镜像已固定到具体版本标签(非 latest)。如需完全可复现,
+# 进一步固定到不可变摘要:`FROM node:20-alpine@sha256:<digest>`。获取摘要:
+#   docker buildx imagetools inspect node:20-alpine --format '{{.Manifest.Digest}}'
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -9,6 +12,7 @@ COPY frontend .
 RUN npm run build
 
 # ── Stage 2: Backend builder ────────────────────────────────────────────────
+# OPS-6:版本已固定;如需摘要固定 `rust:1.95.0-bullseye@sha256:<digest>`。
 FROM --platform=$BUILDPLATFORM rust:1.95.0-bullseye AS backend-builder
 ARG TARGETARCH
 WORKDIR /app
@@ -38,6 +42,7 @@ RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/usr/local/cargo/r
 # Stay on debian:bullseye-slim rather than distroless so `wget` is available
 # for HEALTHCHECK without bundling a static curl. Run as a non-root UID so a
 # container escape doesn't immediately get root on the host.
+# OPS-6:如需摘要固定 `debian:bullseye-slim@sha256:<digest>`(运行期镜像最值得固定)。
 FROM debian:bullseye-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates wget \
