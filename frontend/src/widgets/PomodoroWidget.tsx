@@ -22,6 +22,8 @@ class PomodoroStore {
   public listeners = new Set<() => void>();
   public state = { phase: "work" as Phase, remaining: 25 * 60, running: false, rounds: 0, workSec: 25 * 60, breakSec: 5 * 60 };
   private tickRef: number | null = null;
+  // FE-8: 引用计数,统计当前挂载的视图数(tile + detail 可同时存在)。
+  private refCount = 0;
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -83,12 +85,48 @@ class PomodoroStore {
     this.stopTick();
     this.setState({ running: false, phase: "work", remaining: this.state.workSec });
   };
+
+  // FE-8: 视图挂载时 retain,卸载时 release。最后一个视图卸载后停掉 interval
+  // 并从 store 缓存中移除,避免计时器与 store 永久泄漏。
+  private teardownRef: number | null = null;
+  public onDispose: (() => void) | null = null;
+
+  retain() {
+    this.refCount++;
+    // 取消任何待执行的延迟销毁(StrictMode 卸载→重挂 / tile↔detail 切换)。
+    if (this.teardownRef !== null) {
+      window.clearTimeout(this.teardownRef);
+      this.teardownRef = null;
+    }
+  }
+
+  release() {
+    this.refCount--;
+    if (this.refCount <= 0) {
+      this.refCount = 0;
+      // 延迟销毁:StrictMode 会同步卸载再重挂,tile↔detail 切换也会有短暂的
+      // 0 引用窗口。延迟一拍后若仍无引用,才真正停表并释放 store。
+      if (this.teardownRef !== null) window.clearTimeout(this.teardownRef);
+      this.teardownRef = window.setTimeout(() => {
+        this.teardownRef = null;
+        if (this.refCount <= 0) {
+          this.stopTick();
+          this.onDispose?.();
+        }
+      }, 0);
+    }
+  }
 }
 
 const stores = new Map<string, PomodoroStore>();
 function getStore(id: string) {
-  if (!stores.has(id)) stores.set(id, new PomodoroStore());
-  return stores.get(id)!;
+  let store = stores.get(id);
+  if (!store) {
+    store = new PomodoroStore();
+    store.onDispose = () => stores.delete(id);
+    stores.set(id, store);
+  }
+  return store;
 }
 
 export const PomodoroWidget = ({ w }: WidgetProps<PomodoroConfig> = {}) => {
@@ -103,6 +141,12 @@ export const PomodoroWidget = ({ w }: WidgetProps<PomodoroConfig> = {}) => {
   useEffect(() => {
     store.syncConfig(workMin, breakMin);
   }, [store, workMin, breakMin]);
+
+  // FE-8: 挂载时 retain,卸载时 release —— 最后一个视图卸载后清理 interval 与 store。
+  useEffect(() => {
+    store.retain();
+    return () => store.release();
+  }, [store]);
 
   const total = state.phase === "work" ? state.workSec : state.breakSec;
   const progress = 1 - state.remaining / total;
@@ -160,6 +204,12 @@ export const PomodoroDetail = ({ w }: WidgetProps<PomodoroConfig> = {}) => {
   useEffect(() => {
     store.syncConfig(workMin, breakMin);
   }, [store, workMin, breakMin]);
+
+  // FE-8: 同 tile 视图,挂载 retain / 卸载 release,确保计时器与 store 不泄漏。
+  useEffect(() => {
+    store.retain();
+    return () => store.release();
+  }, [store]);
 
   const total = state.phase === "work" ? state.workSec : state.breakSec;
   const progress = 1 - state.remaining / total;
