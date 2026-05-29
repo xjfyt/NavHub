@@ -172,8 +172,9 @@ pub async fn list_icons(
     Query(q): Query<ListIconAssetsQuery>,
 ) -> AppResult<Json<AdminIconAssetListResponse>> {
     require_at_least_admin(user.role)?;
-    let limit = q.limit.unwrap_or(100).min(500);
-    let offset = q.offset.unwrap_or(0);
+    // API-5: 收紧分页参数,避免 limit=0/超大或负 offset。
+    let (limit, offset) =
+        crate::handlers::util::clamp_page(q.limit.unwrap_or(100), q.offset.unwrap_or(0));
 
     let search_pattern = q.search.as_deref().map(|s| format!("%{}%", s.to_lowercase()));
 

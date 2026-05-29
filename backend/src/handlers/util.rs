@@ -117,6 +117,15 @@ pub fn group_writable_by(group: &Group, user: &SessionUser) -> bool {
     group.owner_id == Some(user.id)
 }
 
+/// API-5: 分页参数最大每页条数。
+pub const MAX_PAGE_LIMIT: i64 = 200;
+
+/// API-5: 收紧分页 limit/offset 的纯函数。limit 钳到 [1, MAX_PAGE_LIMIT],
+/// offset 取非负;避免 limit=0/超大或 offset 为负导致的全表扫描/异常。
+pub fn clamp_page(limit: i64, offset: i64) -> (i64, i64) {
+    (limit.clamp(1, MAX_PAGE_LIMIT), offset.max(0))
+}
+
 /// 流式读取响应体,累计超过 `max` 字节立即报错;避免无 Content-Length 或谎报长度的响应撑爆内存。
 pub async fn read_body_capped(resp: reqwest::Response, max: u64) -> anyhow::Result<bytes::Bytes> {
     use futures::StreamExt;
@@ -316,5 +325,35 @@ mod tests {
     fn validate_push_target_unknown_type_rejected() {
         assert!(validate_push_target("everyone", None, None).is_err());
         assert!(validate_push_target("", None, None).is_err());
+    }
+
+    // API-5: 分页参数钳制
+    #[test]
+    fn clamp_page_normal_values_unchanged() {
+        assert_eq!(clamp_page(50, 0), (50, 0));
+        assert_eq!(clamp_page(200, 100), (200, 100));
+        assert_eq!(clamp_page(1, 0), (1, 0));
+    }
+
+    #[test]
+    fn clamp_page_limit_zero_becomes_one() {
+        assert_eq!(clamp_page(0, 0), (1, 0));
+    }
+
+    #[test]
+    fn clamp_page_limit_negative_becomes_one() {
+        assert_eq!(clamp_page(-5, 0), (1, 0));
+    }
+
+    #[test]
+    fn clamp_page_huge_limit_capped_to_max() {
+        assert_eq!(clamp_page(10_000, 0), (MAX_PAGE_LIMIT, 0));
+        assert_eq!(clamp_page(i64::MAX, 0), (MAX_PAGE_LIMIT, 0));
+    }
+
+    #[test]
+    fn clamp_page_negative_offset_becomes_zero() {
+        assert_eq!(clamp_page(50, -100), (50, 0));
+        assert_eq!(clamp_page(50, i64::MIN), (50, 0));
     }
 }

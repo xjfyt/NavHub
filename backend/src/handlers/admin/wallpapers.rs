@@ -202,8 +202,9 @@ pub async fn list_wallpapers(
     Query(q): Query<ListWallpapersQuery>,
 ) -> AppResult<Json<AdminWallpaperListResponse>> {
     require_at_least_admin(user.role)?;
-    let limit = q.limit.unwrap_or(50).min(200);
-    let offset = q.offset.unwrap_or(0);
+    // API-5: 收紧分页参数,避免 limit=0/超大或负 offset。
+    let (limit, offset) =
+        crate::handlers::util::clamp_page(q.limit.unwrap_or(50), q.offset.unwrap_or(0));
 
     let (items, total) = if let Some(sid) = q.source_id {
         let total: i64 =
