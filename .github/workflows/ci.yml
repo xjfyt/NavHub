@@ -100,10 +100,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        # 用 npm install 而非 npm ci:锁文件跨平台(Windows 生成)时 npm ci 存在
-        # optionalDependencies 安装缺陷(npm/cli#4828),会漏装 Linux 的 esbuild/rollup
-        # 原生二进制,导致 vitest 启动报错 / build 失败。npm install 按当前平台正确安装。
-        run: npm install --no-audit --no-fund
+        # 锁文件在 Windows 生成,沿用它会触发 npm 跨平台 optionalDependencies 安装缺陷
+        # (npm/cli#4828),漏装 Linux 的 esbuild/rollup 原生二进制 → vitest 启动报错 / build 失败。
+        # 故删除锁文件后 npm install,按本平台全新解析安装正确原生包(npm 官方规避方式)。
+        run: rm -f package-lock.json && npm install --no-audit --no-fund
 
       - name: ESLint
         run: npm run lint:eslint
