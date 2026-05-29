@@ -7,7 +7,10 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci
+# 用 npm install 而非 npm ci:锁文件在 Windows 生成,npm ci 存在跨平台 optionalDependencies
+# 安装缺陷(npm/cli#4828),会漏装当前平台的 rollup/esbuild 原生二进制导致 build 失败;
+# npm install 会按当前平台重新评估并安装正确的原生包(仍以锁文件为基准)。
+RUN npm install --no-audit --no-fund
 COPY frontend .
 RUN npm run build
 
