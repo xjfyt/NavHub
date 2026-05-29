@@ -212,7 +212,10 @@
 ## ⚪ M5 — 打磨 + 完整性 + 技术债
 
 - [x] M5 完成(2026-05-29,分支 opt/v0.2.0;后端 133 + 前端 318 单测全绿,clippy/eslint 均绿;仅 QUAL-9 主动延后,理由见下)
-- 说明:**QUAL-9(超大文件拆分)主动延后**——纯结构性重构、无用户价值、且这些文件本轮已被大量修改(无组件测试护栏),收尾期盲目拆分回归风险最高;其模块化目标已被本轮大量 helper/子组件抽离(reorder/ttlCache/undoQueue/NavGridCell 等)实质性推进。
+- **QUAL-9(超大文件拆分)已完成**(2026-05-29,分支 refactor/qual-9-split,合并入 main):
+  WallpaperLibrary 1885→574、TweaksPanel 1705→305、IconAssetLibrary 1286→443、AddIconModal 1217→562、
+  后端 admin/wallpapers.rs 780→子模块目录(mod.rs 29)。均按职责拆成同目录子模块(子组件/纯函数+单测/类型/常量),
+  原文件保留为薄编排层、公开导入路径不变,严格行为保持。前端单测 324→376,后端 142,CI 门禁(fmt/clippy/eslint/prettier)全绿。
 
 | ID | 严重 | 工作量 | 位置 | 说明 |
 |---|---|---|---|---|
