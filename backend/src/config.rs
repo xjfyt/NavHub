@@ -164,6 +164,11 @@ pub struct GeneralConfig {
     pub upload_max_mb: u64,
     #[serde(default = "default_log_level")]
     pub log_level: String,
+    /// OPS-5: 日志输出格式。`"pretty"`(默认,人类可读,保持原有行为)或 `"json"`
+    /// (结构化,便于生产环境采集到 Loki/ELK 等)。可被环境变量 `NAVHUB_LOG_FORMAT`
+    /// 覆盖。未知值回退为 pretty。
+    #[serde(default = "default_log_format")]
+    pub log_format: String,
     #[serde(default = "default_site_name")]
     pub site_name: String,
     #[serde(default)]
@@ -200,6 +205,33 @@ fn default_upload_max() -> u64 {
 }
 fn default_log_level() -> String {
     "info".into()
+}
+fn default_log_format() -> String {
+    "pretty".into()
+}
+
+/// OPS-5: 日志格式枚举。`tracing_subscriber` 的 pretty / json 两种 formatter 的开关。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogFormat {
+    Pretty,
+    Json,
+}
+
+/// OPS-5(纯函数,便于单元测试):决定最终使用哪种日志格式。
+///
+/// 优先级:环境变量 `NAVHUB_LOG_FORMAT` > 配置文件 `app.log_format`。
+/// 取值大小写不敏感,两侧空白被裁剪;`"json"` 选 JSON,其余一切(含未知值、
+/// 空字符串)回退为 `Pretty`,保持升级前的人类可读默认行为。
+pub fn resolve_log_format(config_value: &str, env_value: Option<&str>) -> LogFormat {
+    // 环境变量存在且非空白时优先;否则用配置值。
+    let chosen = match env_value {
+        Some(v) if !v.trim().is_empty() => v,
+        _ => config_value,
+    };
+    match chosen.trim().to_ascii_lowercase().as_str() {
+        "json" => LogFormat::Json,
+        _ => LogFormat::Pretty,
+    }
 }
 fn default_site_name() -> String {
     "NavHub".into()
@@ -324,4 +356,53 @@ fn resolve_config_path() -> PathBuf {
         }
     }
     PathBuf::from("config.toml")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_log_format, LogFormat};
+
+    #[test]
+    fn config_pretty_is_default() {
+        // 配置为 pretty、无环境变量 → Pretty。
+        assert_eq!(resolve_log_format("pretty", None), LogFormat::Pretty);
+    }
+
+    #[test]
+    fn config_json_selected() {
+        assert_eq!(resolve_log_format("json", None), LogFormat::Json);
+    }
+
+    #[test]
+    fn unknown_or_empty_config_falls_back_to_pretty() {
+        // 未知值与空串都回退到 pretty,保持升级前默认行为。
+        assert_eq!(resolve_log_format("verbose", None), LogFormat::Pretty);
+        assert_eq!(resolve_log_format("", None), LogFormat::Pretty);
+    }
+
+    #[test]
+    fn env_overrides_config() {
+        // 环境变量优先于配置文件。
+        assert_eq!(
+            resolve_log_format("pretty", Some("json")),
+            LogFormat::Json
+        );
+        assert_eq!(
+            resolve_log_format("json", Some("pretty")),
+            LogFormat::Pretty
+        );
+    }
+
+    #[test]
+    fn blank_env_is_ignored_and_config_wins() {
+        // 空白/空环境变量视为未设置,回落到配置值。
+        assert_eq!(resolve_log_format("json", Some("")), LogFormat::Json);
+        assert_eq!(resolve_log_format("json", Some("   ")), LogFormat::Json);
+    }
+
+    #[test]
+    fn matching_is_case_and_whitespace_insensitive() {
+        assert_eq!(resolve_log_format("  JSON  ", None), LogFormat::Json);
+        assert_eq!(resolve_log_format("Pretty", Some("  Json ")), LogFormat::Json);
+    }
 }

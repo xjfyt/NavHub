@@ -37,7 +37,24 @@ async fn main() -> anyhow::Result<()> {
 
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&cfg.app.log_level));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    // OPS-5: pretty(默认,人类可读)/ json(结构化)两种 formatter,由配置
+    // `app.log_format` 决定、可被 `NAVHUB_LOG_FORMAT` 覆盖。EnvFilter / 级别行为不变。
+    // 两个分支的 SubscriberBuilder 类型不同,故在各自分支内分别 .init()。
+    match config::resolve_log_format(
+        &cfg.app.log_format,
+        std::env::var("NAVHUB_LOG_FORMAT").ok().as_deref(),
+    ) {
+        config::LogFormat::Json => {
+            tracing_subscriber::fmt()
+                .json()
+                .with_current_span(true)
+                .with_env_filter(filter)
+                .init();
+        }
+        config::LogFormat::Pretty => {
+            tracing_subscriber::fmt().with_env_filter(filter).init();
+        }
+    }
 
     tracing::info!("starting navhub on {}:{}", cfg.server.host, cfg.server.port);
 
