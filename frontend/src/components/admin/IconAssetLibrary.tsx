@@ -133,18 +133,54 @@ export const AdminIconAssetLibrary = () => {
 
   const handleTriggerFetch = async (source: IconAssetSourceView) => {
     setFetching(source.id);
+    // UX-14: 后端 /fetch 为 fire-and-forget(返回 {status:"started"} 后台异步),
+    // 无任务状态/进度接口可轮询。诚实呈现「抓取中」并轮询 totalFetched 观察增量。
+    const before = source.totalFetched ?? 0;
+    let toastId: string | number | undefined;
     try {
       await api.admin.triggerIconAssetFetch(source.id);
-      toast.success(`已启动抓取任务：${source.name}`);
-      setTimeout(() => {
-        loadSources();
-        loadIcons(selectedSourceId, iconPage, debouncedSearchQuery);
-        setFetching(null);
-      }, 3000);
+      toastId = toast.loading(`正在抓取：${source.name}…`);
     } catch {
       toast.error("启动抓取失败");
       setFetching(null);
+      return;
     }
+
+    const POLL_INTERVAL = 3000;
+    const MAX_POLLS = 6;
+    let polls = 0;
+    let lastTotal = before;
+    let stableRounds = 0;
+    const poll = async () => {
+      polls += 1;
+      try {
+        const list = await api.admin.iconAssetSources();
+        setSources(list);
+        const cur = list.find((s) => s.id === source.id);
+        const curTotal = cur?.totalFetched ?? lastTotal;
+        if (curTotal === lastTotal) stableRounds += 1;
+        else stableRounds = 0;
+        lastTotal = curTotal;
+        loadIcons(selectedSourceId, iconPage, debouncedSearchQuery);
+      } catch {
+        /* 忽略单次轮询失败 */
+      }
+      if (stableRounds >= 2 || polls >= MAX_POLLS) {
+        const delta = Math.max(0, lastTotal - before);
+        if (toastId !== undefined) toast.dismiss(toastId);
+        if (delta > 0) {
+          toast.success(`抓取完成：新增 ${delta} 个图标`);
+        } else if (polls >= MAX_POLLS) {
+          toast.message("抓取仍在后台进行，暂未发现新增（可稍后刷新查看）");
+        } else {
+          toast.message("抓取完成：未发现新内容");
+        }
+        setFetching(null);
+        return;
+      }
+      window.setTimeout(poll, POLL_INTERVAL);
+    };
+    window.setTimeout(poll, POLL_INTERVAL);
   };
 
   const handleToggleEnabled = async (source: IconAssetSourceView) => {

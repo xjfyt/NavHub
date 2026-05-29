@@ -239,18 +239,57 @@ export const AdminWallpaperLibrary = () => {
 
   const handleTriggerFetch = async (source: WallpaperSourceView) => {
     setFetching(source.id);
+    // UX-14: 后端 /fetch 是 fire-and-forget(返回 {status:"started"} 后台异步抓取),
+    // 没有任务状态/进度接口可轮询。这里诚实地呈现「抓取中」并轮询来源的 totalFetched,
+    // 在有限时间窗内观察新增数量;窗口结束时按观测到的已缓存增量给出反馈。
+    const before = source.totalFetched ?? 0;
+    let toastId: string | number | undefined;
     try {
       await api.admin.triggerWallpaperFetch(source.id);
-      toast.success(`已启动抓取任务：${source.name}`);
-      setTimeout(() => {
-        loadSources();
-        loadWallpapers(selectedSourceId, wallpaperPage);
-        setFetching(null);
-      }, 3000);
+      toastId = toast.loading(`正在抓取：${source.name}…`);
     } catch {
       toast.error("启动抓取失败");
       setFetching(null);
+      return;
     }
+
+    // 轮询源列表以观察已缓存数量变化(无真实进度接口,只能观测计数增量)。
+    const POLL_INTERVAL = 3000;
+    const MAX_POLLS = 6; // 最多约 18s
+    let polls = 0;
+    let lastTotal = before;
+    let stableRounds = 0;
+    const poll = async () => {
+      polls += 1;
+      try {
+        const list = await api.admin.wallpaperSources();
+        setSources(list);
+        const cur = list.find((s) => s.id === source.id);
+        const curTotal = cur?.totalFetched ?? lastTotal;
+        if (curTotal === lastTotal) stableRounds += 1;
+        else stableRounds = 0;
+        lastTotal = curTotal;
+        loadWallpapers(selectedSourceId, wallpaperPage);
+      } catch {
+        /* 忽略单次轮询失败,继续等待 */
+      }
+      // 计数连续两轮不变,或到达上限,则结束并汇报。
+      if (stableRounds >= 2 || polls >= MAX_POLLS) {
+        const delta = Math.max(0, lastTotal - before);
+        if (toastId !== undefined) toast.dismiss(toastId);
+        if (delta > 0) {
+          toast.success(`抓取完成：新增 ${delta} 张壁纸`);
+        } else if (polls >= MAX_POLLS) {
+          toast.message("抓取仍在后台进行，暂未发现新增（可稍后刷新查看）");
+        } else {
+          toast.message("抓取完成：未发现新内容");
+        }
+        setFetching(null);
+        return;
+      }
+      window.setTimeout(poll, POLL_INTERVAL);
+    };
+    window.setTimeout(poll, POLL_INTERVAL);
   };
 
   const handleToggleEnabled = async (source: WallpaperSourceView) => {
