@@ -28,16 +28,23 @@ export function Background({
       return;
     }
 
+    // PERF-9: 交叉淡入用的 setTimeout 此前从不清理,卸载/壁纸切换后回调仍会
+    // 触发 setPrevUrl,造成定时器泄漏与「卸载后 setState」。这里统一持有
+    // 定时器 id 并在 effect 清理中清除。
+    let fadeTimer: number | undefined;
+
     if (wallpaperMediaType === "video") {
       const previous = loadedUrl;
       if (previous && previous !== wallpaperUrl) {
         setPrevUrl(previous);
-        window.setTimeout(() => {
+        fadeTimer = window.setTimeout(() => {
           setPrevUrl((current) => (current === previous ? undefined : current));
         }, 1000);
       }
       setLoadedUrl(wallpaperUrl);
-      return;
+      return () => {
+        if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
+      };
     }
 
     const previous = loadedUrl;
@@ -51,7 +58,7 @@ export function Background({
     const finish = () => {
       if (cancelled) return;
       setLoadedUrl(wallpaperUrl);
-      window.setTimeout(() => {
+      fadeTimer = window.setTimeout(() => {
         setPrevUrl((current) => (current === previous ? undefined : current));
       }, 1000);
     };
@@ -65,6 +72,7 @@ export function Background({
     img.src = wallpaperUrl;
     return () => {
       cancelled = true;
+      if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
     };
   }, [wallpaperUrl, wallpaperMediaType, loadedUrl]);
 
