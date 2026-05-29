@@ -65,3 +65,11 @@ tokio-util = { version = "0.7", features = ["rt"] }
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# CI 强制的 lint 等级。rust 默认 lint 设为 warn,clippy 启用 all 组(correctness/
+# suspicious/style/complexity/perf),CI 通过 `-D warnings` 将其升级为错误。
+[lints.rust]
+unsafe_code = "warn"
+
+[lints.clippy]
+all = "warn"

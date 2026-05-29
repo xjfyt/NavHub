@@ -595,7 +595,7 @@ mod tests {
         // 长度不对。
         assert!(!verify_sha256(b"x", "abc"));
         // 含非十六进制字符(64 长度但有 g/z)。
-        let bad: String = std::iter::repeat('g').take(64).collect();
+        let bad: String = "g".repeat(64);
         assert!(!verify_sha256(b"x", &bad));
         // 空串。
         assert!(!verify_sha256(b"x", ""));

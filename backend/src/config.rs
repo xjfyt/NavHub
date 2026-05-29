@@ -343,10 +343,8 @@ impl AppConfig {
             .map_err(|e| anyhow::anyhow!("config parse ({path_str}): {e}"))?;
 
         if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                if cfg.frontend.dist_dir.is_relative() {
-                    cfg.frontend.dist_dir = parent.join(&cfg.frontend.dist_dir);
-                }
+            if !parent.as_os_str().is_empty() && cfg.frontend.dist_dir.is_relative() {
+                cfg.frontend.dist_dir = parent.join(&cfg.frontend.dist_dir);
             }
         }
 

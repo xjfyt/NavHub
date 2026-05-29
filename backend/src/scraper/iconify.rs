@@ -33,7 +33,7 @@ impl IconScraper for IconifyScraper {
         let client = &self.client;
 
         // Allow multiple urls separated by comma, space or newline
-        for url_str in site_url.split(|c| c == '\n' || c == ',' || c == ' ') {
+        for url_str in site_url.split(['\n', ',', ' ']) {
             let url_str = url_str.trim();
             if url_str.is_empty() {
                 continue;

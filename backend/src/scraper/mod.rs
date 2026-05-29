@@ -116,7 +116,7 @@ fn has_any_phrase(subject: &str, phrases: &[&str]) -> bool {
 fn has_any_token(subject: &str, tokens: &[&str]) -> bool {
     subject
         .split_whitespace()
-        .any(|word| tokens.iter().any(|token| word == *token))
+        .any(|word| tokens.contains(&word))
 }
 
 const BLOCKED_WALLPAPER_TOKENS: &[&str] = &[

@@ -39,6 +39,7 @@ pub async fn connect(cfg: &DatabaseConfig) -> anyhow::Result<PgPool> {
 ///     has been modified" → server refuses to start
 ///   - two on-disk files sharing a numeric version → duplicate-key error on
 ///     the second insert → server refuses to start
+///
 /// We trade some checksum safety for upgrade robustness: once a version is
 /// installed we trust the database. New versions still go through the normal
 /// transactional apply path (SQL + bookkeeping row in one tx).
