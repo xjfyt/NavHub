@@ -5,7 +5,8 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # 容器内应用监听 8088(见 config 的 [server].port);两侧须一致,否则访问不到。
+      - "8088:8088"
     environment:
       # NEVER ship a default password in a public manifest. Set these via a local
       # `.env` next to this file, or in your orchestrator's secret store. The
