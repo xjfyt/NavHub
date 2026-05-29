@@ -138,46 +138,45 @@ export function WorkspaceProvider({
   const reorderGroup = useCallback(
     (oldId: string, newId: string) => {
       if (isGuest) return;
-      setWorkspace((s) => {
-        const gs = s.groups.slice();
-        const fi = gs.findIndex((g) => g.id === oldId);
-        const ti = gs.findIndex((g) => g.id === newId);
-        if (fi < 0 || ti < 0) return s;
-        const [m] = gs.splice(fi, 1);
-        gs.splice(ti, 0, m);
-        api
-          .reorderGroups(gs.map((g) => g.id))
-          .catch((e) => console.error("reorderGroups failed", e));
-        return { ...s, groups: gs };
-      });
+      // FE-5: 纯函数式计算下一态,API 调用移出 setWorkspace updater。
+      // 之前把 api.reorderGroups 放在 updater 内,React StrictMode 会二次调用
+      // updater,导致请求被重复发出且时序难以保证。
+      const gs = workspace.groups.slice();
+      const fi = gs.findIndex((g) => g.id === oldId);
+      const ti = gs.findIndex((g) => g.id === newId);
+      if (fi < 0 || ti < 0) return;
+      const [m] = gs.splice(fi, 1);
+      gs.splice(ti, 0, m);
+      setWorkspace((s) => ({ ...s, groups: gs }));
+      api
+        .reorderGroups(gs.map((g) => g.id))
+        .catch((e) => console.error("reorderGroups failed", e));
     },
-    [isGuest],
+    [isGuest, workspace.groups],
   );
 
   const reorderIcon = useCallback(
     (dragId: string, dropId: string) => {
       if (isGuest) return;
-      setWorkspace((s) => {
-        const icons = s.icons.slice();
-        const drag = icons.find((i) => i.id === dragId);
-        const drop = icons.find((i) => i.id === dropId);
-        if (!drag || !drop || drag.groupId !== drop.groupId) return s;
-        const sameGroup = icons.filter((i) => i.groupId === drag.groupId);
-        const fi = sameGroup.findIndex((i) => i.id === dragId);
-        const ti = sameGroup.findIndex((i) => i.id === dropId);
-        if (fi < 0 || ti < 0) return s;
-        const [m] = sameGroup.splice(fi, 1);
-        sameGroup.splice(ti, 0, m);
-        const rest = icons.filter((i) => i.groupId !== drag.groupId);
-        const order = sameGroup.map((i) => i.id);
-        // fire-and-forget
-        api
-          .reorderIcons(drag.groupId, order)
-          .catch((e) => console.error("reorderIcons failed", e));
-        return { ...s, icons: [...rest, ...sameGroup] };
-      });
+      // FE-5: 同上,纯函数式计算下一态后再触发 API,避免 updater 内副作用。
+      const icons = workspace.icons.slice();
+      const drag = icons.find((i) => i.id === dragId);
+      const drop = icons.find((i) => i.id === dropId);
+      if (!drag || !drop || drag.groupId !== drop.groupId) return;
+      const sameGroup = icons.filter((i) => i.groupId === drag.groupId);
+      const fi = sameGroup.findIndex((i) => i.id === dragId);
+      const ti = sameGroup.findIndex((i) => i.id === dropId);
+      if (fi < 0 || ti < 0) return;
+      const [m] = sameGroup.splice(fi, 1);
+      sameGroup.splice(ti, 0, m);
+      const rest = icons.filter((i) => i.groupId !== drag.groupId);
+      const order = sameGroup.map((i) => i.id);
+      setWorkspace((s) => ({ ...s, icons: [...rest, ...sameGroup] }));
+      api
+        .reorderIcons(drag.groupId, order)
+        .catch((e) => console.error("reorderIcons failed", e));
     },
-    [isGuest],
+    [isGuest, workspace.icons],
   );
 
   const reorderGroupItems = useCallback(
