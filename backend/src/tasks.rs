@@ -347,25 +347,37 @@ async fn wallpaper_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
 /// DATA-7: 分批删除过期 remote_wallpapers,并清理其 S3 对象。每批 5000 行,
 /// RETURNING 对象 key 后调用 delete_objects;删空即停。对象删失败仅告警,不阻塞
 /// 数据库清理(残留对象下次仍会被孤儿 GC / 重新统计兜底,但行已删干净)。
+///
+/// API-3: 后台过期删除此前不回算来源的 total_fetched,导致计数只增不减(与手动
+/// delete_wallpaper 不一致)。改为 RETURNING source_id 收集受影响来源,删完后按
+/// COUNT 逐源重算,与手动删除路径保持一致。
 async fn expire_wallpapers(state: &Arc<AppState>, shutdown: &AtomicBool) {
+    let mut affected_sources: std::collections::HashSet<uuid::Uuid> =
+        std::collections::HashSet::new();
     loop {
         if shutdown.load(Ordering::Relaxed) {
             break;
         }
-        let rows: Result<Vec<(Option<String>, Option<String>)>, _> = sqlx::query_as(
-            "DELETE FROM remote_wallpapers WHERE id IN (\
+        let rows: Result<Vec<(Option<uuid::Uuid>, Option<String>, Option<String>)>, _> =
+            sqlx::query_as(
+                "DELETE FROM remote_wallpapers WHERE id IN (\
                 SELECT id FROM remote_wallpapers \
                 WHERE expires_at IS NOT NULL AND expires_at < now() \
                 LIMIT 5000\
-            ) RETURNING storage_key, thumbnail_key",
-        )
-        .fetch_all(&state.pg)
-        .await;
+            ) RETURNING source_id, storage_key, thumbnail_key",
+            )
+            .fetch_all(&state.pg)
+            .await;
         match rows {
             Ok(r) if r.is_empty() => break,
             Ok(r) => {
+                for (sid, _, _) in &r {
+                    if let Some(sid) = sid {
+                        affected_sources.insert(*sid);
+                    }
+                }
                 let keys = wallpapers::collect_wallpaper_keys(
-                    r.iter().map(|(s, t)| (s.as_deref(), t.as_deref())),
+                    r.iter().map(|(_, s, t)| (s.as_deref(), t.as_deref())),
                 );
                 if !keys.is_empty() {
                     if let Err(e) = state.storage.delete_objects(&keys).await {
@@ -378,6 +390,21 @@ async fn expire_wallpapers(state: &Arc<AppState>, shutdown: &AtomicBool) {
                 tracing::warn!("expired wallpaper cleanup batch failed: {e}");
                 break;
             }
+        }
+    }
+    // 删除完成后逐源重算 total_fetched(与手动 delete_wallpaper 同口径)。
+    for sid in affected_sources {
+        if let Err(e) = sqlx::query(
+            "UPDATE wallpaper_sources
+                SET total_fetched = (SELECT COUNT(*)::int FROM remote_wallpapers WHERE source_id = $1),
+                    updated_at = now()
+              WHERE id = $1",
+        )
+        .bind(sid)
+        .execute(&state.pg)
+        .await
+        {
+            tracing::warn!("expired wallpaper total_fetched recount failed for {sid}: {e}");
         }
     }
 }
@@ -411,15 +438,38 @@ async fn icon_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
             }
             Err(e) => tracing::warn!("icon source query failed: {e}"),
         }
-        let _ = sqlx::query(
+        // API-3: 后台过期删除此前不回算来源的 total_fetched(与手动 delete_icon 不一致),
+        // 计数只增不减。改为 RETURNING source_id 收集受影响来源,删完后按 COUNT 逐源重算。
+        let deleted: Result<Vec<(Option<uuid::Uuid>,)>, _> = sqlx::query_as(
             "DELETE FROM remote_icon_assets WHERE id IN (\
                 SELECT id FROM remote_icon_assets \
                 WHERE expires_at IS NOT NULL AND expires_at < now() \
                 LIMIT 5000\
-            )",
+            ) RETURNING source_id",
         )
-        .execute(&state.pg)
+        .fetch_all(&state.pg)
         .await;
+        match deleted {
+            Ok(rows) => {
+                let affected: std::collections::HashSet<uuid::Uuid> =
+                    rows.into_iter().filter_map(|(sid,)| sid).collect();
+                for sid in affected {
+                    if let Err(e) = sqlx::query(
+                        "UPDATE icon_asset_sources
+                            SET total_fetched = (SELECT COUNT(*)::int FROM remote_icon_assets WHERE source_id = $1),
+                                updated_at = now()
+                          WHERE id = $1",
+                    )
+                    .bind(sid)
+                    .execute(&state.pg)
+                    .await
+                    {
+                        tracing::warn!("expired icon total_fetched recount failed for {sid}: {e}");
+                    }
+                }
+            }
+            Err(e) => tracing::warn!("expired icon cleanup failed: {e}"),
+        }
     }
 }
 
