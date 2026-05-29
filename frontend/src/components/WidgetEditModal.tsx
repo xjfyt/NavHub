@@ -54,7 +54,7 @@ export const WidgetEditModal = ({
       case "clock":
         return <ClockEdit value={draft as ClockDraft} onChange={patch} />;
       case "weather":
-        return <WeatherEdit value={draft as { city?: string }} onChange={patch} />;
+        return <WeatherEdit value={draft as { city?: string; unit?: "c" | "f" }} onChange={patch} />;
       case "countdown":
         return <CountdownEdit value={draft as CountdownDraft} onChange={patch} />;
       case "rss":
@@ -175,9 +175,10 @@ function WeatherEdit({
   value,
   onChange,
 }: {
-  value: { city?: string };
+  value: { city?: string; unit?: "c" | "f" };
   onChange: (p: Record<string, unknown>) => void;
 }) {
+  const unit = value.unit === "f" ? "f" : "c";
   return (
     <div className="wcc-form">
       <label className="wcc-label">城市</label>
@@ -189,6 +190,22 @@ function WeatherEdit({
       />
       <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         使用 Open‑Meteo 免费 API，中文地名自动解析经纬度。
+      </div>
+      <label className="wcc-label" style={{ marginTop: 12 }}>温度单位</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          className={"wcc-btn-cancel" + (unit === "c" ? " active" : "")}
+          style={{ flex: 1, background: unit === "c" ? "rgba(255,255,255,0.15)" : undefined }}
+          onClick={() => onChange({ unit: "c" })}
+        >摄氏 °C</button>
+        <button
+          className={"wcc-btn-cancel" + (unit === "f" ? " active" : "")}
+          style={{ flex: 1, background: unit === "f" ? "rgba(255,255,255,0.15)" : undefined }}
+          onClick={() => onChange({ unit: "f" })}
+        >华氏 °F</button>
+      </div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+        后端按摄氏返回，华氏在本地换算显示，也可点磁贴右上角小按钮快速切换。
       </div>
     </div>
   );
