@@ -113,6 +113,8 @@ export const Shell = ({
     ? workspace.widgets.find((w) => w.id === detailWidgetId) ?? null
     : null;
   const [isChangingWallpaper, setIsChangingWallpaper] = useState(false);
+  // 窄屏(≤768px)下侧边栏收起为抽屉,由汉堡按钮开合。桌面端该状态不影响布局。
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { shufflePreset, shuffleEnabled, shuffleActive, nextPreset } =
     useWallpaperShuffle(tweaks);
   useColorMode(tweaks.mode);
@@ -255,8 +257,26 @@ export const Shell = ({
         showWallpaper={!!wallpaperUrl}
       />
 
+      <button
+        type="button"
+        className="mobile-nav-toggle"
+        aria-label={mobileNavOpen ? "关闭菜单" : "打开菜单"}
+        aria-expanded={mobileNavOpen}
+        onClick={() => setMobileNavOpen((v) => !v)}
+      >
+        {mobileNavOpen ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M6 6l12 12M6 18L18 6" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        )}
+      </button>
+
       <div
-        className={`app sb-${sidebarMode} sbpos-${tweaks.sidebarPos || "left"} bgmode-${sidebarBgMode}${tweaks.hideIconName ? " hide-icon-name" : ""}`}
+        className={`app sb-${sidebarMode} sbpos-${tweaks.sidebarPos || "left"} bgmode-${sidebarBgMode}${tweaks.hideIconName ? " hide-icon-name" : ""}${mobileNavOpen ? " mobile-nav-open" : ""}`}
         style={{
           fontFamily: tweaks.useSystemFont ? "system-ui" : "var(--font-main)",
           ["--sidebar-width" as string]: `${sidebarWidth}px`,
@@ -269,10 +289,19 @@ export const Shell = ({
           blankCtx(e);
         }}
       >
+        <div
+          className="mobile-nav-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
         <Sidebar
           groups={workspace.groups}
           activeGroup={activeGroup}
-          setActiveGroup={setActiveGroup}
+          setActiveGroup={(id) => {
+            setActiveGroup(id);
+            // 窄屏抽屉态下,选中分类后顺手收起抽屉,回到内容区。
+            setMobileNavOpen(false);
+          }}
           user={me}
           onAvatar={onAvatarClick}
           sidebarMode={sidebarMode}

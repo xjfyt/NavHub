@@ -3205,6 +3205,11 @@ html[data-mode="dark"] .tw-custom-hint {
 .app.sbpos-right .sidebar { order: 2; margin: 0 16px 0 0; }
 .app.sbpos-right .main { order: 1; }
 
+/* ===== 移动端抽屉触发器 / 遮罩 =====
+   桌面端默认隐藏(display:none),仅在窄屏 @media 内显示——保证桌面布局零回归。 */
+.mobile-nav-toggle { display: none; }
+.mobile-nav-backdrop { display: none; }
+
 /* ===== Tweaks gear button (bottom-left) ===== */
 .tweaks-gear {
   position: fixed;
@@ -4285,4 +4290,125 @@ html[data-mode="light"] .nav-empty-btn.primary {
 @keyframes nav-slide-down {
   from { opacity: 0; transform: translateY(-24px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================================================
+   响应式：窄屏(手机/平板,≤768px)布局 (UX-31)
+   —— 全部追加在媒体查询内,桌面端(>768px)规则完全不受影响。
+   —— 侧边栏收成左侧抽屉,由右上角汉堡按钮开合;nav 网格单元缩小、列数减少。
+   ========================================================================= */
+@media (max-width: 768px) {
+  /* 汉堡按钮:固定在右上角,点击开合抽屉。 */
+  .mobile-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 60;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(18, 24, 42, 0.55);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    color: var(--text);
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  }
+  html[data-mode="light"] .mobile-nav-toggle {
+    background: rgba(255, 255, 255, 0.78);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: #1f2a44;
+  }
+
+  /* 单列布局:内容占满整行,侧边栏脱离文档流变成抽屉。 */
+  .app,
+  .app.sbpos-right,
+  .app.sb-hidden {
+    grid-template-columns: 1fr;
+  }
+
+  /* 侧边栏 → 左侧抽屉。默认移出屏幕,.mobile-nav-open 时滑入。
+     用 !important 覆盖各 sidebar 模式(autohide/hidden/sbpos-right)在窄屏的差异,
+     保证抽屉行为一致;这些 !important 只作用于本媒体查询,桌面端不受影响。 */
+  .app .sidebar,
+  .app.sbpos-right .sidebar,
+  .app.sb-autohide .sidebar,
+  .app.sb-hidden .sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    max-height: 100vh;
+    width: 78px !important;
+    margin: 0 !important;
+    padding: 18px 0 16px !important;
+    border-radius: 0 22px 22px 0;
+    order: 0 !important;
+    z-index: 55;
+    transform: translateX(-110%);
+    transition: transform 280ms cubic-bezier(.2, .8, .2, 1);
+    overflow-y: auto;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  .app.mobile-nav-open .sidebar {
+    transform: translateX(0);
+  }
+  /* autohide 抽屉态下,内部按钮区强制可见(覆盖桌面 autohide 的隐藏)。 */
+  .app .sidebar .sidebar-top,
+  .app .sidebar .sidebar-bottom {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: none !important;
+  }
+
+  /* 半透明遮罩:抽屉打开时盖住内容,点击关闭。 */
+  .app.mobile-nav-open .mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(4, 8, 20, 0.42);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  /* 内容区:回收侧边栏让出的横向空间,给汉堡按钮留出顶部空间。 */
+  .main {
+    padding: 8px 12px;
+  }
+  .nav-content {
+    padding-top: 4px;
+  }
+  .nav-area {
+    max-width: 100% !important;
+  }
+
+  /* 网格:缩小单元尺寸,自动 auto-fill 后列数随之减少,可在窄屏排下。 */
+  .nav-content {
+    --nav-cell-w: 78px;
+    --nav-cell-h: 100px;
+    --nav-gap: 12px;
+    --nav-top-reserve: 14vh;
+  }
+
+  /* 引导空状态卡片在窄屏收一点边距。 */
+  .nav-empty {
+    margin-top: 8vh;
+    padding: 28px 20px;
+  }
+}
+
+/* 超窄屏(小手机,≤420px):再降一档单元尺寸,保证至少能排 3 列。 */
+@media (max-width: 420px) {
+  .nav-content {
+    --nav-cell-w: 70px;
+    --nav-cell-h: 92px;
+    --nav-gap: 10px;
+  }
 }
