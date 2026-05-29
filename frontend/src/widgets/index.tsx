@@ -177,7 +177,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     id: "calendar",
     icon: "calendar",
     name: "日历",
-    description: "使用日历来跟踪倒数日、节假日、法定节假日、纪念日，不错过每一个重要的日子。",
+    description: "月历视图,标记固定公历节日(元旦/劳动节/国庆/圣诞等),磁贴与详情翻月同步。",
     defaultSize: "medium",
     render: (w) => tile(<CalendarWidget w={w} />),
     renderDetail: (w) => detail(<CalendarDetail w={w} />),
