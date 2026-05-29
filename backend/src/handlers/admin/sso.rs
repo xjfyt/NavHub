@@ -27,7 +27,8 @@ pub async fn get(
     Extension(user): Extension<SessionUser>,
 ) -> AppResult<Json<SsoView>> {
     require_superadmin(user.role)?;
-    let sso = state.sso.read().await.clone();
+    // OPS-11: 经 TTL 缓存读取(陈旧时自动重载),让超管页看到的也是较新的配置。
+    let sso = state.current_sso().await;
     Ok(Json(SsoView {
         enabled: sso.enabled,
         issuer: sso.issuer,
@@ -57,7 +58,7 @@ pub async fn patch(
     Json(body): Json<SsoPatch>,
 ) -> AppResult<Json<SsoView>> {
     require_superadmin(user.role)?;
-    let mut new_cache: SsoCache = state.sso.read().await.clone();
+    let mut new_cache: SsoCache = state.current_sso().await;
     if let Some(v) = body.enabled {
         new_cache.enabled = v;
     }
@@ -82,7 +83,8 @@ pub async fn patch(
         new_cache.jwks_uri = v;
     }
     new_cache.save(&state.pg).await?;
-    *state.sso.write().await = new_cache.clone();
+    // OPS-11: 持久化后立即刷新本副本缓存并重置 TTL;其它副本靠 TTL 重载感知。
+    state.set_sso(new_cache.clone()).await;
     util::audit(
         &state,
         Some(&user),

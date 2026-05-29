@@ -1,4 +1,9 @@
-use crate::{auth::oidc::JwksCache, auth::sso_cache::SsoCache, config::AppConfig, storage::Storage};
+use crate::{
+    auth::oidc::JwksCache,
+    auth::sso_cache::{CachedSso, SsoCache, SSO_CACHE_TTL},
+    config::AppConfig,
+    storage::Storage,
+};
 use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -10,7 +15,10 @@ pub struct AppState {
     pub cfg: AppConfig,
     pub pg: PgPool,
     pub redis: RedisPool,
-    pub sso: RwLock<SsoCache>,
+    /// OPS-11: 进程内 SSO 配置缓存,带加载时刻 + 短 TTL(见 SSO_CACHE_TTL)。多副本下
+    /// 某副本经 /admin/sso 改配后,其它副本最迟在一个 TTL 窗口内重载并感知变更。
+    /// 读取统一走 `current_sso()`,陈旧时自动从 app_settings 重载。
+    pub sso: RwLock<CachedSso>,
     pub storage: Storage,
     /// Strict client for public-internet APIs (weather, hot lists, etc.).
     /// Always validates TLS — never weakened by `tls_accept_invalid_certs`.
@@ -46,7 +54,7 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new(cfg: AppConfig, pg: PgPool, redis: RedisPool) -> anyhow::Result<Self> {
-        let sso = SsoCache::load(&pg, &cfg.sso).await?;
+        let sso = CachedSso::new(SsoCache::load(&pg, &cfg.sso).await?);
         let storage = Storage::from_config(&cfg).await?;
 
         // INFRA-4: 限流许可数取配置值,至少 1,避免配 0 导致任务永远拿不到许可。
@@ -96,5 +104,41 @@ impl AppState {
             bg_tasks: TaskTracker::new(),
             admin_fetch_sem,
         })
+    }
+
+    /// OPS-11: 返回当前有效的 SSO 配置。若进程内缓存已超过 TTL(见 SSO_CACHE_TTL),
+    /// 先从 app_settings 重载再返回,使其它副本的改动在一个窗口内传播到本副本。
+    ///
+    /// 重载失败(DB 瞬时不可用)时,记录告警并返回现有缓存(fail-open),避免一次 DB
+    /// 抖动就打断登录/回调等鉴权路径。重载成功则刷新缓存与 loaded_at。
+    pub async fn current_sso(&self) -> SsoCache {
+        // 快路径:持读锁判断是否陈旧;未陈旧直接返回克隆。
+        {
+            let guard = self.sso.read().await;
+            if !guard.is_stale_at(std::time::Instant::now(), SSO_CACHE_TTL) {
+                return guard.value.clone();
+            }
+        }
+        // 慢路径:陈旧——尝试重载。重载在锁外进行,避免持写锁打 DB 阻塞其它读者。
+        match SsoCache::load(&self.pg, &self.cfg.sso).await {
+            Ok(fresh) => {
+                let mut guard = self.sso.write().await;
+                // 双重检查:可能已有并发请求刚刚刷新过,避免重复写。
+                if guard.is_stale_at(std::time::Instant::now(), SSO_CACHE_TTL) {
+                    *guard = CachedSso::new(fresh);
+                }
+                guard.value.clone()
+            }
+            Err(e) => {
+                tracing::warn!("OPS-11: reloading SSO cache failed, serving stale: {e}");
+                self.sso.read().await.value.clone()
+            }
+        }
+    }
+
+    /// OPS-11: 超管经 /admin/sso 改配后立即写回本副本缓存并重置 loaded_at(其它副本靠
+    /// TTL 重载感知)。调用方负责先持久化到 app_settings。
+    pub async fn set_sso(&self, value: SsoCache) {
+        *self.sso.write().await = CachedSso::new(value);
     }
 }

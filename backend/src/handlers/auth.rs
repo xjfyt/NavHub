@@ -25,7 +25,8 @@ pub struct CallbackQuery {
 }
 
 pub async fn login(State(state): State<Arc<AppState>>) -> AppResult<Response> {
-    let sso = state.sso.read().await.clone();
+    // OPS-11: 经 TTL 缓存读取 SSO 配置;陈旧时自动从 app_settings 重载。
+    let sso = state.current_sso().await;
     if !sso.enabled {
         return Err(AppError::Forbidden("sso_disabled"));
     }
@@ -95,7 +96,8 @@ async fn callback_inner(
         return Err(AppError::Forbidden("oauth_state_mismatch"));
     }
 
-    let sso = state.sso.read().await.clone();
+    // OPS-11: 经 TTL 缓存读取 SSO 配置;陈旧时自动从 app_settings 重载。
+    let sso = state.current_sso().await;
     // AUTH-1: the OIDC security path uses a TLS-VALIDATING client (never the
     // lenient one) for token exchange, JWKS fetch and userinfo. Accepting an
     // invalid cert here would let a MITM forge tokens/keys and defeat the whole
@@ -289,7 +291,7 @@ pub async fn status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> AppResult<Json<StatusResp>> {
-    let sso = state.sso.read().await;
+    let sso = state.current_sso().await;
     let (authed, must_change) = match session::extract_sid(&headers) {
         Some(sid) => match session::get_session(&state, &sid).await? {
             Some(data) => (true, data.must_change_password),
@@ -314,7 +316,7 @@ pub struct PublicConfig {
 }
 
 pub async fn public_config(State(state): State<Arc<AppState>>) -> Json<PublicConfig> {
-    let sso = state.sso.read().await;
+    let sso = state.current_sso().await;
     Json(PublicConfig {
         sso_enabled: sso.enabled,
         app_name: state.cfg.app.site_name.clone(),
