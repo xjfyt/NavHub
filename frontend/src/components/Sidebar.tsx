@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import { GroupView, Me } from "../types";
 import { Icon } from "./Icon";
+import { groupDroppableId } from "../utils/dragTarget";
 
 export const Sidebar = ({
   groups,
@@ -14,6 +16,7 @@ export const Sidebar = ({
   onAddCategory,
   onReorderGroup,
   onDropItemToGroup,
+  dndActiveItemId = null,
 }: {
   groups: GroupView[];
   activeGroup: string;
@@ -26,6 +29,11 @@ export const Sidebar = ({
   onAddCategory: () => void;
   onReorderGroup: (old: string, to: string) => void;
   onDropItemToGroup?: (itemType: string, itemId: string, groupId: string) => void;
+  /**
+   * UX-27：当前是否有图标/组件正被 @dnd-kit 拖拽(来自 Shell 的 useNavDnd)。
+   * 非 null 时，分类按钮作为 @dnd-kit droppable 亮起，提示「可拖到这里移动到该分类」。
+   */
+  dndActiveItemId?: string | null;
 }) => {
   const [dragId, setDragId] = useState<string | null>(null);
   const [hoverCategory, setHoverCategory] = useState<string | null>(null);
@@ -60,11 +68,14 @@ export const Sidebar = ({
     >
       <div className="sidebar-top">
         {groups.map((g) => (
-          <button
+          <CategoryButton
             key={g.id}
-            data-group-id={g.id}
-            className={"side-btn cat " + (activeGroup === g.id ? "active" : "") + (hoverCategory === g.id ? " hover-target" : "")}
-            draggable={!isGuest}
+            group={g}
+            active={activeGroup === g.id}
+            isGuest={isGuest}
+            hover={hoverCategory === g.id}
+            // 当前正被 @dnd-kit 拖拽的元素不在本分类时，本按钮才作为可投放目标亮起。
+            dndDropActive={dndActiveItemId !== null}
             onDragStart={() => {
               if (!isGuest) setDragId(g.id);
             }}
@@ -112,11 +123,7 @@ export const Sidebar = ({
               e.stopPropagation();
               if (!isGuest) onContext?.(e, g.id);
             }}
-          >
-            <Icon name={g.icon || "grid"} size={18} />
-            <span className="side-tip">{g.name}</span>
-          </button>
-
+          />
         ))}
         {!isGuest ? (
           <button className="side-btn add-cat" onClick={onAddCategory}>
@@ -161,5 +168,62 @@ export const Sidebar = ({
         </button>
       </div>
     </aside>
+  );
+};
+
+// 单个分类按钮。同时承担：
+//   • 原有的「原生 HTML5 拖拽」——分类重排 + 文件夹内项目拖到分类(application/x-navhub-item)。
+//   • UX-27 新增的 @dnd-kit useDroppable —— 接住从网格拖来的图标/组件，松手即跨分类移动。
+// 两套拖拽机制互不冲突：原生 DnD 用 drag 事件，@dnd-kit 用 pointer 事件。
+const CategoryButton = ({
+  group,
+  active,
+  isGuest,
+  hover,
+  dndDropActive,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onClick,
+  onContextMenu,
+}: {
+  group: GroupView;
+  active: boolean;
+  isGuest: boolean;
+  hover: boolean;
+  dndDropActive: boolean;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onClick: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}) => {
+  // @dnd-kit droppable —— id 用 "group:<id>" 命名空间(见 utils/dragTarget)。
+  const { setNodeRef, isOver } = useDroppable({ id: groupDroppableId(group.id) });
+  const showDndTarget = dndDropActive && !active;
+  return (
+    <button
+      ref={setNodeRef}
+      data-group-id={group.id}
+      className={
+        "side-btn cat " +
+        (active ? "active" : "") +
+        (hover ? " hover-target" : "") +
+        (showDndTarget ? " dnd-drop-zone" : "") +
+        (showDndTarget && isOver ? " dnd-drop-over" : "")
+      }
+      draggable={!isGuest}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+    >
+      <Icon name={group.icon || "grid"} size={18} />
+      <span className="side-tip">{group.name}</span>
+    </button>
   );
 };

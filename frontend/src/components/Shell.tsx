@@ -2,9 +2,11 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { useWallpaperShuffle } from "../hooks/useWallpaperShuffle";
 import { useColorMode } from "../hooks/useColorMode";
+import { DndContext } from "@dnd-kit/core";
 import { Background } from "./Background";
 import { Sidebar } from "./Sidebar";
 import { NavView } from "./NavView";
+import { useNavDnd } from "../hooks/useNavDnd";
 import { UserMenu } from "./UserMenu";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
 import { Icon } from "./Icon";
@@ -157,6 +159,43 @@ export const Shell = ({
   // Moved openedFolder state up to prevent hook mismatch when adminOpen is true
   const [openedFolder, setOpenedFolder] = useState<IconView | null>(null);
 
+  // UX-27: 跨分类移动元素到目标分类顶部，并把目标分类其余元素的 sortOrder 重排。
+  // 抽成具名函数交给 useNavDnd —— 它在松手命中分类 droppable 时调用本函数。
+  const moveGroupItemToTop = async (
+    itemType: "icon" | "widget",
+    itemId: string,
+    targetGroupId: string,
+  ) => {
+    if (itemType === "icon") {
+      await updateIcon(itemId, { groupId: targetGroupId });
+    } else if (itemType === "widget") {
+      await updateWidget(itemId, { groupId: targetGroupId });
+    }
+    const tWidgets = workspace.widgets.filter((w) => w.groupId === targetGroupId && w.id !== itemId);
+    const tIcons = workspace.icons.filter((i) => i.groupId === targetGroupId && i.id !== itemId);
+    const combined = [
+      ...tWidgets.map((w) => ({ type: "widget" as const, id: w.id, sortOrder: w.sortOrder, gridX: w.gridX, gridY: w.gridY })),
+      ...tIcons.map((i) => ({ type: "icon" as const, id: i.id, sortOrder: i.sortOrder, gridX: i.gridX, gridY: i.gridY })),
+    ].sort((a, b) => a.sortOrder - b.sortOrder);
+    combined.unshift({ type: itemType, id: itemId, sortOrder: 0, gridX: null, gridY: null });
+    reorderGroupItems(targetGroupId, combined.map((x) => ({ id: x.id, type: x.type, x: x.gridX, y: x.gridY })));
+  };
+
+  // 统一的拖拽协调(分类内排序 / 文件夹合并 / 跨分类移动)——与侧边栏共处同一 <DndContext>。
+  const navDnd = useNavDnd({
+    activeGroup,
+    icons: workspace.icons,
+    widgets: workspace.widgets,
+    onReorderGroupItems: reorderGroupItems,
+    onMergeIcon: mergeIcon,
+    onMoveGroupItem: async (itemType, itemId, targetGroupId) => {
+      // 落地后切到目标分类(与原行为一致：图标移动后视图跟到目标分类)。
+      setActiveGroup(targetGroupId);
+      await moveGroupItemToTop(itemType, itemId, targetGroupId);
+    },
+    groupName: (gid) => workspace.groups.find((g) => g.id === gid)?.name,
+  });
+
   if (adminOpen) {
     // Admin shell is the largest split chunk; show a minimal full-screen
     // placeholder while it loads instead of a layout flash.
@@ -296,103 +335,93 @@ export const Shell = ({
           onClick={() => setMobileNavOpen(false)}
           aria-hidden="true"
         />
-        <Sidebar
-          groups={workspace.groups}
-          activeGroup={activeGroup}
-          setActiveGroup={(id) => {
-            setActiveGroup(id);
-            // 窄屏抽屉态下,选中分类后顺手收起抽屉,回到内容区。
-            setMobileNavOpen(false);
-          }}
-          user={me}
-          onAvatar={onAvatarClick}
-          sidebarMode={sidebarMode}
-          onContext={groupCtx}
-          onSideContext={sideCtx}
-          onAddCategory={() => setAddCatOpen(true)}
-          onReorderGroup={reorderGroup}
-          onDropItemToGroup={(itemType, itemId, groupId) => {
-            if (itemType === "icon") {
-              updateIcon(itemId, { groupId });
-            } else if (itemType === "widget") {
-              updateWidget(itemId, { groupId });
-            }
-            setActiveGroup(groupId);
-          }}
-        />
-
-        <main className="main">
-          {isGuest && (
-            <div className="guest-banner" role="status">
-              <Icon name="key" size={16} />
-              <span className="guest-banner-text">
-                你正在以访客身份浏览，登录后可保存图标、组件与个性化设置。
-              </span>
-              <button
-                type="button"
-                className="guest-banner-btn"
-                onClick={onRequestLogin}
-              >
-                登录
-              </button>
-            </div>
-          )}
-          <NavView
-            activeGroup={activeGroup}
+        {/* UX-27: 单一 <DndContext> 同时覆盖侧边栏与网格 —— 分类内排序、文件夹合并、
+            跨分类移动都在此完成。侧边栏分类按钮是真正的 @dnd-kit droppable。 */}
+        <DndContext
+          sensors={navDnd.sensors}
+          collisionDetection={navDnd.collisionDetection}
+          onDragStart={navDnd.onDragStart}
+          onDragMove={navDnd.onDragMove}
+          onDragEnd={navDnd.onDragEnd}
+          onDragCancel={navDnd.onDragCancel}
+        >
+          <Sidebar
             groups={workspace.groups}
-            icons={workspace.icons}
-            widgets={workspace.widgets}
-            tweaks={{ ...tweaks, hideAddIcon: tweaks.hideAddIcon || isGuest || !canEditGroup(activeGroup) }}
-            setActiveGroup={setActiveGroup}
-            onOpenIcon={(_e, ic) => openIcon(ic)}
-            onCtxTile={tileCtx}
-            onAddClick={(e) => {
-              if (isGuest || !canEditGroup(activeGroup)) return;
-              const x = e.clientX;
-              const y = e.clientY;
-              openCtx(x, y, [
-                {
-                  icon: "grid",
-                  label: "添加小组件...",
-                  onClick: () => setCatalogOpen(true),
-                },
-                {
-                  icon: "plus",
-                  label: "添加图标",
-                  onClick: () => setAddIconOpen(true),
-                },
-              ]);
+            activeGroup={activeGroup}
+            setActiveGroup={(id) => {
+              setActiveGroup(id);
+              // 窄屏抽屉态下,选中分类后顺手收起抽屉,回到内容区。
+              setMobileNavOpen(false);
             }}
-            onReorderGroupItems={reorderGroupItems}
-            onMergeIcon={mergeIcon}
-            onMoveGroupItem={async (itemType, itemId, targetGroupId, targetIndex) => {
-              // 元素跨分类落地后必须切换 active group —— 与 Sidebar 的 onDropItemToGroup 行为对齐，
-              // 避免「图标已经移动但页面还停在原分类」的体验断裂。
-              setActiveGroup(targetGroupId);
-              if (itemType === "icon") {
-                await updateIcon(itemId, { groupId: targetGroupId });
-              } else if (itemType === "widget") {
-                await updateWidget(itemId, { groupId: targetGroupId });
-              }
-
-              const currentWidgets = workspace.widgets.filter(w => w.groupId === targetGroupId && w.id !== itemId);
-              const currentIcons = workspace.icons.filter(i => i.groupId === targetGroupId && i.id !== itemId);
-              const combinedItems = [
-                ...currentWidgets.map(w => ({ type: 'widget' as const, id: w.id, sortOrder: w.sortOrder, gridX: w.gridX, gridY: w.gridY })),
-                ...currentIcons.map(i => ({ type: 'icon' as const, id: i.id, sortOrder: i.sortOrder, gridX: i.gridX, gridY: i.gridY })),
-              ].sort((a, b) => a.sortOrder - b.sortOrder);
-
-              combinedItems.splice(targetIndex, 0, { type: itemType as any, id: itemId, sortOrder: 0, gridX: null, gridY: null });
-
-              reorderGroupItems(targetGroupId, combinedItems.map(x => ({ id: x.id, type: x.type, x: x.gridX, y: x.gridY })));
-            }}
-            onExpandWidget={(w) => setDetailWidgetId(w.id)}
-            onExtractFolderItem={extractFolderItem}
-            editable={!isGuest && canEditGroup(activeGroup)}
+            user={me}
+            onAvatar={onAvatarClick}
+            sidebarMode={sidebarMode}
+            onContext={groupCtx}
+            onSideContext={sideCtx}
             onAddCategory={() => setAddCatOpen(true)}
-            onAddIcon={() => setAddIconOpen(true)}
+            onReorderGroup={reorderGroup}
+            onDropItemToGroup={(itemType, itemId, groupId) => {
+              if (itemType === "icon") {
+                updateIcon(itemId, { groupId });
+              } else if (itemType === "widget") {
+                updateWidget(itemId, { groupId });
+              }
+              setActiveGroup(groupId);
+            }}
+            dndActiveItemId={navDnd.activeId}
           />
-        </main>
+
+          <main className="main">
+            {isGuest && (
+              <div className="guest-banner" role="status">
+                <Icon name="key" size={16} />
+                <span className="guest-banner-text">
+                  你正在以访客身份浏览，登录后可保存图标、组件与个性化设置。
+                </span>
+                <button
+                  type="button"
+                  className="guest-banner-btn"
+                  onClick={onRequestLogin}
+                >
+                  登录
+                </button>
+              </div>
+            )}
+            <NavView
+              activeGroup={activeGroup}
+              groups={workspace.groups}
+              icons={workspace.icons}
+              widgets={workspace.widgets}
+              tweaks={{ ...tweaks, hideAddIcon: tweaks.hideAddIcon || isGuest || !canEditGroup(activeGroup) }}
+              setActiveGroup={setActiveGroup}
+              onOpenIcon={(_e, ic) => openIcon(ic)}
+              onCtxTile={tileCtx}
+              onAddClick={(e) => {
+                if (isGuest || !canEditGroup(activeGroup)) return;
+                const x = e.clientX;
+                const y = e.clientY;
+                openCtx(x, y, [
+                  {
+                    icon: "grid",
+                    label: "添加小组件...",
+                    onClick: () => setCatalogOpen(true),
+                  },
+                  {
+                    icon: "plus",
+                    label: "添加图标",
+                    onClick: () => setAddIconOpen(true),
+                  },
+                ]);
+              }}
+              onExpandWidget={(w) => setDetailWidgetId(w.id)}
+              onExtractFolderItem={extractFolderItem}
+              editable={!isGuest && canEditGroup(activeGroup)}
+              onAddCategory={() => setAddCatOpen(true)}
+              onAddIcon={() => setAddIconOpen(true)}
+              dnd={navDnd}
+            />
+          </main>
+        </DndContext>
       </div>
 
       {catalogOpen && (

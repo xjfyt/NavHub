@@ -1,19 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  MouseSensor,
-  TouchSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragMoveEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
+import { DragOverlay } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   rectSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -23,73 +11,24 @@ import { IconTile } from "./IconTile";
 import { Icon } from "./Icon";
 import { pickEmptyState } from "../utils/emptyState";
 import {
-  mouseActivationConstraint,
-  touchActivationConstraint,
-} from "../utils/dndSensors";
-import {
-  meetsMergeOverlap,
-  shouldMergeWithTarget,
-  MERGE_DWELL_MS,
-} from "../utils/mergeDecision";
-import {
   shouldShowDragHint,
   readDragHintDismissed,
   persistDragHintDismissed,
 } from "../utils/dragHint";
-import {
-  WIDGET_REGISTRY,
-  WidgetSizeId,
-  snapWidgetSize,
-} from "../widgets";
+import { WIDGET_REGISTRY } from "../widgets";
+import type { NavGridItem, UseNavDndResult } from "../hooks/useNavDnd";
 
 // =================================================================
-// CSS Grid 单元格尺寸：图标/小组件按 cell 数量 (w × h) 占位。
-//
-//   sq / circle / 普通文件夹    : 1 × 1
-//   pill (横长胶囊) / 折叠文件夹 : 2 × 1
-//   lg / lg-4 / lg-9           : 2 × 2
-//   widget small               : 2 × 1
-//   widget medium              : 2 × 2
-//   widget large               : 4 × 2
-//
-// 实际像素由 CSS 变量 `--nav-cell-w` / `--nav-cell-h` 控制。
-// =================================================================
-
-type CellSpan = { w: number; h: number };
-
-function spanForIcon(icon: IconView): CellSpan {
-  if (icon.isFolder) {
-    if (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg") return { w: 2, h: 2 };
-    if (icon.size === "pill-size") return { w: 3, h: 1 };
-    return { w: 1, h: 1 };
-  }
-  if (icon.size === "lg") return { w: 2, h: 2 };
-  if (icon.size === "pill-size") return { w: 3, h: 1 };
-  return { w: 1, h: 1 };
-}
-
-function spanForWidget(widget: WidgetView): CellSpan {
-  const reg = WIDGET_REGISTRY[widget.widget];
-  const sizeKey = (snapWidgetSize(widget.wSpan, widget.wRow) || reg?.defaultSize || "medium") as WidgetSizeId;
-  if (sizeKey === "small") return { w: 3, h: 1 };
-  if (sizeKey === "large") return { w: 4, h: 2 };
-  return { w: 2, h: 2 };
-}
-
-type Item =
-  | { kind: "icon"; id: string; icon: IconView; sortOrder: number; span: CellSpan }
-  | { kind: "widget"; id: string; widget: WidgetView; sortOrder: number; span: CellSpan };
-
-// =================================================================
-// NavView：分类下的 icon / widget 网格。
+// NavView：分类下的 icon / widget 网格（展示层）。
 //
 // 设计原则：
 //  • 使用原生 CSS Grid (auto-flow: row dense)；每个元素只通过 sortOrder 决定顺序，
 //    位置由浏览器自动计算，不再保存 gridX/gridY。
 //  • 搜索条等 floatingBar 小组件单独渲染在网格之上，不参与排序、不可拖。
-//  • 拖拽用 @dnd-kit/sortable，松手只更新 sortOrder。
-//  • 跨分类拖拽：拖动期间用 pointermove 命中 sidebar 上的分类按钮。
-//  • 文件夹合并：拖动期间用 pointermove 命中其他 icon 中心区。
+//  • 拖拽用 @dnd-kit/sortable；松手只更新 sortOrder。
+//  • UX-27：跨分类移动、分类内排序、文件夹合并统一在一个 <DndContext> 内完成。
+//    DndContext 提升到 Shell 层(同时覆盖侧边栏)，拖拽协调逻辑见 hooks/useNavDnd。
+//    NavView 只负责渲染 SortableContext / 网格 / DragOverlay。
 // =================================================================
 
 export const NavView = ({
@@ -102,14 +41,12 @@ export const NavView = ({
   onOpenIcon,
   onCtxTile,
   onAddClick,
-  onReorderGroupItems,
-  onMergeIcon,
-  onMoveGroupItem,
   onExpandWidget,
   onExtractFolderItem,
   editable = false,
   onAddCategory,
   onAddIcon,
+  dnd,
 }: {
   activeGroup: string;
   groups: GroupView[];
@@ -120,17 +57,6 @@ export const NavView = ({
   onOpenIcon: (e: React.MouseEvent | React.DragEvent | null, icon: IconView) => void;
   onCtxTile: (e: React.MouseEvent, item: IconView | WidgetView) => void;
   onAddClick: (e: React.MouseEvent) => void;
-  onReorderGroupItems: (
-    groupId: string,
-    items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[],
-  ) => void;
-  onMergeIcon: (dragId: string, targetId: string) => void;
-  onMoveGroupItem?: (
-    itemType: "icon" | "widget",
-    itemId: string,
-    targetGroupId: string,
-    targetIndex: number,
-  ) => void;
   onExpandWidget?: (w: WidgetView) => void;
   onExtractFolderItem?: (folderId: string, itemId: string) => void;
   /** 当前用户能否在当前分类做写操作(非访客 + 分类可编辑)。决定空状态是否给「添加」入口。 */
@@ -139,7 +65,10 @@ export const NavView = ({
   onAddCategory?: () => void;
   /** 打开「添加图标」弹窗(空分类时引导)。 */
   onAddIcon?: () => void;
+  /** 拖拽协调结果，来自 Shell 层的 useNavDnd(与侧边栏共处同一 DndContext)。 */
+  dnd: UseNavDndResult;
 }) => {
+  const { gridItems, activeItem } = dnd;
   const [slideDir, setSlideDir] = useState(0);
   const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
   // UX-19: 拖拽手势首次引导是否已被用户关闭(持久化在 localStorage)。初值从 localStorage 读。
@@ -237,396 +166,6 @@ export const NavView = ({
     [currentWidgets],
   );
 
-  // ----- 跨分类「实时预览」状态 -----
-  // 用户拖拽时悬停在侧边栏目标分类按钮 ~400ms，会 setActiveGroup 把视图切到目标分类，
-  // 同时把被拖元素「临时」加进目标分类的 gridItems（数据未落库）。这样 @dnd-kit 的拖拽
-  // 不中断，用户可以继续在目标分类里挑位置后松手。
-  // 落地（onDragEnd）时根据 sortable 的最终位置一次性提交 onMoveGroupItem(targetIndex)。
-  // 取消（onDragCancel/escape）则把 activeGroup 切回源分类，丢弃预览。
-  const [pendingGroupOverride, setPendingGroupOverride] = useState<{
-    itemId: string;
-    fromGroupId: string;
-    toGroupId: string;
-  } | null>(null);
-
-  const gridItems = useMemo<Item[]>(() => {
-    const arr: Item[] = [
-      ...currentWidgets
-        .filter((w) => !WIDGET_REGISTRY[w.widget]?.floatingBar)
-        .map((w) => ({
-          kind: "widget" as const,
-          id: w.id,
-          widget: w,
-          sortOrder: w.sortOrder,
-          span: spanForWidget(w),
-        })),
-      ...currentIcons.map((i) => ({
-        kind: "icon" as const,
-        id: i.id,
-        icon: i,
-        sortOrder: i.sortOrder,
-        span: spanForIcon(i),
-      })),
-    ];
-    arr.sort((a, b) => a.sortOrder - b.sortOrder);
-    // 如果有 pending override 且目标 group == 当前 activeGroup，
-    // 把源 group 里那个被拖的元素「插入」当前 grid 末尾，让 @dnd-kit 仍然认得它。
-    if (
-      pendingGroupOverride &&
-      pendingGroupOverride.toGroupId === activeGroup &&
-      !arr.some((it) => it.id === pendingGroupOverride.itemId)
-    ) {
-      const itemId = pendingGroupOverride.itemId;
-      const ic = icons.find((i) => i.id === itemId);
-      if (ic) {
-        arr.push({
-          kind: "icon",
-          id: ic.id,
-          icon: ic,
-          sortOrder: arr.length,
-          span: spanForIcon(ic),
-        });
-      } else {
-        const wd = widgets.find((w) => w.id === itemId);
-        if (wd) {
-          arr.push({
-            kind: "widget",
-            id: wd.id,
-            widget: wd,
-            sortOrder: arr.length,
-            span: spanForWidget(wd),
-          });
-        }
-      }
-    }
-    return arr;
-  }, [currentIcons, currentWidgets, pendingGroupOverride, activeGroup, icons, widgets]);
-
-  // ----- 拖拽态 -----
-  const [activeId, setActiveId] = useState<string | null>(null);
-  // 鼠标:小位移即拖动(行为同改造前的 PointerSensor)。
-  // 触摸:长按 ~220ms 才进入拖拽——轻点/滑动不误触,普通触摸滚动得以保留。
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: mouseActivationConstraint }),
-    useSensor(TouchSensor, { activationConstraint: touchActivationConstraint }),
-  );
-
-  // 跨分类目标（侧边栏分类按钮）
-  const groupTargetRef = useRef<string | null>(null);
-  const groupTargetElRef = useRef<HTMLElement | null>(null);
-  // 跨分类悬停定时器：悬停 400ms 才触发实时切换。
-  const hoverSwitchTimerRef = useRef<number | null>(null);
-  // 文件夹合并目标（另一个 icon）
-  const mergeTargetRef = useRef<string | null>(null);
-  const mergeTargetElRef = useRef<HTMLElement | null>(null);
-  // UX-20: 合并需要「刻意停留」——记录当前候选(达到重叠门槛的那个 icon)及其首次达标的时间戳，
-  // 只有在该候选上持续达标超过 MERGE_DWELL_MS 才确认为合并目标（高亮 + 松手合并）。
-  // 候选切换 / 重叠跌破门槛都会重置计时，防止「擦过」误触发。
-  const mergeCandidateRef = useRef<string | null>(null);
-  const mergeCandidateSinceRef = useRef<number>(0);
-  // 停留确认定时器：达门槛后若指针停住不动(onDragMove 不再触发)，靠它在停留期满时补一次确认。
-  const mergeDwellTimerRef = useRef<number | null>(null);
-
-  const clearMergeDwellTimer = () => {
-    if (mergeDwellTimerRef.current !== null) {
-      window.clearTimeout(mergeDwellTimerRef.current);
-      mergeDwellTimerRef.current = null;
-    }
-  };
-
-  const clearHoverSwitchTimer = () => {
-    if (hoverSwitchTimerRef.current !== null) {
-      window.clearTimeout(hoverSwitchTimerRef.current);
-      hoverSwitchTimerRef.current = null;
-    }
-  };
-
-  const clearGroupTarget = () => {
-    if (groupTargetElRef.current) {
-      groupTargetElRef.current.classList.remove("drag-group-target");
-      groupTargetElRef.current = null;
-    }
-    groupTargetRef.current = null;
-    clearHoverSwitchTimer();
-  };
-  const clearMergeTarget = () => {
-    if (mergeTargetElRef.current) {
-      mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
-      mergeTargetElRef.current.style.transform = "";
-      mergeTargetElRef.current.style.boxShadow = "";
-      mergeTargetElRef.current = null;
-    }
-    mergeTargetRef.current = null;
-    mergeCandidateRef.current = null;
-    mergeCandidateSinceRef.current = 0;
-    clearMergeDwellTimer();
-  };
-
-  // 把某个候选 icon 元素「确认」为合并目标并上高亮（停留达标后调用）。
-  const confirmMergeHighlight = (el: HTMLElement, isFolder: boolean) => {
-    const id = el.dataset.navItemId ?? null;
-    if (!id || mergeTargetRef.current === id) return;
-    if (mergeTargetElRef.current && mergeTargetElRef.current !== el) {
-      mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
-      mergeTargetElRef.current.style.transform = "";
-      mergeTargetElRef.current.style.boxShadow = "";
-    }
-    mergeTargetRef.current = id;
-    mergeTargetElRef.current = el;
-    el.classList.add("merge-target-glow");
-    if (isFolder) el.classList.add("merge-target-folder");
-    el.style.transition = "transform .18s var(--spring), box-shadow .18s";
-    el.style.transform = isFolder ? "scale(1.10)" : "scale(1.06)";
-    el.style.boxShadow = isFolder
-      ? "0 0 0 4px rgba(155,231,180,0.85), 0 0 28px rgba(155,231,180,0.45)"
-      : "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
-  };
-
-  const onDragStart = (e: DragStartEvent) => {
-    setActiveId(String(e.active.id));
-  };
-
-  const onDragMove = (e: DragMoveEvent) => {
-    const activator = e.activatorEvent as PointerEvent | undefined;
-    if (!activator || typeof activator.clientX !== "number") return;
-    const px = activator.clientX + e.delta.x;
-    const py = activator.clientY + e.delta.y;
-    const draggedId = activeId ?? String(e.active.id);
-
-    // 1) 命中侧边栏分类按钮 → 跨分类目标
-    const groupBtns = document.querySelectorAll<HTMLElement>(".side-btn.cat[data-group-id]");
-    let foundGroupEl: HTMLElement | null = null;
-    let foundGroupId: string | null = null;
-    for (const btn of Array.from(groupBtns)) {
-      const r = btn.getBoundingClientRect();
-      if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) {
-        foundGroupEl = btn;
-        foundGroupId = btn.dataset.groupId ?? null;
-        break;
-      }
-    }
-    if (foundGroupEl && foundGroupId && foundGroupId !== activeGroup) {
-      if (groupTargetRef.current !== foundGroupId) {
-        clearGroupTarget();
-        clearMergeTarget();
-        groupTargetRef.current = foundGroupId;
-        groupTargetElRef.current = foundGroupEl;
-        foundGroupEl.classList.add("drag-group-target");
-        // 启动 400ms 悬停定时器：用户在该按钮上停够 400ms 才把视图切到目标分类，
-        // 避免拖拽路径上「擦过」按钮导致的误切。切换是「实时预览」——只更新视图，
-        // 数据落库放到 onDragEnd。
-        const targetGroupId = foundGroupId;
-        const draggedItemId = draggedId;
-        clearHoverSwitchTimer();
-        hoverSwitchTimerRef.current = window.setTimeout(() => {
-          hoverSwitchTimerRef.current = null;
-          // 找出元素的源 group（拖拽开始时它所在的分类）
-          const ic = icons.find((i) => i.id === draggedItemId);
-          const wd = widgets.find((w) => w.id === draggedItemId);
-          const fromGroupId = ic?.groupId ?? wd?.groupId;
-          if (!fromGroupId || fromGroupId === targetGroupId) return;
-          setPendingGroupOverride({
-            itemId: draggedItemId,
-            fromGroupId,
-            toGroupId: targetGroupId,
-          });
-          setActiveGroup(targetGroupId);
-        }, 400);
-      }
-      return;
-    }
-    clearGroupTarget();
-
-    // 2) 合并 / 落入文件夹检测（UX-20：收紧门槛 + 需刻意停留，避免擦一下就吸进文件夹）
-    //    重叠率 = 交集面积 / 拖拽元素自身面积。以「拖动这张图标自己进去多少」为口径，
-    //    比 min(两边面积) 更稳定（受目标尺寸变化影响小，sortable 推开邻居时仍可命中）。
-    //    判定拆成两步：① 重叠率达门槛(普通 0.55 / 文件夹 0.45) → 记为「候选」；
-    //    ② 候选在目标上持续达标超过 MERGE_DWELL_MS 才「确认」为合并目标。详见 utils/mergeDecision.ts。
-    const draggedItem = gridItems.find((it) => it.id === draggedId);
-    if (!draggedItem || draggedItem.kind !== "icon") {
-      clearMergeTarget();
-      return;
-    }
-    const draggedRect = e.active.rect.current?.translated ?? null;
-    if (!draggedRect) {
-      clearMergeTarget();
-      return;
-    }
-    const overlapRatio = (a: { left: number; top: number; right: number; bottom: number; width: number; height: number }, b: DOMRect) => {
-      const left = Math.max(a.left, b.left);
-      const right = Math.min(a.right, b.right);
-      const top = Math.max(a.top, b.top);
-      const bottom = Math.min(a.bottom, b.bottom);
-      if (left >= right || top >= bottom) return 0;
-      const inter = (right - left) * (bottom - top);
-      const draggedArea = a.width * a.height;
-      return draggedArea > 0 ? inter / draggedArea : 0;
-    };
-    const iconEls = document.querySelectorAll<HTMLElement>("[data-nav-item-type='icon']");
-    let foundEl: HTMLElement | null = null;
-    let foundIsFolder = false;
-    let bestRatio = 0;
-    for (const el of Array.from(iconEls)) {
-      const id = el.dataset.navItemId;
-      if (!id || id === draggedId) continue;
-      const r = el.getBoundingClientRect();
-      if (r.width === 0) continue;
-      const isFolder = el.dataset.navItemFolder === "true";
-      const ratio = overlapRatio(draggedRect, r);
-      // 仅在达到合并重叠门槛后才作为候选；同时取重叠率最高者。
-      if (meetsMergeOverlap(ratio, isFolder) && ratio > bestRatio) {
-        foundEl = el;
-        foundIsFolder = isFolder;
-        bestRatio = ratio;
-      }
-    }
-
-    if (!foundEl) {
-      // 没有任何候选达到重叠门槛：重置候选 + 已确认的目标高亮。
-      clearMergeTarget();
-      return;
-    }
-
-    const candidateId = foundEl.dataset.navItemId!;
-    const now = Date.now();
-    // 候选切换：重新开始计时并撤销旧的停留定时器；候选不变则沿用起始时间戳累积停留。
-    if (mergeCandidateRef.current !== candidateId) {
-      mergeCandidateRef.current = candidateId;
-      mergeCandidateSinceRef.current = now;
-      clearMergeDwellTimer();
-    }
-    const dwellMs = now - mergeCandidateSinceRef.current;
-
-    if (shouldMergeWithTarget({ overlapRatio: bestRatio, dwellMs, isFolder: foundIsFolder })) {
-      clearMergeDwellTimer();
-      confirmMergeHighlight(foundEl, foundIsFolder);
-      return;
-    }
-
-    // 达门槛但停留还不够。若之前已确认过别的目标，撤掉它的高亮（仅高亮，保留候选计时）。
-    if (mergeTargetRef.current && mergeTargetRef.current !== candidateId) {
-      if (mergeTargetElRef.current) {
-        mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
-        mergeTargetElRef.current.style.transform = "";
-        mergeTargetElRef.current.style.boxShadow = "";
-        mergeTargetElRef.current = null;
-      }
-      mergeTargetRef.current = null;
-    }
-    // 兜底：指针可能停住不再触发 onDragMove，安排一次延时确认，到点若候选仍是它就确认。
-    if (mergeDwellTimerRef.current === null) {
-      const elToConfirm = foundEl;
-      const isFolderToConfirm = foundIsFolder;
-      const remaining = Math.max(0, MERGE_DWELL_MS - dwellMs);
-      mergeDwellTimerRef.current = window.setTimeout(() => {
-        mergeDwellTimerRef.current = null;
-        if (mergeCandidateRef.current === candidateId) {
-          confirmMergeHighlight(elToConfirm, isFolderToConfirm);
-        }
-      }, remaining);
-    }
-  };
-
-  const onDragEnd = (e: DragEndEvent) => {
-    const dragId = activeId ?? String(e.active.id);
-    setActiveId(null);
-    clearHoverSwitchTimer();
-
-    // 1) 实时预览生效中：用户已经在目标分类里挑了具体位置 → 一次性提交跨分类移动 + 排序。
-    if (pendingGroupOverride && pendingGroupOverride.itemId === dragId) {
-      const { toGroupId } = pendingGroupOverride;
-      setPendingGroupOverride(null);
-      const targetEl = groupTargetElRef.current;
-      clearGroupTarget();
-      clearMergeTarget();
-      const draggedItem = gridItems.find((it) => it.id === dragId);
-      if (draggedItem && onMoveGroupItem) {
-        // sortable 在当前 grid（已包含被拖元素）里给出 over —— 用 arrayMove 算出新位置。
-        const overId = e.over?.id;
-        let targetIndex = gridItems.findIndex((it) => it.id === dragId);
-        if (overId && overId !== dragId) {
-          const oldIdx = gridItems.findIndex((it) => it.id === dragId);
-          const newIdx = gridItems.findIndex((it) => it.id === overId);
-          if (oldIdx >= 0 && newIdx >= 0) targetIndex = newIdx;
-        }
-        if (targetIndex < 0) targetIndex = 0;
-        onMoveGroupItem(draggedItem.kind, draggedItem.id, toGroupId, targetIndex);
-        if (targetEl) {
-          targetEl.classList.add("group-receive-pulse");
-          window.setTimeout(() => targetEl.classList.remove("group-receive-pulse"), 520);
-        }
-      }
-      return;
-    }
-
-    // 2) 仅悬停过侧边栏但还没等够 400ms 就放手 → 走老的「丢到目标分类顶部」逻辑。
-    if (groupTargetRef.current) {
-      const targetGroupId = groupTargetRef.current;
-      const draggedItem = gridItems.find((it) => it.id === dragId);
-      const targetEl = groupTargetElRef.current;
-      clearGroupTarget();
-      clearMergeTarget();
-      if (draggedItem && onMoveGroupItem) {
-        onMoveGroupItem(draggedItem.kind, draggedItem.id, targetGroupId, 0);
-        if (targetEl) {
-          targetEl.classList.add("group-receive-pulse");
-          window.setTimeout(() => targetEl.classList.remove("group-receive-pulse"), 520);
-        }
-      }
-      return;
-    }
-
-    // 3) 文件夹合并
-    if (mergeTargetRef.current && dragId) {
-      const targetId = mergeTargetRef.current;
-      const targetEl = mergeTargetElRef.current;
-      mergeTargetRef.current = null;
-      mergeTargetElRef.current = null;
-      mergeCandidateRef.current = null;
-      mergeCandidateSinceRef.current = 0;
-      clearMergeDwellTimer();
-      if (targetEl) {
-        targetEl.classList.remove("merge-target-glow", "merge-target-folder");
-        targetEl.style.transform = "";
-        targetEl.style.boxShadow = "";
-        targetEl.classList.add("merge-absorb");
-      }
-      window.setTimeout(() => {
-        onMergeIcon(dragId, targetId);
-        targetEl?.classList.remove("merge-absorb");
-      }, 280);
-      return;
-    }
-    clearMergeTarget();
-
-    // 4) 普通排序：用 sortable 的 over 计算新顺序
-    const overId = e.over?.id;
-    if (!overId || overId === e.active.id || !dragId) return;
-    const oldIdx = gridItems.findIndex((it) => it.id === dragId);
-    const newIdx = gridItems.findIndex((it) => it.id === overId);
-    if (oldIdx < 0 || newIdx < 0) return;
-    const reordered = arrayMove(gridItems, oldIdx, newIdx);
-    onReorderGroupItems(
-      activeGroup,
-      reordered.map((it) => ({ id: it.id, type: it.kind, x: null, y: null })),
-    );
-  };
-
-  const onDragCancel = () => {
-    setActiveId(null);
-    clearHoverSwitchTimer();
-    // 实时预览状态下取消拖拽：把视图切回源分类、丢弃预览。
-    if (pendingGroupOverride) {
-      const fromGroup = pendingGroupOverride.fromGroupId;
-      setPendingGroupOverride(null);
-      if (fromGroup && fromGroup !== activeGroup) setActiveGroup(fromGroup);
-    }
-    clearGroupTarget();
-    clearMergeTarget();
-  };
-
-  const activeItem = activeId ? gridItems.find((it) => it.id === activeId) ?? null : null;
-
   // 引导空状态：整个工作区没有分类 / 当前分类没有任何 icon&widget 时,
   // 给一张友好的引导卡片(而不是一片空白)。写操作入口只在 editable 时出现。
   const emptyState = pickEmptyState({
@@ -643,7 +182,7 @@ export const NavView = ({
   });
 
   // ----- 单个 grid item 的内容 -----
-  const renderItemContent = (item: Item) => {
+  const renderItemContent = (item: NavGridItem) => {
     if (item.kind === "widget") {
       const w = item.widget;
       const r = WIDGET_REGISTRY[w.widget];
@@ -792,93 +331,84 @@ export const NavView = ({
             </button>
           </div>
         ) : null}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={onDragStart}
-          onDragMove={onDragMove}
-          onDragEnd={onDragEnd}
-          onDragCancel={onDragCancel}
-        >
-          <SortableContext items={gridItems.map((it) => it.id)} strategy={rectSortingStrategy}>
-            {emptyState ? (
-              <div className="nav-empty">
-                <div className="nav-empty-glyph">
-                  <Icon name={emptyState === "no-groups" ? "grid" : "plus"} size={30} />
-                </div>
-                {emptyState === "no-groups" ? (
-                  <>
-                    <div className="nav-empty-title">还没有任何分类</div>
-                    <div className="nav-empty-desc">
-                      {editable
-                        ? "创建第一个分类来归置你的网站和小组件。"
-                        : "当前还没有可浏览的内容。"}
-                    </div>
-                    {editable && onAddCategory ? (
-                      <div className="nav-empty-actions">
-                        <button
-                          type="button"
-                          className="nav-empty-btn primary"
-                          onClick={onAddCategory}
-                        >
-                          <Icon name="plus" size={16} />
-                          添加第一个分类
-                        </button>
-                      </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <div className="nav-empty-title">这个分类还没有网站</div>
-                    <div className="nav-empty-desc">
-                      {editable
-                        ? "添加第一个网站,或从右键菜单加入小组件。"
-                        : "当前分类暂时没有内容。"}
-                    </div>
-                    {editable && onAddIcon ? (
-                      <div className="nav-empty-actions">
-                        <button
-                          type="button"
-                          className="nav-empty-btn primary"
-                          onClick={onAddIcon}
-                        >
-                          <Icon name="plus" size={16} />
-                          添加第一个网站
-                        </button>
-                      </div>
-                    ) : null}
-                  </>
-                )}
+        <SortableContext items={gridItems.map((it) => it.id)} strategy={rectSortingStrategy}>
+          {emptyState ? (
+            <div className="nav-empty">
+              <div className="nav-empty-glyph">
+                <Icon name={emptyState === "no-groups" ? "grid" : "plus"} size={30} />
               </div>
-            ) : null}
-            <div className="nav-grid">
-              {gridItems.map((item) => (
-                <SortableCell key={item.id} item={item}>
-                  {renderItemContent(item)}
-                </SortableCell>
-              ))}
-              {!tweaks.hideAddIcon && (
-                <button
-                  type="button"
-                  className="nav-cell w-1 h-1 nav-add-cell"
-                  onClick={(e) => onAddClick(e)}
-                >
-                  <span className="nav-add-square">
-                    <Icon name="plus" size={28} />
-                  </span>
-                  <span className="nav-add-label">添加</span>
-                </button>
+              {emptyState === "no-groups" ? (
+                <>
+                  <div className="nav-empty-title">还没有任何分类</div>
+                  <div className="nav-empty-desc">
+                    {editable
+                      ? "创建第一个分类来归置你的网站和小组件。"
+                      : "当前还没有可浏览的内容。"}
+                  </div>
+                  {editable && onAddCategory ? (
+                    <div className="nav-empty-actions">
+                      <button
+                        type="button"
+                        className="nav-empty-btn primary"
+                        onClick={onAddCategory}
+                      >
+                        <Icon name="plus" size={16} />
+                        添加第一个分类
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <div className="nav-empty-title">这个分类还没有网站</div>
+                  <div className="nav-empty-desc">
+                    {editable
+                      ? "添加第一个网站,或从右键菜单加入小组件。"
+                      : "当前分类暂时没有内容。"}
+                  </div>
+                  {editable && onAddIcon ? (
+                    <div className="nav-empty-actions">
+                      <button
+                        type="button"
+                        className="nav-empty-btn primary"
+                        onClick={onAddIcon}
+                      >
+                        <Icon name="plus" size={16} />
+                        添加第一个网站
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
-          </SortableContext>
-          <DragOverlay>
-            {activeItem ? (
-              <div className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview`}>
-                {renderItemContent(activeItem)}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+          ) : null}
+          <div className="nav-grid">
+            {gridItems.map((item) => (
+              <SortableCell key={item.id} item={item}>
+                {renderItemContent(item)}
+              </SortableCell>
+            ))}
+            {!tweaks.hideAddIcon && (
+              <button
+                type="button"
+                className="nav-cell w-1 h-1 nav-add-cell"
+                onClick={(e) => onAddClick(e)}
+              >
+                <span className="nav-add-square">
+                  <Icon name="plus" size={28} />
+                </span>
+                <span className="nav-add-label">添加</span>
+              </button>
+            )}
+          </div>
+        </SortableContext>
+        <DragOverlay>
+          {activeItem ? (
+            <div className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview`}>
+              {renderItemContent(activeItem)}
+            </div>
+          ) : null}
+        </DragOverlay>
       </div>
     </div>
   );
@@ -888,7 +418,7 @@ const SortableCell = ({
   item,
   children,
 }: {
-  item: Item;
+  item: NavGridItem;
   children: React.ReactNode;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
