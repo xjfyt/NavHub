@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { api, ApiError } from "./api";
 import type { AuthStatus, Me, Workspace } from "./types";
 import { LoginScreen } from "./LoginScreen";
@@ -7,6 +7,11 @@ import { Toaster } from "sonner";
 
 import { ChangePasswordScreen } from "./ChangePasswordScreen";
 import { mergeGuestTweaks } from "./utils/guestTweaks";
+import {
+  connectivityReducer,
+  initialConnectivity,
+  selectBanner,
+} from "./utils/connectivity";
 
 interface ReadyState {
   stage: "ready";
@@ -113,6 +118,28 @@ export function App() {
   });
   const [wantLogin, setWantLogin] = useState(false);
 
+  // UX-17: 在线/离线 + 后端可达性。监听 navigator 的 online/offline 事件,
+  // 并在 boot 成功/失败时反映后端健康,据此渲染全局横幅。
+  const [conn, dispatchConn] = useReducer(
+    connectivityReducer,
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+    initialConnectivity,
+  );
+  useEffect(() => {
+    const onOnline = () => {
+      dispatchConn({ type: "online" });
+      void boot(); // 网络恢复时自动重连一次
+    };
+    const onOffline = () => dispatchConn({ type: "offline" });
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const boot = useCallback(async () => {
     try {
       // Status + workspace always go in parallel. /api/me only fires if we
@@ -171,6 +198,7 @@ export function App() {
       }
       setState({ stage: "ready", status: statusResult, me, workspace });
       writeSwr({ status: statusResult, me, workspace });
+      dispatchConn({ type: "backend_ok" });
       setWantLogin(false);
     } catch (e) {
       if (e instanceof ApiError && e.code === "must_change_password") {
@@ -178,6 +206,8 @@ export function App() {
         clearSwr();
         return;
       }
+      // UX-17: 后端不可达——标记后端状态,驱动横幅与冷启动连接失败界面。
+      dispatchConn({ type: "backend_error" });
       // Keep whatever is on screen (cache or skeleton) — the user can still
       // navigate and mutations will surface their own toast on failure.
       setState((prev) => {
@@ -219,10 +249,77 @@ export function App() {
     );
   }
 
+  // UX-17: 冷启动且后端不可达——没有缓存可用、停止 revalidating、且工作区为空时,
+  // 不再只显示一个无用的空骨架,而是给出明确的「连接失败」界面并提供重试。
+  const coldStartUnreachable =
+    conn.backend === "unreachable" &&
+    state.status === null &&
+    state.revalidating === false &&
+    state.workspace.groups.length === 0;
+
+  if (coldStartUnreachable) {
+    return (
+      <div className="nh-boot">
+        <div className="nh-boot-text">
+          {conn.online ? "无法连接服务器" : "网络已断开"}
+        </div>
+        <div className="nh-boot-text" style={{ fontSize: 13, opacity: 0.7, marginTop: 6 }}>
+          {conn.online
+            ? "后端暂时不可用，请稍后重试。"
+            : "请检查网络连接后重试。"}
+        </div>
+        <button className="nh-btn-ghost" onClick={() => void boot()} style={{ marginTop: 14 }}>
+          重试连接
+        </button>
+      </div>
+    );
+  }
+
   const showLogin = wantLogin && !state.me;
+  const banner = selectBanner(conn);
 
   return (
     <>
+      {banner && (
+        <div
+          role="status"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100000,
+            padding: "8px 16px",
+            textAlign: "center",
+            fontSize: 13,
+            color: "#fff",
+            background: banner.kind === "offline" ? "#9b2c2c" : "#b45309",
+            boxShadow: "0 1px 6px rgba(0,0,0,0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+          }}
+        >
+          <span>{banner.message}</span>
+          {banner.kind === "backend" && conn.online && (
+            <button
+              onClick={() => void boot()}
+              style={{
+                background: "rgba(255,255,255,0.18)",
+                border: "1px solid rgba(255,255,255,0.4)",
+                color: "#fff",
+                borderRadius: 6,
+                padding: "2px 10px",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              重试
+            </button>
+          )}
+        </div>
+      )}
       <WorkspaceScreen
         key={state.me ? state.me.id : "guest"}
         me={state.me}
