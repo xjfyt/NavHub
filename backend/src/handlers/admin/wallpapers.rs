@@ -483,16 +483,24 @@ async fn download_to_storage(
     let bytes: Bytes = crate::handlers::util::read_body_capped(resp, max_bytes).await?;
 
     let ext = ext_from_content_type(&content_type, url);
-    let hash = {
+    let file_size = bytes.len() as u64;
+
+    // INFRA-2: SHA-256 哈希与 imagesize 测量都是 CPU 密集型,放在异步执行器上
+    // 会阻塞 tokio 运行时(大文件尤甚)。挪到 spawn_blocking。Bytes 是 Arc 背书,
+    // clone 仅是计数 +1,不复制底层数据。行为与原先完全一致。
+    let bytes_for_cpu = bytes.clone();
+    let (hash, width, height) = tokio::task::spawn_blocking(move || {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
-        h.update(&bytes);
-        hex::encode(h.finalize())
-    };
+        h.update(&bytes_for_cpu);
+        let hash = hex::encode(h.finalize());
+        let (width, height) = measure_image_dimensions(&bytes_for_cpu);
+        (hash, width, height)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("hash/measure task failed: {e}"))?;
 
     let storage_key = format!("{prefix}/{hash}.{ext}");
-    let file_size = bytes.len() as u64;
-    let (width, height) = measure_image_dimensions(&bytes);
     storage
         .put_bytes(&storage_key, Some(&content_type), bytes)
         .await?;
@@ -566,14 +574,23 @@ pub async fn upload_wallpaper(
         ));
     };
 
-    let mut hasher = Sha256::new();
-    hasher.update(&data);
-    let sha_hex = hex::encode(hasher.finalize());
+    let file_size = data.len() as i64;
+
+    // INFRA-2: 手动上传可达 200MB,SHA-256 哈希与 imagesize 测量都是 CPU 密集型,
+    // 放到 spawn_blocking 避免阻塞运行时。data 是 Bytes(Arc 背书),clone 不复制底层。
+    let data_for_cpu = data.clone();
+    let (sha_hex, width, height) = tokio::task::spawn_blocking(move || {
+        let mut hasher = Sha256::new();
+        hasher.update(&data_for_cpu);
+        let sha_hex = hex::encode(hasher.finalize());
+        let (width, height) = measure_image_dimensions(&data_for_cpu);
+        (sha_hex, width, height)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("hash/measure task failed: {e}")))?;
 
     let storage_key = format!("wallpapers/manual/{sha_hex}.{ext}");
     let original_url = format!("manual://{sha_hex}");
-    let file_size = data.len() as i64;
-    let (width, height) = measure_image_dimensions(&data);
 
     let bytes_data: Bytes = data.to_vec().into();
     state

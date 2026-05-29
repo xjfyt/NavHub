@@ -340,16 +340,24 @@ async fn download_to_storage(
     let bytes: Bytes = crate::handlers::util::read_body_capped(resp, max_bytes).await?;
 
     let ext = "svg";
-    let hash = {
+    let file_size = bytes.len() as u64;
+
+    // INFRA-2: SHA-256 哈希是 CPU 密集型,放到 spawn_blocking 避免阻塞运行时。
+    // Bytes 是 Arc 背书,clone 不复制底层数据。
+    let bytes_for_cpu = bytes.clone();
+    let hash = tokio::task::spawn_blocking(move || {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
-        h.update(&bytes);
+        h.update(&bytes_for_cpu);
         hex::encode(h.finalize())
-    };
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("hash task failed: {e}"))?;
 
     let storage_key = format!("{prefix}/{hash}.{ext}");
-    let file_size = bytes.len() as u64;
-    storage.put_bytes(&storage_key, Some("image/svg+xml"), bytes).await?;
+    storage
+        .put_bytes(&storage_key, Some("image/svg+xml"), bytes)
+        .await?;
 
     Ok((storage_key, file_size))
 }
