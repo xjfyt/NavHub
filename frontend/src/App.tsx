@@ -6,6 +6,7 @@ import { WorkspaceScreen } from "./WorkspaceScreen";
 import { Toaster } from "sonner";
 
 import { ChangePasswordScreen } from "./ChangePasswordScreen";
+import { mergeGuestTweaks } from "./utils/guestTweaks";
 
 interface ReadyState {
   stage: "ready";
@@ -148,14 +149,16 @@ export function App() {
           }));
       }
 
-      const workspace = workspaceResult;
+      let workspace = workspaceResult;
       const me = statusResult.authenticated ? meSettled : null;
       if (!me) {
         try {
           const guestStr = window.localStorage.getItem("navhub_guest_tweaks");
           if (guestStr) {
             const guestTweaks = JSON.parse(guestStr);
-            workspace.preferences.tweaks = { ...workspace.preferences.tweaks, ...guestTweaks };
+            // FE-4: 不可变合并,避免原地修改 api.workspace() 返回的(可能被
+            // SWR 缓存共享的)对象,导致 React 漏更新或共享引用被污染。
+            workspace = mergeGuestTweaks(workspace, guestTweaks);
           }
         } catch (_e) {
           /* ignore */
