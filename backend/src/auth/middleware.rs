@@ -10,7 +10,6 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use tracing::Instrument;
 use uuid::Uuid;
 
 /// 处于 must_change_password 状态的会话仍被允许访问的改密端点。
@@ -18,21 +17,6 @@ use uuid::Uuid;
 fn is_must_change_password_allowed(path: &str) -> bool {
     let normalized = path.strip_prefix("/api").unwrap_or(path);
     normalized == "/auth/password/change"
-}
-
-/// Injects a `request_id` tracing span for every incoming request,
-/// enabling structured log correlation across handlers.
-pub async fn inject_request_id(req: Request, next: Next) -> Response {
-    let request_id = Uuid::new_v4();
-    let method = req.method().clone();
-    let path = req.uri().path().to_string();
-    let span = tracing::info_span!(
-        "http",
-        %request_id,
-        %method,
-        %path,
-    );
-    async move { next.run(req).await }.instrument(span).await
 }
 
 /// Bump `last_seen_at` at most once per minute per user, using a single

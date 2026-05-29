@@ -5,6 +5,7 @@ mod db;
 mod error;
 mod handlers;
 mod models;
+mod request_id;
 mod routes;
 mod scraper;
 mod state;
@@ -23,6 +24,7 @@ use tokio::sync::Notify;
 use tower_http::{
     compression::CompressionLayer,
     cors::CorsLayer,
+    request_id::{PropagateRequestIdLayer, SetRequestIdLayer},
     services::ServeDir,
     trace::TraceLayer,
 };
@@ -192,6 +194,12 @@ fn with_global_layers(
         cors_origins.push(u);
     }
 
+    // 层序说明(axum 中 `.layer()` 越靠后越“外层”,请求路径上越先执行):
+    //   CatchPanic(最外)→ sanitize_request_id → SetRequestId → PropagateRequestId
+    //   → inject_request_id(span)→ Trace → Cors → nosniff → Compression(最内,贴近路由)
+    // OPS-8 把请求 ID 体系放在很外层:先清洗入站 x-request-id,再设置(缺失则生成
+    // UUID v4),并在响应上回写;且必须在 inject_request_id(写 span)与 Trace 之前
+    // 完成设置,使日志/链路带上请求 ID。CatchPanic 仍处最外层,行为不变。
     app.layer(CompressionLayer::new().br(true).gzip(true).zstd(true))
         .layer(TraceLayer::new_for_http())
         .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
@@ -216,9 +224,19 @@ fn with_global_layers(
                     header::CONTENT_TYPE,
                 ]),
         )
-        .layer(axum::middleware::from_fn(
-            auth::middleware::inject_request_id,
+        // OPS-8: 用 x-request-id 填充 tracing span,使每条日志携带请求 ID。
+        // 置于 SetRequestId 之内(更内层),此时头必定已存在。
+        .layer(axum::middleware::from_fn(request_id::inject_request_id))
+        // OPS-8: 将请求上的 x-request-id 回写到响应头,实现端到端透传。
+        .layer(PropagateRequestIdLayer::new(request_id::X_REQUEST_ID))
+        // OPS-8: 缺失时生成 UUID v4 请求 ID(合规的入站值已由下方 sanitize 保留)。
+        .layer(SetRequestIdLayer::new(
+            request_id::X_REQUEST_ID,
+            request_id::MakeRequestUuid,
         ))
+        // OPS-8: 在 SetRequestId 之前剥除不合规(超长/含非可见字符)的入站 x-request-id,
+        // 迫使其生成新 ID;合规客户端值则保留。
+        .layer(axum::middleware::from_fn(request_id::sanitize_request_id))
         // INFRA-3: 最外层捕获 handler/中间件中的 panic,转成 500 响应,
         // 避免单个 panic 杀掉处理该连接的 worker 任务、拖垮整个服务。
         .layer(tower_http::catch_panic::CatchPanicLayer::new())
