@@ -65,8 +65,8 @@ pub async fn add_engine(
             "url must contain {q} placeholder".into(),
         ));
     }
-    let p = ensure_prefs(&state, user.id).await?;
-    let mut arr = p.custom_engines.as_array().cloned().unwrap_or_default();
+    // 确保偏好行存在(custom_engines 默认为空数组)。
+    let _ = ensure_prefs(&state, user.id).await?;
     let id = Uuid::new_v4();
     let letter = body
         .label
@@ -78,20 +78,26 @@ pub async fn add_engine(
                 .map(|c| c.to_uppercase().to_string())
         })
         .unwrap_or_else(|| "?".into());
-    arr.push(json!({
+    let new_engine = json!({
         "id": id,
         "name": body.name,
         "url": body.url,
         "color": body.color.unwrap_or_else(|| "#3b82f6".into()),
         "label": letter,
-    }));
-    let v = Value::Array(arr);
-    sqlx::query(
-        "UPDATE user_preferences SET custom_engines = $1, updated_at = now() WHERE user_id = $2",
+    });
+    // API-4: 原先「读取数组 → 内存追加 → 整体写回」存在并发丢更新竞态(两个并发
+    // 添加请求会互相覆盖)。改为单条原子语句:在当前行值上用 jsonb `||` 追加,
+    // 数据库内完成读改写,无竞态窗口。
+    let v: Value = sqlx::query_scalar(
+        "UPDATE user_preferences
+            SET custom_engines = COALESCE(custom_engines, '[]'::jsonb) || jsonb_build_array($1::jsonb),
+                updated_at = now()
+          WHERE user_id = $2
+          RETURNING custom_engines",
     )
-    .bind(&v)
+    .bind(&new_engine)
     .bind(user.id)
-    .execute(&state.pg)
+    .fetch_one(&state.pg)
     .await?;
     Ok(Json(v))
 }
@@ -101,24 +107,21 @@ pub async fn delete_engine(
     Extension(user): Extension<SessionUser>,
     Path(id): Path<Uuid>,
 ) -> AppResult<StatusCode> {
-    let p = ensure_prefs(&state, user.id).await?;
-    let arr: Vec<Value> = p
-        .custom_engines
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|e| {
-            e.get("id")
-                .and_then(|v| v.as_str())
-                .map(|s| s != id.to_string())
-                .unwrap_or(true)
-        })
-        .collect();
+    // 确保偏好行存在。
+    let _ = ensure_prefs(&state, user.id).await?;
+    // API-4: 原先「读取数组 → 内存过滤 → 整体写回」存在并发丢更新竞态。改为单条原子
+    // 语句:在数据库内用 jsonb_array_elements 重建剔除目标 id 后的数组,无竞态窗口。
     sqlx::query(
-        "UPDATE user_preferences SET custom_engines = $1, updated_at = now() WHERE user_id = $2",
+        "UPDATE user_preferences
+            SET custom_engines = COALESCE(
+                    (SELECT jsonb_agg(e)
+                       FROM jsonb_array_elements(custom_engines) e
+                      WHERE e->>'id' IS DISTINCT FROM $1),
+                    '[]'::jsonb),
+                updated_at = now()
+          WHERE user_id = $2",
     )
-    .bind(Value::Array(arr))
+    .bind(id.to_string())
     .bind(user.id)
     .execute(&state.pg)
     .await?;
