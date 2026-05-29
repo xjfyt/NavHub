@@ -1349,10 +1349,23 @@ button.tile {
   flex-shrink: 0; display: grid; place-items: center;
   cursor: pointer;
   transition: all 180ms;
+  /* UX-21: 现为 <button>,清除默认按钮样式 */
+  padding: 0; background: transparent;
 }
 .todo-check.done { background: #fff; border-color: #fff;}
 .todo-check.done::after { content: "✓"; font-size: 11px; color: #1a1a1a; font-weight: 700;}
 .todo-item.done .txt { text-decoration: line-through; color: var(--text-mute);}
+/* UX-21: 显式删除按钮,默认半隐,悬停或键盘聚焦时显示 */
+.todo-del {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px;
+  display: grid; place-items: center;
+  background: transparent; border: 0; padding: 0;
+  color: var(--text-mute); cursor: pointer;
+  opacity: 0; transition: opacity 140ms, background 140ms, color 140ms;
+}
+.todo-item:hover .todo-del { opacity: 1; }
+.todo-del:hover { background: rgba(255,80,80,0.16); color: #ff8080; }
+.todo-del:focus-visible { opacity: 1; }
 .w-todo .todo-add {
   display: flex; gap: 6px;
   padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12);

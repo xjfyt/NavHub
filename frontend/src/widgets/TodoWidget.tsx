@@ -43,16 +43,26 @@ export const TodoWidget = ({ w }: WidgetProps<TodoConfig> = {}) => {
       <div className="todo-list">
         {items.map((it) => (
           <div key={it.id} className={"todo-item" + (it.done ? " done" : "")}>
-            <div
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={it.done}
+              aria-label={(it.done ? "标记未完成：" : "标记完成：") + it.t}
               className={"todo-check" + (it.done ? " done" : "")}
               onClick={(e) => { e.stopPropagation(); toggle(it.id); }}
               onMouseDown={(e) => e.stopPropagation()}
             />
-            <span
-              className="txt"
-              onDoubleClick={(e) => { e.stopPropagation(); remove(it.id); }}
-              title="双击删除"
-            >{it.t}</span>
+            <span className="txt">{it.t}</span>
+            <button
+              type="button"
+              className="todo-del"
+              aria-label={"删除待办：" + it.t}
+              title="删除"
+              onClick={(e) => { e.stopPropagation(); remove(it.id); }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <Icon name="trash" size={12} />
+            </button>
           </div>
         ))}
       </div>
