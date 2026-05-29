@@ -16,9 +16,7 @@ import {
   IconView,
   LibraryIconView,
 } from "../types";
-import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
-import { IconTile } from "./IconTile";
 import { Modal } from "./Modal";
 import { api } from "../api";
 import { toast } from "sonner";
@@ -28,16 +26,14 @@ import {
   normalizeSiteUrl,
   parseBuiltinIconUrl,
 } from "../utils/iconSources";
-import {
-  BUILTIN_ICON_OPTIONS,
-  FONT_SIZE_OPTIONS,
-  IMAGE_RADIUS_OPTIONS,
-  IMAGE_STYLE_OPTIONS,
-  SIZE_OPTIONS,
-  SOURCE_OPTIONS,
-  TEXT_ALIGN_OPTIONS,
-} from "./add-icon-modal/constants";
 import { stripExt, toBuiltinIconName } from "./add-icon-modal/helpers";
+import { PreviewPanel } from "./add-icon-modal/PreviewPanel";
+import { SourceSelector } from "./add-icon-modal/SourceSelector";
+import { UrlSourcePanel } from "./add-icon-modal/UrlSourcePanel";
+import { UploadSourcePanel } from "./add-icon-modal/UploadSourcePanel";
+import { BuiltinSourcePanel } from "./add-icon-modal/BuiltinSourcePanel";
+import { LibrarySourcePanel } from "./add-icon-modal/LibrarySourcePanel";
+import { AppearancePicker } from "./add-icon-modal/AppearancePicker";
 import type {
   AddIconPayload,
   BuiltinIconName,
@@ -371,143 +367,15 @@ export function AddIconModal({
           }}
         >
           {/* LEFT: Preview & Visuals */}
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
-          >
-            <div
-              style={{
-                background: "var(--glass-bg-strong)",
-                borderRadius: "24px",
-                padding: "28px 16px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                border: "1px solid var(--border-color)",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{ transform: "scale(1.1)", transformOrigin: "center" }}
-              >
-                <IconTile icon={preview} />
-              </div>
-
-              <div
-                style={{
-                  marginTop: "20px",
-                  display: "flex",
-                  gap: "8px",
-                  width: "100%",
-                }}
-              >
-                {SIZE_OPTIONS.map((o) => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => setSize(o.id)}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      padding: "10px 4px",
-                      background:
-                        size === o.id ? "var(--panel-bg)" : "transparent",
-                      border:
-                        "1px solid " +
-                        (size === o.id ? "var(--glass-border)" : "transparent"),
-                      borderRadius: "12px",
-                      color: size === o.id ? "var(--text)" : "var(--text-soft)",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: 24,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width:
-                            o.id === "lg" ? 20 : o.id === "pill-size" ? 24 : 16,
-                          height: o.id === "lg" ? 20 : 16,
-                          borderRadius:
-                            o.id === "circle-size"
-                              ? "50%"
-                              : o.id === "pill-size"
-                                ? "8px"
-                                : "4px",
-                          background:
-                            size === o.id ? "var(--text)" : "var(--text-mute)",
-                          opacity: size === o.id ? 0.8 : 0.5,
-                          transition: "all 0.2s",
-                        }}
-                      />
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {o.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>主题色 Color</label>
-              <div
-                className="color-picker"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(7, 28px)",
-                  gap: "10px",
-                }}
-              >
-                {DEFAULT_ICON_COLORS.map((c, i) => (
-                  <div
-                    key={i}
-                    className={"color-swatch " + (color === i ? "active" : "")}
-                    style={{
-                      background: c.bg,
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      boxShadow:
-                        color === i
-                          ? "0 0 0 2px var(--glass-bg-strong), 0 0 0 4px var(--text)"
-                          : "0 2px 8px rgba(0,0,0,0.2)",
-                      border: "none",
-                      transition: "all 200ms",
-                    }}
-                    onClick={() => setColor(i)}
-                    title={c.name}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="ai-letter">回退字符 Letter</label>
-              <input
-                id="ai-letter"
-                maxLength={3}
-                value={letter}
-                onChange={(e) => setLetter(e.target.value)}
-                placeholder="未获取图标时展示"
-              />
-            </div>
-          </div>
+          <PreviewPanel
+            preview={preview}
+            size={size}
+            onSizeChange={setSize}
+            color={color}
+            onColorChange={setColor}
+            letter={letter}
+            onLetterChange={setLetter}
+          />
 
           {/* RIGHT: Form Data */}
           <div
@@ -556,512 +424,68 @@ export function AddIconModal({
                 marginBottom: 0,
               }}
             >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: "8px",
-                  marginBottom: "24px",
-                }}
-              >
-                {SOURCE_OPTIONS.map((opt) => (
-                  <div
-                    key={opt.id}
-                    className={
-                      "source-opt " + (sourceMode === opt.id ? "active" : "")
-                    }
-                    onClick={() => setSourceMode(opt.id)}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      padding: "14px 0",
-                      borderRadius: "12px",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <Icon name={opt.icon} size={20} />
-                    <span style={{ fontSize: "13px", fontWeight: 500 }}>
-                      {opt.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <SourceSelector
+                sourceMode={sourceMode}
+                onSourceModeChange={setSourceMode}
+              />
 
               {sourceMode === "url" && (
-                <div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 14 }}
-                  >
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 12,
-                        display: "grid",
-                        placeItems: "center",
-                        background: "var(--panel-bg)",
-                        border: "1px solid var(--border-color)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {selectedAutoImageUrl ? (
-                        <img
-                          src={selectedAutoImageUrl}
-                          alt="已选图标预览"
-                          style={{
-                            width: "70%",
-                            height: "70%",
-                            objectFit: "contain",
-                          }}
-                        />
-                      ) : (
-                        <Icon
-                          name={isSearchingUrl ? "activity" : "globe"}
-                          size={18}
-                          color="var(--text-soft)"
-                        />
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-mute)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      {normalizedUrl
-                        ? isSearchingUrl
-                          ? "正在深度检索站点图标..."
-                          : "已检索到图标候选，点击下方选择。"
-                        : "输入有效连结后，将自动尝试获取对应官方图标。"}
-                    </div>
-                  </div>
-                  {autoImageUrls.filter((ic) => !failedImageUrls.has(ic.url))
-                    .length > 0 && (
-                    <div
-                      style={{
-                        marginTop: "16px",
-                        display: "grid",
-                        gridTemplateColumns: "repeat(5, 1fr)",
-                        gap: 8,
-                        maxHeight: 180,
-                        overflowY: "auto",
-                        paddingRight: 4,
-                      }}
-                    >
-                      {autoImageUrls
-                        .filter((ic) => !failedImageUrls.has(ic.url))
-                        .map((icon, i) => (
-                          <div
-                            key={i}
-                            className={
-                              "builtin-opt " +
-                              (selectedAutoImageUrl === icon.url
-                                ? "active"
-                                : "")
-                            }
-                            onClick={() => setSelectedAutoImageUrl(icon.url)}
-                            title={icon.source}
-                            style={{
-                              background:
-                                selectedAutoImageUrl === icon.url
-                                  ? "var(--accent)"
-                                  : "var(--panel-bg)",
-                              borderColor: "var(--border-color)",
-                              width: "100%",
-                              aspectRatio: "1",
-                              borderRadius: 10,
-                              display: "flex",
-                              flexDirection: "column",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              position: "relative",
-                            }}
-                          >
-                            <img
-                              src={icon.url}
-                              alt={`来自 ${icon.source} 的图标候选`}
-                              style={{
-                                maxWidth: 24,
-                                maxHeight: 24,
-                                objectFit: "contain",
-                              }}
-                              onError={() =>
-                                setFailedImageUrls((prev) =>
-                                  new Set(prev).add(icon.url),
-                                )
-                              }
-                            />
-                            <span
-                              style={{
-                                fontSize: 9,
-                                position: "absolute",
-                                bottom: 2,
-                                color: "var(--text-mute)",
-                              }}
-                            >
-                              {icon.source}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
+                <UrlSourcePanel
+                  normalizedUrl={normalizedUrl}
+                  isSearchingUrl={isSearchingUrl}
+                  autoImageUrls={autoImageUrls}
+                  failedImageUrls={failedImageUrls}
+                  selectedAutoImageUrl={selectedAutoImageUrl}
+                  onSelectAutoImageUrl={setSelectedAutoImageUrl}
+                  onImageError={(failedUrl) =>
+                    setFailedImageUrls((prev) => new Set(prev).add(failedUrl))
+                  }
+                />
               )}
 
               {sourceMode === "upload" && (
-                <div>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*,.svg,.ico"
-                    className="hidden"
-                    onChange={(e) => {
-                      void uploadFile(e.target.files?.[0] || null);
-                      e.currentTarget.value = "";
-                    }}
-                  />
-                  <div
-                    className={"upload-zone" + (dragOver ? " over" : "")}
-                    onClick={() => fileRef.current?.click()}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOver(true);
-                    }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      void uploadFile(e.dataTransfer.files?.[0] || null);
-                    }}
-                    style={{
-                      background: "var(--panel-bg)",
-                      borderColor: "var(--border-color)",
-                      padding: "24px 0",
-                    }}
-                  >
-                    <Icon
-                      name={uploading ? "activity" : "plus"}
-                      size={24}
-                      color="var(--text-mute)"
-                    />
-                    <div
-                      style={{ marginTop: 8, fontSize: 13, fontWeight: 500 }}
-                    >
-                      {uploading
-                        ? "上传中..."
-                        : uploadedImageUrl
-                          ? "已上传，点击替换"
-                          : "点击或拖拽上传"}
-                    </div>
-                  </div>
-                  {uploadedImageUrl && (
-                    <div
-                      style={{
-                        marginTop: 12,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        fontSize: 12,
-                        color: "var(--text-mute)",
-                      }}
-                    >
-                      <img
-                        src={uploadedImageUrl}
-                        alt="已上传图标预览"
-                        style={{
-                          width: 32,
-                          height: 32,
-                          objectFit: "contain",
-                          borderRadius: 8,
-                          background: "var(--panel-bg)",
-                          padding: 4,
-                        }}
-                      />
-                      <div
-                        style={{
-                          flex: 1,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {uploadedImageUrl}
-                      </div>
-                      <button
-                        type="button"
-                        className="pill-btn"
-                        style={{ height: 28, fontSize: 12 }}
-                        onClick={() => setUploadedImageUrl(null)}
-                      >
-                        移除
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <UploadSourcePanel
+                  fileRef={fileRef}
+                  uploading={uploading}
+                  dragOver={dragOver}
+                  uploadedImageUrl={uploadedImageUrl}
+                  onSetDragOver={setDragOver}
+                  onUploadFile={uploadFile}
+                  onClearUploadedImage={() => setUploadedImageUrl(null)}
+                />
               )}
 
               {sourceMode === "builtin" && (
-                <div
-                  className="builtin-grid"
-                  style={{ gridTemplateColumns: "repeat(8, 1fr)", gap: 8 }}
-                >
-                  {BUILTIN_ICON_OPTIONS.map((ic) => (
-                    <div
-                      key={ic}
-                      className={
-                        "builtin-opt " + (builtinIcon === ic ? "active" : "")
-                      }
-                      onClick={() => setBuiltinIcon(ic)}
-                      title={ic}
-                      style={{
-                        background:
-                          builtinIcon === ic
-                            ? "var(--accent)"
-                            : "var(--panel-bg)",
-                        borderColor: "var(--border-color)",
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
-                      }}
-                    >
-                      <Icon
-                        name={ic}
-                        size={16}
-                        color={builtinIcon === ic ? "#1a1a1a" : "var(--text)"}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <BuiltinSourcePanel
+                  builtinIcon={builtinIcon}
+                  onSelectBuiltinIcon={setBuiltinIcon}
+                />
               )}
 
               {sourceMode === "library" && (
-                <div>
-                  <div
-                    className="tabs"
-                    style={{
-                      background: "var(--panel-bg)",
-                      overflowX: "auto",
-                      whiteSpace: "nowrap",
-                      display: "flex",
-                      padding: 4,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className={
-                        "tab " +
-                        (activeLibraryId === "user_uploads" ? "active" : "")
-                      }
-                      onClick={() => handleLibClick("user_uploads")}
-                    >
-                      用户上传图库
-                    </button>
-                    {libraries.map((lib) => (
-                      <button
-                        key={lib.id}
-                        type="button"
-                        className={
-                          "tab " + (activeLibraryId === lib.id ? "active" : "")
-                        }
-                        onClick={() => handleLibClick(lib.id)}
-                      >
-                        {lib.name}
-                      </button>
-                    ))}
-                  </div>
-                  <div
-                    className="search-box"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      background: "var(--panel-bg)",
-                      border: "1px solid var(--border-color)",
-                      borderRadius: 6,
-                      padding: "2px 8px",
-                      marginTop: 12,
-                    }}
-                  >
-                    <Icon name="search" size={14} color="var(--text-soft)" />
-                    <input
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      aria-label="搜索图标"
-                      placeholder="搜索图标..."
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        outline: "none",
-                        fontSize: 13,
-                        padding: "6px 8px",
-                        width: "100%",
-                        color: "var(--text)",
-                      }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "16px",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(6, 1fr)",
-                      gap: 8,
-                      maxHeight: 180,
-                      overflowY: "auto",
-                      paddingRight: 4,
-                    }}
-                  >
-                    {libraryIcons.map((icon) => (
-                      <div
-                        key={icon.id}
-                        className={
-                          "builtin-opt " +
-                          (librarySelectedUrl === icon.url ? "active" : "")
-                        }
-                        onClick={() => setLibrarySelectedUrl(icon.url)}
-                        title={icon.name}
-                        style={{
-                          background:
-                            librarySelectedUrl === icon.url
-                              ? "var(--accent)"
-                              : "var(--panel-bg)",
-                          borderColor: "var(--border-color)",
-                          width: 44,
-                          height: 44,
-                          borderRadius: 10,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <img
-                          src={icon.url}
-                          alt={icon.name || "图标"}
-                          style={{
-                            maxWidth: 28,
-                            maxHeight: 28,
-                            objectFit: "contain",
-                          }}
-                        />
-                      </div>
-                    ))}
-                    {libraryIcons.length === 0 && (
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "var(--text-mute)",
-                          gridColumn: "span 6",
-                          textAlign: "center",
-                          padding: "20px 0",
-                        }}
-                      >
-                        该图库暂无可选图标
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <LibrarySourcePanel
+                  libraries={libraries}
+                  activeLibraryId={activeLibraryId}
+                  onLibClick={handleLibClick}
+                  searchQuery={searchQuery}
+                  onSearchQueryChange={setSearchQuery}
+                  libraryIcons={libraryIcons}
+                  librarySelectedUrl={librarySelectedUrl}
+                  onSelectLibraryIcon={setLibrarySelectedUrl}
+                />
               )}
 
-              {sourceMode !== "letter" && (
-                <div
-                  className="field-row"
-                  style={{
-                    marginTop: "20px",
-                    paddingTop: "16px",
-                    borderTop: "1px solid var(--border-color)",
-                    marginBottom: 0,
-                  }}
-                >
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: 12 }}>外观</label>
-                    <div
-                      className="tabs"
-                      style={{ background: "var(--panel-bg)" }}
-                    >
-                      {IMAGE_STYLE_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          className={
-                            "tab " + (imageStyle === opt.id ? "active" : "")
-                          }
-                          onClick={() => setImageStyle(opt.id)}
-                        >
-                          {opt.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: 12 }}>边角</label>
-                    <div
-                      className="tabs"
-                      style={{ background: "var(--panel-bg)" }}
-                    >
-                      {IMAGE_RADIUS_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          className={
-                            "tab " + (imageRadius === opt.id ? "active" : "")
-                          }
-                          onClick={() => setImageRadius(opt.id)}
-                        >
-                          {opt.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div
-                className="field-row"
-                style={{ marginTop: "16px", marginBottom: 0 }}
-              >
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: 12 }}>文字大小</label>
-                  <div
-                    className="tabs"
-                    style={{ background: "var(--panel-bg)" }}
-                  >
-                    {FONT_SIZE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={
-                          "tab " + (fontSize === opt.id ? "active" : "")
-                        }
-                        onClick={() => setFontSize(opt.id)}
-                      >
-                        {opt.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: 12 }}>文字对齐</label>
-                  <div
-                    className="tabs"
-                    style={{ background: "var(--panel-bg)" }}
-                  >
-                    {TEXT_ALIGN_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={
-                          "tab " + (textAlign === opt.id ? "active" : "")
-                        }
-                        onClick={() => setTextAlign(opt.id)}
-                      >
-                        {opt.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <AppearancePicker
+                showImageOptions={sourceMode !== "letter"}
+                imageStyle={imageStyle}
+                onImageStyleChange={setImageStyle}
+                imageRadius={imageRadius}
+                onImageRadiusChange={setImageRadius}
+                fontSize={fontSize}
+                onFontSizeChange={setFontSize}
+                textAlign={textAlign}
+                onTextAlignChange={setTextAlign}
+              />
             </div>
 
             <label
