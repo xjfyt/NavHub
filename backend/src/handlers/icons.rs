@@ -26,7 +26,7 @@ pub async fn create(
     Json(body): Json<IconCreate>,
 ) -> AppResult<(StatusCode, Json<IconView>)> {
     let g = load_group(&state, body.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     let icon: Icon = sqlx::query_as(
@@ -100,14 +100,14 @@ pub async fn update(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, existing.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     // If changing group, also verify destination writable
     if let Some(new_gid) = body.group_id {
         if new_gid != existing.group_id {
             let g2 = load_group(&state, new_gid).await?;
-            if !util::group_writable_by(g2.owner_id, g2.pushed, g2.push_allow_edit, &user) {
+            if !util::group_writable_by(&g2, &user) {
                 return Err(AppError::Forbidden("target_not_writable"));
             }
         }
@@ -215,7 +215,7 @@ pub async fn delete(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, existing.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     sqlx::query("DELETE FROM icons WHERE id = $1")
@@ -240,7 +240,7 @@ pub async fn reorder(
     Json(body): Json<IconReorderRequest>,
 ) -> AppResult<StatusCode> {
     let g = load_group(&state, body.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     let mut tx = state.pg.begin().await?;
@@ -277,8 +277,16 @@ pub async fn merge_into(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, tgt.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
+    }
+    // SEC-2: 合并会把 source 图标删除并并入 target,因此必须同时校验对 source 所属分组的写权限,
+    // 否则任意可写某分组的用户都能传入他人分组里的 source_id,删除/窃取他人图标(跨租户)。
+    if src.group_id != tgt.group_id {
+        let src_group = load_group(&state, src.group_id).await?;
+        if !util::group_writable_by(&src_group, &user) {
+            return Err(AppError::Forbidden("source_not_writable"));
+        }
     }
     let mut tx = state.pg.begin().await?;
 
@@ -367,7 +375,7 @@ pub async fn reorder_folder_items(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, folder.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     let mut tx = state.pg.begin().await?;
@@ -394,7 +402,7 @@ pub async fn extract_item(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, folder.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     

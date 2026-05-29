@@ -70,7 +70,7 @@ pub async fn update(
         .fetch_optional(&state.pg)
         .await?
         .ok_or(AppError::NotFound)?;
-    if !util::group_writable_by(existing.owner_id, existing.pushed, existing.push_allow_edit, &user) {
+    if !util::group_writable_by(&existing, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     let g: Group = sqlx::query_as(
@@ -127,7 +127,7 @@ pub async fn delete(
         .fetch_optional(&state.pg)
         .await?
         .ok_or(AppError::NotFound)?;
-    if !util::group_writable_by(existing.owner_id, existing.pushed, existing.push_allow_edit, &user) {
+    if !util::group_writable_by(&existing, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     sqlx::query("DELETE FROM groups WHERE id = $1")
@@ -188,7 +188,7 @@ pub async fn reorder_items(
         .fetch_optional(&state.pg)
         .await?
         .ok_or(AppError::NotFound)?;
-    if !util::group_writable_by(existing.owner_id, existing.pushed, existing.push_allow_edit, &user) {
+    if !util::group_writable_by(&existing, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     if body.order.is_empty() {

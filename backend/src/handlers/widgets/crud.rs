@@ -26,7 +26,7 @@ pub async fn create(
     Json(body): Json<WidgetCreate>,
 ) -> AppResult<(StatusCode, Json<WidgetView>)> {
     let g = load_group(&state, body.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     let w: Widget = sqlx::query_as(
@@ -64,13 +64,13 @@ pub async fn update(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, existing.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     if let Some(new_gid) = body.group_id {
         if new_gid != existing.group_id {
             let g2 = load_group(&state, new_gid).await?;
-            if !util::group_writable_by(g2.owner_id, g2.pushed, g2.push_allow_edit, &user) {
+            if !util::group_writable_by(&g2, &user) {
                 return Err(AppError::Forbidden("target_not_writable"));
             }
         }
@@ -107,7 +107,7 @@ pub async fn delete(
         .await?
         .ok_or(AppError::NotFound)?;
     let g = load_group(&state, existing.group_id).await?;
-    if !util::group_writable_by(g.owner_id, g.pushed, g.push_allow_edit, &user) {
+    if !util::group_writable_by(&g, &user) {
         return Err(AppError::Forbidden("not_owner"));
     }
     sqlx::query("DELETE FROM widgets WHERE id = $1")
