@@ -35,7 +35,7 @@ export const AdminMessages = () => {
       setMessages(msgRows);
       setUsers(userRows);
     } catch (e: any) {
-      toast.error("Failed: " + e.message);
+      toast.error("加载失败：" + e.message);
     }
     setLoading(false);
   };
@@ -68,7 +68,7 @@ export const AdminMessages = () => {
       await load();
       toast.success("消息已推送");
     } catch (e: any) {
-      toast.error("Failed: " + e.message);
+      toast.error("推送失败：" + e.message);
     }
     setSubmitting(false);
   };
@@ -79,7 +79,7 @@ export const AdminMessages = () => {
       await api.admin.deleteMessage(id);
       setMessages((rows) => rows.filter((row) => row.id !== id));
     } catch (e: any) {
-      toast.error("Failed: " + e.message);
+      toast.error("删除失败：" + e.message);
     }
   };
 

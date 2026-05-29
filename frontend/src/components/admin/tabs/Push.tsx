@@ -43,7 +43,7 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       setImportProgress({ phase: "导出完成", detail: "分类 JSON 已包含可打包的本地图标资源。", percent: 100 });
       window.setTimeout(() => setImportProgress(null), 700);
     } catch (e: any) {
-      toast.error("Export failed: " + e.message);
+      toast.error("导出失败：" + e.message);
       setImportProgress(null);
     }
   };
@@ -96,7 +96,7 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       window.setTimeout(() => setImportProgress(null), 900);
     } catch (err: any) {
       if (timer) window.clearInterval(timer);
-      toast.error("Import failed: " + err.message);
+      toast.error("导入失败：" + err.message);
       setImportProgress(null);
     } finally {
       setLoading(false);
@@ -130,7 +130,7 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       refreshWorkspace();
       toast.success("配置已更新");
     } catch (e: any) {
-      toast.error("Failed: " + e.message);
+      toast.error("操作失败：" + e.message);
     }
     setLoading(false);
     setPushingGroupId(null);
@@ -143,7 +143,7 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       refreshWorkspace();
       toast.success("推送已取消");
     } catch (e: any) {
-      toast.error("Failed: " + e.message);
+      toast.error("取消失败：" + e.message);
     }
     setLoading(false);
   };

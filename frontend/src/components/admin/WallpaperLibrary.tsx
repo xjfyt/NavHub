@@ -1024,7 +1024,7 @@ export const AdminWallpaperLibrary = () => {
               {w.thumbnailUrl || w.thumbnailKey || w.storageKey ? (
                 <img
                   src={w.thumbnailKey ? `/uploads/${w.thumbnailKey}` : w.mediaType === "image" && w.storageKey ? `/uploads/${w.storageKey}` : w.thumbnailUrl ?? undefined}
-                  alt={w.title ?? "wallpaper"}
+                  alt={w.title ?? "壁纸"}
                   style={{ width: "100%", height: 112, objectFit: "cover", display: "block" }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";

@@ -710,7 +710,7 @@ export const AdminIconAssetLibrary = () => {
             >
               <img
                 src={w.url}
-                alt={w.name ?? "icon"}
+                alt={w.name ?? "图标"}
                 style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
               />
               <div style={{ fontSize: 12, fontWeight: 500, marginTop: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }} title={w.name ?? undefined}>
@@ -746,7 +746,7 @@ export const AdminIconAssetLibrary = () => {
             >
               <img
                 src={w.storageKey ? `/uploads/${w.storageKey}` : w.originalUrl}
-                alt={w.title ?? "icon"}
+                alt={w.title ?? "图标"}
                 style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
               />
               <div style={{ fontSize: 12, fontWeight: 500, marginTop: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }} title={w.title ?? undefined}>
