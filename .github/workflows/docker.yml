@@ -10,6 +10,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Trivy 把扫描结果以 SARIF 上传到 GitHub 代码扫描需要此权限。
+      security-events: write
 
     steps:
     - name: Checkout repository
@@ -29,6 +31,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push all-in-one image
+      id: build
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -39,4 +42,39 @@ jobs:
           ghcr.io/${{ github.repository_owner }}/navhub:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
+        # build-push-action 原生生成并随镜像推送 SBOM 与 provenance 证明。
+        sbom: true
+        provenance: mode=max
+
+    # 用 syft 额外导出一份 SPDX SBOM 工件,便于离线留存 / 合规审计。
+    - name: Generate SBOM (SPDX JSON) artifact
+      uses: anchore/sbom-action@v0
+      with:
+        image: ghcr.io/${{ github.repository_owner }}/navhub@${{ steps.build.outputs.digest }}
+        format: spdx-json
+        output-file: navhub-sbom.spdx.json
+
+    - name: Upload SBOM artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: navhub-sbom
+        path: navhub-sbom.spdx.json
+
+    # Trivy 镜像漏洞扫描。按摘要扫描刚推送的镜像;结果上传到代码扫描。
+    # 不阻断发布(continue-on-error),仅作可见性与告警。
+    - name: Trivy image vulnerability scan
+      uses: aquasecurity/trivy-action@0.28.0
+      continue-on-error: true
+      with:
+        image-ref: ghcr.io/${{ github.repository_owner }}/navhub@${{ steps.build.outputs.digest }}
+        format: sarif
+        output: trivy-results.sarif
+        severity: CRITICAL,HIGH
+        ignore-unfixed: true
+
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
+      with:
+        sarif_file: trivy-results.sarif
 
