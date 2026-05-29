@@ -19,6 +19,7 @@ import {
 import { api } from "../api";
 import { toast } from "sonner";
 import { createUndoQueue } from "../utils/undoQueue";
+import { reorderGroups, reorderIconsInGroup, reorderByIdList } from "../utils/reorder";
 import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, type WidgetSizeId } from "../widgets";
 
 // UX-11: 危险删除延迟落库的时长。期间用户可点「撤销」恢复。
@@ -174,12 +175,9 @@ export function WorkspaceProvider({
     // FE-5: 纯函数式计算下一态,API 调用移出 setWorkspace updater。
     // 之前把 api.reorderGroups 放在 updater 内,React StrictMode 会二次调用
     // updater,导致请求被重复发出且时序难以保证。
-    const gs = ws.groups.slice();
-    const fi = gs.findIndex((g) => g.id === oldId);
-    const ti = gs.findIndex((g) => g.id === newId);
-    if (fi < 0 || ti < 0) return;
-    const [m] = gs.splice(fi, 1);
-    gs.splice(ti, 0, m);
+    // QUAL-10: 重排计算抽到 utils/reorder.ts(已单测)。无效 id 时返回原引用,据此判 no-op。
+    const gs = reorderGroups(ws.groups, oldId, newId);
+    if (gs === ws.groups) return;
     setWorkspace((s) => ({ ...s, groups: gs }));
     api
       .reorderGroups(gs.map((g) => g.id))
@@ -190,24 +188,13 @@ export function WorkspaceProvider({
     const { isGuest: guest, workspace: ws } = latestRef.current;
     if (guest) return;
     // FE-5: 同上,纯函数式计算下一态后再触发 API,避免 updater 内副作用。
-    {
-      const icons = ws.icons.slice();
-      const drag = icons.find((i) => i.id === dragId);
-      const drop = icons.find((i) => i.id === dropId);
-      if (!drag || !drop || drag.groupId !== drop.groupId) return;
-      const sameGroup = icons.filter((i) => i.groupId === drag.groupId);
-      const fi = sameGroup.findIndex((i) => i.id === dragId);
-      const ti = sameGroup.findIndex((i) => i.id === dropId);
-      if (fi < 0 || ti < 0) return;
-      const [m] = sameGroup.splice(fi, 1);
-      sameGroup.splice(ti, 0, m);
-      const rest = icons.filter((i) => i.groupId !== drag.groupId);
-      const order = sameGroup.map((i) => i.id);
-      setWorkspace((s) => ({ ...s, icons: [...rest, ...sameGroup] }));
-      api
-        .reorderIcons(drag.groupId, order)
-        .catch((e) => console.error("reorderIcons failed", e));
-    }
+    // QUAL-10: 同组内重排计算抽到 utils/reorder.ts(已单测);跨组/无效 id 返回 null -> 不处理。
+    const result = reorderIconsInGroup(ws.icons, dragId, dropId);
+    if (!result) return;
+    setWorkspace((s) => ({ ...s, icons: result.icons }));
+    api
+      .reorderIcons(result.groupId, result.order)
+      .catch((e) => console.error("reorderIcons failed", e));
   }, []);
 
   const reorderGroupItems = useCallback(
@@ -312,18 +299,11 @@ export function WorkspaceProvider({
     async (folderId: string, order: string[]) => {
       if (latestRef.current.isGuest) return;
       // optimistic local update
+      // QUAL-10: 文件夹内项按显式 order 重排,内层计算抽到 utils/reorder.ts(已单测)。
       setWorkspace((ws) => {
         const nextIcons = ws.icons.map((i) => {
           if (i.id !== folderId || !i.isFolder) return i;
-          const items = i.folderItems || [];
-          const byId = new Map(items.map((it) => [it.id, it] as const));
-          const reordered = order
-            .map((id, idx) => {
-              const it = byId.get(id);
-              return it ? { ...it, sortOrder: idx } : null;
-            })
-            .filter((x): x is NonNullable<typeof x> => x !== null);
-          return { ...i, folderItems: reordered };
+          return { ...i, folderItems: reorderByIdList(i.folderItems || [], order) };
         });
         return { ...ws, icons: nextIcons };
       });
