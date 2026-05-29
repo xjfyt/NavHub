@@ -1,0 +1,27 @@
+{
+  "name": "NavHub",
+  "short_name": "NavHub",
+  "description": "NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1626",
+  "theme_color": "#0f1626",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="NavHub">
+  <!-- Maskable app icon: full-bleed background + glyph confined to the inner
+       ~60% safe zone so platform masks (circle/squircle) never clip it.
+       purpose="maskable". -->
+  <rect width="512" height="512" fill="#0f1626" />
+  <g fill="none" stroke="#4f8ff7" stroke-width="26" stroke-linejoin="round">
+    <!-- top-left square -->
+    <rect x="162" y="162" width="84" height="84" rx="14" />
+    <!-- top-right diamond (square rotated 45°) -->
+    <rect x="304" y="162" width="84" height="84" rx="14"
+          transform="rotate(45 346 204)" />
+    <!-- bottom-left square -->
+    <rect x="162" y="280" width="84" height="84" rx="14" />
+    <!-- bottom-right square -->
+    <rect x="266" y="280" width="84" height="84" rx="14" />
+  </g>
+</svg>

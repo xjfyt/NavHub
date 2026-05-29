@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="NavHub">
+  <!-- App icon: NavHub navigation-grid glyph (matches /navigation.png favicon):
+       four cells, top-right rotated to a diamond. purpose="any". -->
+  <rect width="512" height="512" rx="112" fill="#0f1626" />
+  <g fill="none" stroke="#4f8ff7" stroke-width="34" stroke-linejoin="round">
+    <!-- top-left square -->
+    <rect x="112" y="112" width="120" height="120" rx="18" />
+    <!-- top-right diamond (square rotated 45°) -->
+    <rect x="316" y="112" width="120" height="120" rx="18"
+          transform="rotate(45 376 172)" />
+    <!-- bottom-left square -->
+    <rect x="112" y="280" width="120" height="120" rx="18" />
+    <!-- bottom-right square -->
+    <rect x="280" y="280" width="120" height="120" rx="18" />
+  </g>
+</svg>
