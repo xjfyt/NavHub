@@ -36,13 +36,17 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
   const [dur, setDur] = useState(0);
+  // FE-6: 用 ref 镜像最新 playing,避免 [current?.id] 这个 effect 捕获到
+  // 过期的 playing 闭包值(切歌时按旧的播放状态决定是否自动播放)。
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
 
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
     if (current) {
       a.src = api.musicSongUrl(current.id);
-      if (playing) a.play().catch(() => setPlaying(false));
+      if (playingRef.current) a.play().catch(() => setPlaying(false));
     } else {
       a.removeAttribute("src");
       a.load();
