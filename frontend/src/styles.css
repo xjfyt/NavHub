@@ -4005,7 +4005,9 @@ html[data-mode="light"] .nav-empty-btn.primary {
   display: flex;
   align-items: stretch;
   justify-content: stretch;
-  touch-action: none;
+  /* 注意:不在此全局设置 touch-action:none —— 那会吞掉手指在网格上的滚动/翻页。
+     触摸拖拽改由 TouchSensor 的长按延迟激活;只有「正在拖拽」的单元(.is-dragging)
+     才禁用 touch-action,避免拖动过程中被浏览器手势打断。鼠标行为不受影响。 */
 }
 .nav-cell.w-1 { grid-column: span 1; }
 .nav-cell.w-2 { grid-column: span 2; }
@@ -4015,7 +4017,7 @@ html[data-mode="light"] .nav-empty-btn.primary {
 .nav-cell.h-2 { grid-row: span 2; }
 .nav-cell.h-3 { grid-row: span 3; }
 
-.nav-cell.is-dragging { z-index: 0; }
+.nav-cell.is-dragging { z-index: 0; touch-action: none; }
 .nav-cell > .icon-cell-inner,
 .nav-cell > .widget-slot {
   width: 100%;

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -21,6 +22,10 @@ import { GroupView, IconView, Tweaks, WidgetView } from "../types";
 import { IconTile } from "./IconTile";
 import { Icon } from "./Icon";
 import { pickEmptyState } from "../utils/emptyState";
+import {
+  mouseActivationConstraint,
+  touchActivationConstraint,
+} from "../utils/dndSensors";
 import {
   WIDGET_REGISTRY,
   WidgetSizeId,
@@ -283,8 +288,11 @@ export const NavView = ({
 
   // ----- 拖拽态 -----
   const [activeId, setActiveId] = useState<string | null>(null);
+  // 鼠标:小位移即拖动(行为同改造前的 PointerSensor)。
+  // 触摸:长按 ~220ms 才进入拖拽——轻点/滑动不误触,普通触摸滚动得以保留。
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(MouseSensor, { activationConstraint: mouseActivationConstraint }),
+    useSensor(TouchSensor, { activationConstraint: touchActivationConstraint }),
   );
 
   // 跨分类目标（侧边栏分类按钮）
