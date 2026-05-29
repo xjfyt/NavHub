@@ -35,6 +35,8 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
 
     let api = Router::new()
         .route("/me", get(handlers::me::get_me).patch(handlers::me::patch_me))
+        // DATA-8: 个人全量数据导出(GDPR 可携带)。仅导出会话用户本人数据,无 IDOR。
+        .route("/me/export", get(handlers::me_export::export_my_data))
         .route(
             "/me/preferences",
             get(handlers::prefs::get_prefs).patch(handlers::prefs::patch_prefs),

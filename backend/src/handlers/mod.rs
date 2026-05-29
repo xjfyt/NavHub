@@ -4,6 +4,7 @@ pub mod favicon;
 pub mod groups;
 pub mod icons;
 pub mod me;
+pub mod me_export;
 pub mod messages;
 pub mod music;
 pub mod prefs;
