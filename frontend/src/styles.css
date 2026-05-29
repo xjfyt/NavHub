@@ -4027,6 +4027,77 @@ html[data-mode="light"] .icon-search-empty-sub {
   width: 100%;
 }
 
+/* UX-19: 拖拽手势首次引导行——轻量、玻璃质感、可关闭。不抢眼，关闭后不再出现。 */
+.nav-drag-hint {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-soft);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(140%);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(140%);
+  color: var(--text-soft);
+  font-size: 12.5px;
+  line-height: 1.4;
+  animation: nav-drag-hint-in 0.4s var(--smooth) both;
+}
+@keyframes nav-drag-hint-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nav-drag-hint-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+.nav-drag-hint-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  min-width: 0;
+}
+.nav-drag-hint-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.nav-drag-hint-tip svg {
+  opacity: 0.7;
+  flex: 0 0 auto;
+}
+.nav-drag-hint-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  transition: background 0.15s var(--smooth), color 0.15s var(--smooth);
+}
+.nav-drag-hint-close:hover {
+  background: var(--glass-bg-strong);
+  color: var(--text);
+}
+/* 非触摸设备隐藏「长按」那条，避免对鼠标用户产生误导。 */
+@media (hover: hover) and (pointer: fine) {
+  .nav-drag-hint-tip.nav-drag-hint-touch {
+    display: none;
+  }
+}
+
 .nav-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, var(--nav-cell-w));

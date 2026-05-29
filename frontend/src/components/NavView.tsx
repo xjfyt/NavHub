@@ -32,6 +32,11 @@ import {
   MERGE_DWELL_MS,
 } from "../utils/mergeDecision";
 import {
+  shouldShowDragHint,
+  readDragHintDismissed,
+  persistDragHintDismissed,
+} from "../utils/dragHint";
+import {
   WIDGET_REGISTRY,
   WidgetSizeId,
   snapWidgetSize,
@@ -137,6 +142,12 @@ export const NavView = ({
 }) => {
   const [slideDir, setSlideDir] = useState(0);
   const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
+  // UX-19: 拖拽手势首次引导是否已被用户关闭(持久化在 localStorage)。初值从 localStorage 读。
+  const [dragHintDismissed, setDragHintDismissed] = useState(() => readDragHintDismissed());
+  const dismissDragHint = () => {
+    setDragHintDismissed(true);
+    persistDragHintDismissed();
+  };
   const contentRef = useRef<HTMLDivElement>(null);
   const prevActiveGroupRef = useRef<string | null>(null);
   const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -624,6 +635,13 @@ export const NavView = ({
     editable,
   });
 
+  // UX-19: 拖拽手势首次引导。只在「可编辑 + 当前分类有内容 + 用户未关闭」时显示一条可关闭的提示行。
+  const showDragHint = shouldShowDragHint({
+    editable,
+    hasContent: gridItems.length > 0,
+    dismissed: dragHintDismissed,
+  });
+
   // ----- 单个 grid item 的内容 -----
   const renderItemContent = (item: Item) => {
     if (item.kind === "widget") {
@@ -740,6 +758,40 @@ export const NavView = ({
             );
           })}
         </div>
+        {showDragHint ? (
+          <div className="nav-drag-hint" role="note">
+            <span className="nav-drag-hint-icon" aria-hidden="true">
+              <Icon name="sparkle" size={16} />
+            </span>
+            <span className="nav-drag-hint-text">
+              <span className="nav-drag-hint-tip">
+                <Icon name="grid" size={13} />
+                拖动图标可重新排序
+              </span>
+              <span className="nav-drag-hint-tip">
+                <Icon name="folder" size={13} />
+                把图标深压到另一张上合并为文件夹
+              </span>
+              <span className="nav-drag-hint-tip">
+                <Icon name="arrow-right" size={13} />
+                拖到左侧分类可移动到其他分类
+              </span>
+              <span className="nav-drag-hint-tip nav-drag-hint-touch">
+                <Icon name="info" size={13} />
+                触摸屏长按图标再拖动
+              </span>
+            </span>
+            <button
+              type="button"
+              className="nav-drag-hint-close"
+              onClick={dismissDragHint}
+              aria-label="不再提示"
+              title="不再提示"
+            >
+              <Icon name="close" size={14} />
+            </button>
+          </div>
+        ) : null}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
