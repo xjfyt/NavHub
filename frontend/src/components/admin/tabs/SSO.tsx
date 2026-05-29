@@ -38,23 +38,41 @@ export const AdminSSO = () => {
   if (!config) return null;
 
   const handleEdit = () => {
-    setFormData({ ...config, scopes: config.scopes?.join(" ") || "" });
+    // UX-15: 进入编辑时不把已存的 Client Secret 回填到明文输入框,
+    // 留空 + masked placeholder 提示「已配置」;只有用户重新输入才会更新。
+    setFormData({
+      ...config,
+      clientSecret: "",
+      scopes: config.scopes?.join(" ") || "",
+    });
     setEditMode(true);
   };
 
   const handleSave = async () => {
     try {
-      await api.admin.patchSso({
+      // UX-15: clientSecret 留空表示「不修改」,只有用户输入了新值才提交,
+      // 避免把空串覆盖掉已配置的密钥。
+      const payload: Partial<{
+        issuer: string;
+        clientId: string;
+        clientSecret: string;
+        redirectUri: string;
+        scopes: string[];
+      }> = {
         issuer: formData.issuer,
         clientId: formData.clientId,
-        clientSecret: formData.clientSecret,
         redirectUri: formData.redirectUri,
         scopes: (formData.scopes || "").split(" ").filter(Boolean),
-      });
+      };
+      if (formData.clientSecret && formData.clientSecret.trim()) {
+        payload.clientSecret = formData.clientSecret.trim();
+      }
+      await api.admin.patchSso(payload);
       setEditMode(false);
+      toast.success("SSO 配置已保存");
       load();
     } catch (e: any) {
-      toast.error("Failed: " + e.message);
+      toast.error("保存失败：" + (e?.message || "未知错误"));
     }
   };
 
@@ -147,8 +165,11 @@ export const AdminSSO = () => {
               <span style={{ color: "var(--text-soft)" }}>Client Secret</span>
               {editMode ? (
                 <input
+                  type="password"
+                  autoComplete="new-password"
                   style={inputStyle}
-                  value={formData.clientSecret}
+                  value={formData.clientSecret ?? ""}
+                  placeholder={config.clientSecret ? "已配置 · 留空则不修改" : "输入 Client Secret"}
                   onChange={(e) => setFormData({ ...formData, clientSecret: e.target.value })}
                 />
               ) : (
