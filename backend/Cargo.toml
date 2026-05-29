@@ -7,7 +7,7 @@ edition = "2021"
 axum = { version = "0.7", features = ["macros", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["fs", "trace", "cors", "compression-gzip", "set-header", "compression-zstd", "compression-br"] }
+tower-http = { version = "0.6", features = ["fs", "trace", "cors", "compression-gzip", "set-header", "compression-zstd", "compression-br", "catch-panic"] }
 hyper = "1"
 
 # Config

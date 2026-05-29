@@ -6,7 +6,7 @@ use axum::{
     body::Body,
     extract::{Query, State},
     http::{header, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use deadpool_redis::redis::AsyncCommands;
 use serde::Deserialize;
@@ -372,12 +372,17 @@ fn detect_mime(bytes: &[u8]) -> &'static str {
 }
 
 fn image_response(bytes: Vec<u8>, mime: &'static str) -> Response {
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, mime)
-        .header(header::CACHE_CONTROL, "public, max-age=86400")
-        .body(Body::from(bytes))
-        .unwrap()
+    // INFRA-3: 用 IntoResponse 元组构造而非 Response::builder().unwrap();
+    // 后者在 header 非法时会 panic。这里改为不可失败的构造方式。
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, mime),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        Body::from(bytes),
+    )
+        .into_response()
 }
 
 fn placeholder_response(host: &str) -> Response {
@@ -398,12 +403,16 @@ fn placeholder_response(host: &str) -> Response {
         color, letter
     );
 
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "image/svg+xml")
-        .header(header::CACHE_CONTROL, "public, max-age=3600")
-        .body(Body::from(svg))
-        .unwrap()
+    // INFRA-3: 同上,避免 Response::builder().unwrap() 的 panic 路径。
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "image/svg+xml"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+        ],
+        Body::from(svg),
+    )
+        .into_response()
 }
 
 pub(crate) fn extract_host(input: &str) -> Option<String> {

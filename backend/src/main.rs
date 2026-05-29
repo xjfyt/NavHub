@@ -190,6 +190,9 @@ fn with_global_layers(
         .layer(axum::middleware::from_fn(
             auth::middleware::inject_request_id,
         ))
+        // INFRA-3: 最外层捕获 handler/中间件中的 panic,转成 500 响应,
+        // 避免单个 panic 杀掉处理该连接的 worker 任务、拖垮整个服务。
+        .layer(tower_http::catch_panic::CatchPanicLayer::new())
 }
 
 pub async fn healthz() -> &'static str {
