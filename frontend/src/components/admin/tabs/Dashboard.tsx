@@ -11,17 +11,42 @@ interface StatCardProps {
   icon?: string;
   tone?: "default" | "accent" | "warn";
 }
-const StatCard = ({ label, value, sub, icon, tone = "default" }: StatCardProps) => {
+const StatCard = ({
+  label,
+  value,
+  sub,
+  icon,
+  tone = "default",
+}: StatCardProps) => {
   const accent =
-    tone === "accent" ? "var(--accent)" : tone === "warn" ? "#ff9b9b" : "var(--text-soft)";
+    tone === "accent"
+      ? "var(--accent)"
+      : tone === "warn"
+        ? "#ff9b9b"
+        : "var(--text-soft)";
   return (
-    <div className="widget w-notes glass-strong" style={{ padding: 20, borderRadius: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-soft)" }}>
+    <div
+      className="widget w-notes glass-strong"
+      style={{ padding: 20, borderRadius: 16 }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          color: "var(--text-soft)",
+        }}
+      >
         {icon && <Icon name={icon} size={13} color={accent} />}
         <span>{label}</span>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 700, margin: "8px 0 2px" }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: "var(--text-soft)" }}>{sub}</div>}
+      <div style={{ fontSize: 28, fontWeight: 700, margin: "8px 0 2px" }}>
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 11, color: "var(--text-soft)" }}>{sub}</div>
+      )}
     </div>
   );
 };
@@ -54,13 +79,26 @@ export const AdminDashboard = () => {
     load();
   }, []);
 
-  if (!stats) return <div style={{ color: "var(--text-soft)" }}>Loading dashboard...</div>;
+  if (!stats)
+    return (
+      <div style={{ color: "var(--text-soft)" }}>Loading dashboard...</div>
+    );
 
-  const topWallpaperMax = Math.max(1, ...stats.topWallpaperSources.map((s) => s.count));
+  const topWallpaperMax = Math.max(
+    1,
+    ...stats.topWallpaperSources.map((s) => s.count),
+  );
 
   return (
     <>
-      <div className="admin-head" style={{ display: "flex", justifyContent: "space-between", marginBottom: 30 }}>
+      <div
+        className="admin-head"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 30,
+        }}
+      >
         <div>
           <h2 style={{ fontSize: 24, margin: "0 0 6px 0" }}>总览</h2>
           <div style={{ fontSize: 13, color: "var(--text-soft)" }}>
@@ -75,7 +113,14 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Row 1 — 用户与导航主体 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
         <StatCard icon="users" label="总用户" value={stats.totalUsers} />
         <StatCard
           icon="activity"
@@ -94,7 +139,14 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Row 2 — 内容资源 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 16,
+          marginBottom: 24,
+        }}
+      >
         <StatCard
           icon="image"
           label="壁纸缓存"
@@ -123,20 +175,54 @@ export const AdminDashboard = () => {
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16, marginBottom: 16 }}>
-        <div className="widget glass-strong" style={{ padding: 20, borderRadius: 16 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.2fr 1fr",
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          className="widget glass-strong"
+          style={{ padding: 20, borderRadius: 16 }}
+        >
           <PanelTitle>最近活动</PanelTitle>
           {stats.recentAudit.length === 0 ? (
-            <div style={{ fontSize: 13, color: "var(--text-soft)", padding: "12px 0" }}>暂无审计记录</div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--text-soft)",
+                padding: "12px 0",
+              }}
+            >
+              暂无审计记录
+            </div>
           ) : (
-            <table className="admin-table" style={{ width: "100%", fontSize: 13 }}>
+            <table
+              className="admin-table"
+              style={{ width: "100%", fontSize: 13 }}
+            >
               <tbody>
                 {stats.recentAudit.map((log, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid var(--admin-border-soft)" }}>
-                    <td style={{ padding: "8px 0", color: "var(--text-soft)", whiteSpace: "nowrap" }}>
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: "1px solid var(--admin-border-soft)",
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "8px 0",
+                        color: "var(--text-soft)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {new Date(log.ts).toLocaleString()}
                     </td>
-                    <td style={{ padding: "8px 0" }}>{log.actorName || "System"}</td>
+                    <td style={{ padding: "8px 0" }}>
+                      {log.actorName || "System"}
+                    </td>
                     <td style={{ padding: "8px 0" }}>{log.action}</td>
                   </tr>
                 ))}
@@ -145,23 +231,46 @@ export const AdminDashboard = () => {
           )}
         </div>
 
-        <div className="widget glass-strong" style={{ padding: 20, borderRadius: 16 }}>
+        <div
+          className="widget glass-strong"
+          style={{ padding: 20, borderRadius: 16 }}
+        >
           <PanelTitle>角色分布</PanelTitle>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {ROLES.map((r) => {
               const count = stats.rolesDistribution[r.id] || 0;
-              const pct = stats.totalUsers > 0 ? (count / stats.totalUsers) * 100 : 0;
+              const pct =
+                stats.totalUsers > 0 ? (count / stats.totalUsers) * 100 : 0;
               return (
                 <div key={r.id}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 12,
+                      marginBottom: 4,
+                    }}
+                  >
                     <span>
-                      <span className={`role-badge role-${r.id}`}>{r.label.split(" ")[0]}</span>
+                      <span className={`role-badge role-${r.id}`}>
+                        {r.label.split(" ")[0]}
+                      </span>
                     </span>
-                    <span className="mono" style={{ color: "var(--text-soft)" }}>
+                    <span
+                      className="mono"
+                      style={{ color: "var(--text-soft)" }}
+                    >
                       {count} · {pct.toFixed(0)}%
                     </span>
                   </div>
-                  <div style={{ height: 4, background: "var(--admin-border)", borderRadius: 2, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: 4,
+                      background: "var(--admin-border)",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
                     <div
                       style={{
                         height: "100%",
@@ -186,10 +295,19 @@ export const AdminDashboard = () => {
       </div>
 
       {/* Top wallpaper sources */}
-      <div className="widget glass-strong" style={{ padding: 20, borderRadius: 16 }}>
+      <div
+        className="widget glass-strong"
+        style={{ padding: 20, borderRadius: 16 }}
+      >
         <PanelTitle>壁纸来源 · Top 5（按已缓存数量）</PanelTitle>
         {stats.topWallpaperSources.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--text-soft)", padding: "12px 0" }}>
+          <div
+            style={{
+              fontSize: 13,
+              color: "var(--text-soft)",
+              padding: "12px 0",
+            }}
+          >
             尚未配置任何壁纸来源
           </div>
         ) : (
@@ -198,16 +316,36 @@ export const AdminDashboard = () => {
               const pct = (s.count / topWallpaperMax) * 100;
               return (
                 <div key={i}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 12,
+                      marginBottom: 4,
+                    }}
+                  >
                     <span>{s.name}</span>
-                    <span className="mono" style={{ color: "var(--text-soft)" }}>{s.count} 张</span>
+                    <span
+                      className="mono"
+                      style={{ color: "var(--text-soft)" }}
+                    >
+                      {s.count} 张
+                    </span>
                   </div>
-                  <div style={{ height: 6, background: "var(--admin-border)", borderRadius: 3, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: 6,
+                      background: "var(--admin-border)",
+                      borderRadius: 3,
+                      overflow: "hidden",
+                    }}
+                  >
                     <div
                       style={{
                         height: "100%",
                         width: pct + "%",
-                        background: "linear-gradient(90deg, var(--accent), #8fb8ff)",
+                        background:
+                          "linear-gradient(90deg, var(--accent), #8fb8ff)",
                         transition: "width 600ms",
                       }}
                     />

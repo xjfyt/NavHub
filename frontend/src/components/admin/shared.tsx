@@ -1,6 +1,10 @@
 import { Component, useState, type ReactNode, type CSSProperties } from "react";
 import { ROLES } from "../../constants/design";
-import type { AdminMessage, MessageLevel, MessageTargetType } from "../../types";
+import type {
+  AdminMessage,
+  MessageLevel,
+  MessageTargetType,
+} from "../../types";
 
 export const MESSAGE_LEVELS: { id: MessageLevel; name: string }[] = [
   { id: "info", name: "普通" },
@@ -18,9 +22,12 @@ export const MESSAGE_TARGETS: { id: MessageTargetType; name: string }[] = [
 export const PUSHABLE_ROLES = ROLES.filter((r) => r.id !== "guest");
 
 export const levelBadgeStyle = (level: MessageLevel): CSSProperties => {
-  if (level === "success") return { background: "rgba(62, 190, 120, 0.16)", color: "#8ee6b8" };
-  if (level === "warning") return { background: "rgba(255, 196, 87, 0.16)", color: "#ffd778" };
-  if (level === "error") return { background: "rgba(255, 110, 110, 0.16)", color: "#ff9b9b" };
+  if (level === "success")
+    return { background: "rgba(62, 190, 120, 0.16)", color: "#8ee6b8" };
+  if (level === "warning")
+    return { background: "rgba(255, 196, 87, 0.16)", color: "#ffd778" };
+  if (level === "error")
+    return { background: "rgba(255, 110, 110, 0.16)", color: "#ff9b9b" };
   return { background: "rgba(120, 180, 255, 0.16)", color: "#8fb8ff" };
 };
 

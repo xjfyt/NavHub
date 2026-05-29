@@ -58,7 +58,9 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
       hour12: false,
       ...(timeZone ? { timeZone } : {}),
     }).formatToParts(now);
-    return Number(parts.find((p) => p.type === "minute")?.value ?? now.getMinutes());
+    return Number(
+      parts.find((p) => p.type === "minute")?.value ?? now.getMinutes(),
+    );
   })();
 
   const zoneLabel = !timeZone
@@ -69,7 +71,9 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
     <div className="widget w-clock">
       <div className="widget-header">
         <span className="widget-title">{greeting}</span>
-        <span className="muted mono" style={{ fontSize: 10 }}>{zoneLabel}</span>
+        <span className="muted mono" style={{ fontSize: 10 }}>
+          {zoneLabel}
+        </span>
       </div>
       <div className="face">
         <div>
@@ -81,8 +85,28 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
         {tier !== "sm" && (
           <div className="analog">
             <div className="dot" />
-            <span style={{ transform: `translateX(-50%) rotate(${(h % 12) * 30 + m * 0.5}deg)`, width: 2, height: 14, background: '#fff', position: 'absolute', left: '50%', bottom: '50%' }} />
-            <span style={{ transform: `translateX(-50%) rotate(${m * 6}deg)`, width: 1.5, height: 20, background: '#ffd7a5', position: 'absolute', left: '50%', bottom: '50%' }} />
+            <span
+              style={{
+                transform: `translateX(-50%) rotate(${(h % 12) * 30 + m * 0.5}deg)`,
+                width: 2,
+                height: 14,
+                background: "#fff",
+                position: "absolute",
+                left: "50%",
+                bottom: "50%",
+              }}
+            />
+            <span
+              style={{
+                transform: `translateX(-50%) rotate(${m * 6}deg)`,
+                width: 1.5,
+                height: 20,
+                background: "#ffd7a5",
+                position: "absolute",
+                left: "50%",
+                bottom: "50%",
+              }}
+            />
           </div>
         )}
       </div>
@@ -108,18 +132,52 @@ export const ClockDetail = ({ w }: WidgetProps<ClockConfig> = {}) => {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ textAlign: "center", padding: "16px 0" }}>
-        <div style={{ fontSize: 56, fontWeight: 700, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>
+        <div
+          style={{
+            fontSize: 56,
+            fontWeight: 700,
+            letterSpacing: "-0.03em",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
           {formatClock(now, { hour12, timeZone: primaryTz, seconds: true })}
         </div>
         <div style={{ marginTop: 6, color: "var(--text-soft)", fontSize: 13 }}>
           {greetingByHour(hourInZone(now, primaryTz))} · {primaryLabel} ·{" "}
-          {new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long", ...(primaryTz ? { timeZone: primaryTz } : {}) }).format(now)}
+          {new Intl.DateTimeFormat("zh-CN", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            weekday: "long",
+            ...(primaryTz ? { timeZone: primaryTz } : {}),
+          }).format(now)}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 10,
+        }}
+      >
         {CLOCK_ZONES.filter((z) => z.tz !== "").map((z) => (
-          <div key={z.tz} style={{ padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 10 }}>
-            <div style={{ fontSize: 11, color: "var(--text-soft)", marginBottom: 4 }}>{z.label}</div>
+          <div
+            key={z.tz}
+            style={{
+              padding: 10,
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--text-soft)",
+                marginBottom: 4,
+              }}
+            >
+              {z.label}
+            </div>
             <div style={{ fontSize: 18, fontVariantNumeric: "tabular-nums" }}>
               {formatClock(now, { hour12, timeZone: z.tz, seconds: false })}
             </div>

@@ -23,8 +23,12 @@ describe("dnd 传感器激活约束", () => {
   });
 
   it("QUAL-14:配置对象由命名常量装配,二者一致", () => {
-    expect(mouseActivationConstraint.distance).toBe(MOUSE_ACTIVATION_DISTANCE_PX);
+    expect(mouseActivationConstraint.distance).toBe(
+      MOUSE_ACTIVATION_DISTANCE_PX,
+    );
     expect(touchActivationConstraint.delay).toBe(TOUCH_LONG_PRESS_DELAY_MS);
-    expect(touchActivationConstraint.tolerance).toBe(TOUCH_LONG_PRESS_TOLERANCE_PX);
+    expect(touchActivationConstraint.tolerance).toBe(
+      TOUCH_LONG_PRESS_TOLERANCE_PX,
+    );
   });
 });

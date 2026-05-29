@@ -8,7 +8,10 @@ export type EngineValidationResult =
  * 校验自定义搜索引擎的名称与 URL。规则与后端 add_engine 对齐:
  * 名称非空、URL 必须包含 {q} 占位符。成功时返回 trim 后的值。
  */
-export function validateEngineInput(name: string, url: string): EngineValidationResult {
+export function validateEngineInput(
+  name: string,
+  url: string,
+): EngineValidationResult {
   const trimmedName = name.trim();
   const trimmedUrl = url.trim();
   if (!trimmedName || !trimmedUrl.includes("{q}")) {

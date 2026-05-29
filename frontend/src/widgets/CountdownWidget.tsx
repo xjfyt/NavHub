@@ -44,7 +44,9 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
       <div className="widget w-countdown">
         <div className="widget-header">
           <span className="widget-title">倒计时</span>
-          <span className="muted mono" style={{ fontSize: 10 }}>未设置</span>
+          <span className="muted mono" style={{ fontSize: 10 }}>
+            未设置
+          </span>
         </div>
         <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
           点击右键菜单的"编辑"设置事件名称和日期。
@@ -70,7 +72,12 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
         <span className="unit">{result.suffix}</span>
       </div>
       <div className="event">{result.label}</div>
-      {tier !== "sm" && <div className="date">{dateText}{dateSuffix}</div>}
+      {tier !== "sm" && (
+        <div className="date">
+          {dateText}
+          {dateSuffix}
+        </div>
+      )}
     </div>
   );
 };
@@ -81,25 +88,57 @@ export const CountdownDetail = ({ w }: WidgetProps<CountdownConfig> = {}) => {
   const now = useMinuteTick();
   const parts = countdownParts(config.targetDate, mode, now);
   if (!parts) {
-    return <div className="muted" style={{ fontSize: 13 }}>请先通过右键菜单的"编辑"设置目标日期。</div>;
+    return (
+      <div className="muted" style={{ fontSize: 13 }}>
+        请先通过右键菜单的"编辑"设置目标日期。
+      </div>
+    );
   }
   const title = config.title?.trim() || "我的事件";
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <div style={{ textAlign: "center" }}>
-        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{parts.phrase}</div>
+        <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
+          {parts.phrase}
+        </div>
         <div style={{ fontSize: 18, marginBottom: 4 }}>{title}</div>
-        <div className="muted" style={{ fontSize: 12 }}>{formatDateCn(config.targetDate!)}</div>
+        <div className="muted" style={{ fontSize: 12 }}>
+          {formatDateCn(config.targetDate!)}
+        </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 10,
+        }}
+      >
         {[
           { label: "天", v: parts.days },
           { label: "小时", v: parts.hours },
           { label: "分钟", v: parts.minutes },
         ].map((u) => (
-          <div key={u.label} style={{ padding: "16px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 10, textAlign: "center" }}>
-            <div style={{ fontSize: 32, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{u.v}</div>
-            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>{u.label}</div>
+          <div
+            key={u.label}
+            style={{
+              padding: "16px 10px",
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 32,
+                fontWeight: 700,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {u.v}
+            </div>
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {u.label}
+            </div>
           </div>
         ))}
       </div>

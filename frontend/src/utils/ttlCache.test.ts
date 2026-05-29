@@ -72,7 +72,10 @@ describe("createTtlCache", () => {
       const cache = createTtlCache<number>();
       let resolveFn!: (v: number) => void;
       const fetcher = vi.fn(
-        () => new Promise<number>((res) => { resolveFn = res; }),
+        () =>
+          new Promise<number>((res) => {
+            resolveFn = res;
+          }),
       );
       const p1 = cache.getOrFetch("a", fetcher, 1000);
       const p2 = cache.getOrFetch("a", fetcher, 1000);
@@ -97,7 +100,9 @@ describe("createTtlCache", () => {
         .fn()
         .mockRejectedValueOnce(new Error("boom"))
         .mockResolvedValueOnce(8);
-      await expect(cache.getOrFetch("a", fetcher, 1000)).rejects.toThrow("boom");
+      await expect(cache.getOrFetch("a", fetcher, 1000)).rejects.toThrow(
+        "boom",
+      );
       expect(cache.get("a")).toBeUndefined();
       // 第二次应重新发起请求(在途记录已被清除)。
       await expect(cache.getOrFetch("a", fetcher, 1000)).resolves.toBe(8);

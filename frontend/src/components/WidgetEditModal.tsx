@@ -55,13 +55,27 @@ export const WidgetEditModal = ({
       case "clock":
         return <ClockEdit value={draft as ClockDraft} onChange={patch} />;
       case "weather":
-        return <WeatherEdit value={draft as { city?: string; unit?: "c" | "f" }} onChange={patch} />;
+        return (
+          <WeatherEdit
+            value={draft as { city?: string; unit?: "c" | "f" }}
+            onChange={patch}
+          />
+        );
       case "countdown":
-        return <CountdownEdit value={draft as CountdownDraft} onChange={patch} />;
+        return (
+          <CountdownEdit value={draft as CountdownDraft} onChange={patch} />
+        );
       case "rss":
-        return <RssEdit value={draft as { source?: SourceId }} onChange={patch} />;
+        return (
+          <RssEdit value={draft as { source?: SourceId }} onChange={patch} />
+        );
       case "iframe":
-        return <IframeEdit value={draft as { url?: string; title?: string }} onChange={patch} />;
+        return (
+          <IframeEdit
+            value={draft as { url?: string; title?: string }}
+            onChange={patch}
+          />
+        );
       case "music":
         return <MusicEdit value={draft as MusicDraft} onChange={patch} />;
       case "pomodoro":
@@ -69,7 +83,12 @@ export const WidgetEditModal = ({
       case "hitokoto":
         return <HitokotoEdit value={draft as HitokotoDraft} onChange={patch} />;
       case "search":
-        return <SearchEdit value={draft as { placeholder?: string }} onChange={patch} />;
+        return (
+          <SearchEdit
+            value={draft as { placeholder?: string }}
+            onChange={patch}
+          />
+        );
       default:
         return <div className="muted">该小组件暂不支持配置编辑。</div>;
     }
@@ -77,16 +96,26 @@ export const WidgetEditModal = ({
 
   const title = useMemo(() => {
     switch (widget.widget) {
-      case "clock": return "编辑 · 时钟";
-      case "weather": return "编辑 · 天气";
-      case "countdown": return "编辑 · 倒计时";
-      case "rss": return "编辑 · 热搜";
-      case "iframe": return "编辑 · 嵌入网页";
-      case "music": return "编辑 · 音乐";
-      case "pomodoro": return "编辑 · 番茄钟";
-      case "hitokoto": return "编辑 · 一言";
-      case "search": return "编辑 · 搜索";
-      default: return "编辑小组件";
+      case "clock":
+        return "编辑 · 时钟";
+      case "weather":
+        return "编辑 · 天气";
+      case "countdown":
+        return "编辑 · 倒计时";
+      case "rss":
+        return "编辑 · 热搜";
+      case "iframe":
+        return "编辑 · 嵌入网页";
+      case "music":
+        return "编辑 · 音乐";
+      case "pomodoro":
+        return "编辑 · 番茄钟";
+      case "hitokoto":
+        return "编辑 · 一言";
+      case "search":
+        return "编辑 · 搜索";
+      default:
+        return "编辑小组件";
     }
   }, [widget.widget]);
 
@@ -96,21 +125,41 @@ export const WidgetEditModal = ({
       labelledById="widget-edit-title"
       overlayClassName="wcc-backdrop"
       className="glass-strong"
-      contentStyle={{ width: 480, maxWidth: "90vw", padding: 20, borderRadius: 14 }}
+      contentStyle={{
+        width: 480,
+        maxWidth: "90vw",
+        padding: 20,
+        borderRadius: 14,
+      }}
     >
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
-          <h3 id="widget-edit-title" style={{ margin: 0, flex: 1, fontSize: 16 }}>{title}</h3>
-          <button className="wcc-btn-cancel" onClick={onClose} style={{ padding: 4 }}>
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-        {body}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
-          <button className="wcc-btn-cancel" onClick={onClose}>取消</button>
-          <button className="wcc-btn-add" onClick={save} disabled={saving}>
-            {saving ? "保存中…" : "保存"}
-          </button>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+        <h3 id="widget-edit-title" style={{ margin: 0, flex: 1, fontSize: 16 }}>
+          {title}
+        </h3>
+        <button
+          className="wcc-btn-cancel"
+          onClick={onClose}
+          style={{ padding: 4 }}
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      {body}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 8,
+          marginTop: 20,
+        }}
+      >
+        <button className="wcc-btn-cancel" onClick={onClose}>
+          取消
+        </button>
+        <button className="wcc-btn-add" onClick={save} disabled={saving}>
+          {saving ? "保存中…" : "保存"}
+        </button>
+      </div>
     </Modal>
   );
 };
@@ -149,21 +198,35 @@ function ClockEdit({
         onChange={(e) => onChange({ timeZone: e.target.value })}
       >
         {CLOCK_TZ_OPTIONS.map((z) => (
-          <option key={z.tz || "local"} value={z.tz}>{z.label}</option>
+          <option key={z.tz || "local"} value={z.tz}>
+            {z.label}
+          </option>
         ))}
       </select>
-      <label className="wcc-label" style={{ marginTop: 12 }}>时制</label>
+      <label className="wcc-label" style={{ marginTop: 12 }}>
+        时制
+      </label>
       <div style={{ display: "flex", gap: 8 }}>
         <button
           className={"wcc-btn-cancel" + (!hour12 ? " active" : "")}
-          style={{ flex: 1, background: !hour12 ? "rgba(255,255,255,0.15)" : undefined }}
+          style={{
+            flex: 1,
+            background: !hour12 ? "rgba(255,255,255,0.15)" : undefined,
+          }}
           onClick={() => onChange({ hour12: false })}
-        >24 小时制</button>
+        >
+          24 小时制
+        </button>
         <button
           className={"wcc-btn-cancel" + (hour12 ? " active" : "")}
-          style={{ flex: 1, background: hour12 ? "rgba(255,255,255,0.15)" : undefined }}
+          style={{
+            flex: 1,
+            background: hour12 ? "rgba(255,255,255,0.15)" : undefined,
+          }}
           onClick={() => onChange({ hour12: true })}
-        >12 小时制</button>
+        >
+          12 小时制
+        </button>
       </div>
       <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         问候语会按所选时区的当前时间显示（早上好 / 下午好 / 晚上好）。
@@ -192,18 +255,30 @@ function WeatherEdit({
       <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         使用 Open‑Meteo 免费 API，中文地名自动解析经纬度。
       </div>
-      <label className="wcc-label" style={{ marginTop: 12 }}>温度单位</label>
+      <label className="wcc-label" style={{ marginTop: 12 }}>
+        温度单位
+      </label>
       <div style={{ display: "flex", gap: 8 }}>
         <button
           className={"wcc-btn-cancel" + (unit === "c" ? " active" : "")}
-          style={{ flex: 1, background: unit === "c" ? "rgba(255,255,255,0.15)" : undefined }}
+          style={{
+            flex: 1,
+            background: unit === "c" ? "rgba(255,255,255,0.15)" : undefined,
+          }}
           onClick={() => onChange({ unit: "c" })}
-        >摄氏 °C</button>
+        >
+          摄氏 °C
+        </button>
         <button
           className={"wcc-btn-cancel" + (unit === "f" ? " active" : "")}
-          style={{ flex: 1, background: unit === "f" ? "rgba(255,255,255,0.15)" : undefined }}
+          style={{
+            flex: 1,
+            background: unit === "f" ? "rgba(255,255,255,0.15)" : undefined,
+          }}
           onClick={() => onChange({ unit: "f" })}
-        >华氏 °F</button>
+        >
+          华氏 °F
+        </button>
       </div>
       <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
         后端按摄氏返回，华氏在本地换算显示，也可点磁贴右上角小按钮快速切换。
@@ -235,25 +310,39 @@ function CountdownEdit({
         value={value.title ?? ""}
         onChange={(e) => onChange({ title: e.target.value })}
       />
-      <label className="wcc-label" style={{ marginTop: 12 }}>日期</label>
+      <label className="wcc-label" style={{ marginTop: 12 }}>
+        日期
+      </label>
       <input
         className="wcc-input"
         type="date"
         value={value.targetDate ?? ""}
         onChange={(e) => onChange({ targetDate: e.target.value })}
       />
-      <label className="wcc-label" style={{ marginTop: 12 }}>模式</label>
+      <label className="wcc-label" style={{ marginTop: 12 }}>
+        模式
+      </label>
       <div style={{ display: "flex", gap: 8 }}>
         <button
           className={"wcc-btn-cancel" + (mode === "down" ? " active" : "")}
-          style={{ flex: 1, background: mode === "down" ? "rgba(255,255,255,0.15)" : undefined }}
+          style={{
+            flex: 1,
+            background: mode === "down" ? "rgba(255,255,255,0.15)" : undefined,
+          }}
           onClick={() => onChange({ mode: "down" })}
-        >距离未来</button>
+        >
+          距离未来
+        </button>
         <button
           className={"wcc-btn-cancel" + (mode === "up" ? " active" : "")}
-          style={{ flex: 1, background: mode === "up" ? "rgba(255,255,255,0.15)" : undefined }}
+          style={{
+            flex: 1,
+            background: mode === "up" ? "rgba(255,255,255,0.15)" : undefined,
+          }}
           onClick={() => onChange({ mode: "up" })}
-        >自过去起</button>
+        >
+          自过去起
+        </button>
       </div>
     </div>
   );
@@ -308,11 +397,16 @@ function IframeEdit({
         onChange={(e) => onChange({ url: e.target.value })}
       />
       {warn && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 6, color: "#ffd07a" }}>
+        <div
+          className="muted"
+          style={{ fontSize: 12, marginTop: 6, color: "#ffd07a" }}
+        >
           未带协议前缀，将自动按 https:// 加载。
         </div>
       )}
-      <label className="wcc-label" style={{ marginTop: 12 }}>标题（可选）</label>
+      <label className="wcc-label" style={{ marginTop: 12 }}>
+        标题（可选）
+      </label>
       <input
         className="wcc-input"
         placeholder="显示在标签栏上的名字"
@@ -388,20 +482,55 @@ function MusicEdit({
         </button>
       </div>
       {error && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 6, color: "#ff9b7b" }}>
+        <div
+          className="muted"
+          style={{ fontSize: 12, marginTop: 6, color: "#ff9b7b" }}
+        >
           {error}
         </div>
       )}
 
       {results.length > 0 && (
-        <div style={{ maxHeight: 180, overflowY: "auto", marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+        <div
+          style={{
+            maxHeight: 180,
+            overflowY: "auto",
+            marginTop: 10,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
           {results.map((s) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px" }}>
+            <div
+              key={s.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 6px",
+              }}
+            >
               <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontSize: 13, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{s.title}</div>
-                <div className="muted" style={{ fontSize: 11 }}>{s.artist}</div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    whiteSpace: "nowrap",
+                    textOverflow: "ellipsis",
+                    overflow: "hidden",
+                  }}
+                >
+                  {s.title}
+                </div>
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {s.artist}
+                </div>
               </div>
-              <button className="wcc-btn-cancel" style={{ padding: "2px 8px" }} onClick={() => addSong(s)}>
+              <button
+                className="wcc-btn-cancel"
+                style={{ padding: "2px 8px" }}
+                onClick={() => addSong(s)}
+              >
                 <Icon name="plus" size={12} />
               </button>
             </div>
@@ -409,16 +538,53 @@ function MusicEdit({
         </div>
       )}
 
-      <label className="wcc-label" style={{ marginTop: 14 }}>播放列表（{playlist.length}）</label>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 150, overflowY: "auto" }}>
-        {playlist.length === 0 && <div className="muted" style={{ fontSize: 12 }}>（暂无）</div>}
+      <label className="wcc-label" style={{ marginTop: 14 }}>
+        播放列表（{playlist.length}）
+      </label>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          maxHeight: 150,
+          overflowY: "auto",
+        }}
+      >
+        {playlist.length === 0 && (
+          <div className="muted" style={{ fontSize: 12 }}>
+            （暂无）
+          </div>
+        )}
         {playlist.map((s) => (
-          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px" }}>
+          <div
+            key={s.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 6px",
+            }}
+          >
             <div style={{ flex: 1, overflow: "hidden" }}>
-              <div style={{ fontSize: 13, whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>{s.title}</div>
-              <div className="muted" style={{ fontSize: 11 }}>{s.artist}</div>
+              <div
+                style={{
+                  fontSize: 13,
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  overflow: "hidden",
+                }}
+              >
+                {s.title}
+              </div>
+              <div className="muted" style={{ fontSize: 11 }}>
+                {s.artist}
+              </div>
             </div>
-            <button className="wcc-btn-cancel" style={{ padding: "2px 8px" }} onClick={() => removeSong(s.id)}>
+            <button
+              className="wcc-btn-cancel"
+              style={{ padding: "2px 8px" }}
+              onClick={() => removeSong(s.id)}
+            >
               <Icon name="trash" size={12} />
             </button>
           </div>
@@ -456,7 +622,9 @@ function PomodoroEdit({
           onChange({ workMin: Number.isFinite(n) && n > 0 ? n : 1 });
         }}
       />
-      <label className="wcc-label" style={{ marginTop: 12 }}>休息时长（分钟）</label>
+      <label className="wcc-label" style={{ marginTop: 12 }}>
+        休息时长（分钟）
+      </label>
       <input
         className="wcc-input"
         type="number"
@@ -502,7 +670,9 @@ function HitokotoEdit({
   return (
     <div className="wcc-form">
       <label className="wcc-label">来源类别</label>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}
+      >
         {HITOKOTO_TYPES.map((t) => (
           <button
             key={t.id || "all"}
@@ -543,5 +713,3 @@ function SearchEdit({
     </div>
   );
 }
-
-

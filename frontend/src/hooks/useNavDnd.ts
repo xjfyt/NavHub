@@ -24,11 +24,7 @@ import {
   MERGE_DWELL_MS,
 } from "../utils/mergeDecision";
 import { resolveDragAction, parseGroupDroppableId } from "../utils/dragTarget";
-import {
-  WIDGET_REGISTRY,
-  WidgetSizeId,
-  snapWidgetSize,
-} from "../widgets";
+import { WIDGET_REGISTRY, WidgetSizeId, snapWidgetSize } from "../widgets";
 
 // =================================================================
 // useNavDnd —— 把图标网格的拖拽协调逻辑从 NavView 抽出，使其能在 Shell 层与
@@ -46,7 +42,8 @@ export type CellSpan = { w: number; h: number };
 
 function spanForIcon(icon: IconView): CellSpan {
   if (icon.isFolder) {
-    if (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg") return { w: 2, h: 2 };
+    if (icon.size === "lg-4" || icon.size === "lg-9" || icon.size === "lg")
+      return { w: 2, h: 2 };
     if (icon.size === "pill-size") return { w: 3, h: 1 };
     return { w: 1, h: 1 };
   }
@@ -57,15 +54,29 @@ function spanForIcon(icon: IconView): CellSpan {
 
 function spanForWidget(widget: WidgetView): CellSpan {
   const reg = WIDGET_REGISTRY[widget.widget];
-  const sizeKey = (snapWidgetSize(widget.wSpan, widget.wRow) || reg?.defaultSize || "medium") as WidgetSizeId;
+  const sizeKey = (snapWidgetSize(widget.wSpan, widget.wRow) ||
+    reg?.defaultSize ||
+    "medium") as WidgetSizeId;
   if (sizeKey === "small") return { w: 3, h: 1 };
   if (sizeKey === "large") return { w: 4, h: 2 };
   return { w: 2, h: 2 };
 }
 
 export type NavGridItem =
-  | { kind: "icon"; id: string; icon: IconView; sortOrder: number; span: CellSpan }
-  | { kind: "widget"; id: string; widget: WidgetView; sortOrder: number; span: CellSpan };
+  | {
+      kind: "icon";
+      id: string;
+      icon: IconView;
+      sortOrder: number;
+      span: CellSpan;
+    }
+  | {
+      kind: "widget";
+      id: string;
+      widget: WidgetView;
+      sortOrder: number;
+      span: CellSpan;
+    };
 
 export interface UseNavDndArgs {
   activeGroup: string;
@@ -74,7 +85,12 @@ export interface UseNavDndArgs {
   /** 分类内重排(只改 sortOrder)。 */
   onReorderGroupItems: (
     groupId: string,
-    items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[],
+    items: {
+      id: string;
+      type: "icon" | "widget";
+      x: number | null;
+      y: number | null;
+    }[],
   ) => void;
   /** 合并到文件夹。 */
   onMergeIcon: (dragId: string, targetId: string) => void;
@@ -108,10 +124,21 @@ export interface UseNavDndResult {
 }
 
 export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
-  const { activeGroup, icons, widgets, onReorderGroupItems, onMergeIcon, onMoveGroupItem, groupName } = args;
+  const {
+    activeGroup,
+    icons,
+    widgets,
+    onReorderGroupItems,
+    onMergeIcon,
+    onMoveGroupItem,
+    groupName,
+  } = args;
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [pendingMove, setPendingMove] = useState<{ itemId: string; toGroupId: string } | null>(null);
+  const [pendingMove, setPendingMove] = useState<{
+    itemId: string;
+    toGroupId: string;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: mouseActivationConstraint }),
@@ -124,7 +151,9 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
   //  2) 否则只在「非分类」(网格元素) droppable 里按 closestCenter 选，保持原排序/合并手感。
   const collisionDetection = useCallback<CollisionDetection>((cdArgs) => {
     const within = pointerWithin(cdArgs);
-    const groupHit = within.find((c) => parseGroupDroppableId(String(c.id)) !== null);
+    const groupHit = within.find(
+      (c) => parseGroupDroppableId(String(c.id)) !== null,
+    );
     if (groupHit) return [groupHit];
     const gridContainers = cdArgs.droppableContainers.filter(
       (c) => parseGroupDroppableId(String(c.id)) === null,
@@ -132,8 +161,14 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
     return closestCenter({ ...cdArgs, droppableContainers: gridContainers });
   }, []);
 
-  const currentIcons = useMemo(() => icons.filter((i) => i.groupId === activeGroup), [icons, activeGroup]);
-  const currentWidgets = useMemo(() => widgets.filter((w) => w.groupId === activeGroup), [widgets, activeGroup]);
+  const currentIcons = useMemo(
+    () => icons.filter((i) => i.groupId === activeGroup),
+    [icons, activeGroup],
+  );
+  const currentWidgets = useMemo(
+    () => widgets.filter((w) => w.groupId === activeGroup),
+    [widgets, activeGroup],
+  );
 
   const gridItems = useMemo<NavGridItem[]>(() => {
     const arr: NavGridItem[] = [
@@ -174,7 +209,10 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
 
   const clearMergeTarget = () => {
     if (mergeTargetElRef.current) {
-      mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
+      mergeTargetElRef.current.classList.remove(
+        "merge-target-glow",
+        "merge-target-folder",
+      );
       mergeTargetElRef.current.style.transform = "";
       mergeTargetElRef.current.style.boxShadow = "";
       mergeTargetElRef.current = null;
@@ -189,7 +227,10 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
     const id = el.dataset.navItemId ?? null;
     if (!id || mergeTargetRef.current === id) return;
     if (mergeTargetElRef.current && mergeTargetElRef.current !== el) {
-      mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
+      mergeTargetElRef.current.classList.remove(
+        "merge-target-glow",
+        "merge-target-folder",
+      );
       mergeTargetElRef.current.style.transform = "";
       mergeTargetElRef.current.style.boxShadow = "";
     }
@@ -222,7 +263,14 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
       return;
     }
     const overlapRatio = (
-      a: { left: number; top: number; right: number; bottom: number; width: number; height: number },
+      a: {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+        width: number;
+        height: number;
+      },
       b: DOMRect,
     ) => {
       const left = Math.max(a.left, b.left);
@@ -234,7 +282,9 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
       const draggedArea = a.width * a.height;
       return draggedArea > 0 ? inter / draggedArea : 0;
     };
-    const iconEls = document.querySelectorAll<HTMLElement>("[data-nav-item-type='icon']");
+    const iconEls = document.querySelectorAll<HTMLElement>(
+      "[data-nav-item-type='icon']",
+    );
     let foundEl: HTMLElement | null = null;
     let foundIsFolder = false;
     let bestRatio = 0;
@@ -266,7 +316,13 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
     }
     const dwellMs = now - mergeCandidateSinceRef.current;
 
-    if (shouldMergeWithTarget({ overlapRatio: bestRatio, dwellMs, isFolder: foundIsFolder })) {
+    if (
+      shouldMergeWithTarget({
+        overlapRatio: bestRatio,
+        dwellMs,
+        isFolder: foundIsFolder,
+      })
+    ) {
       clearMergeDwellTimer();
       confirmMergeHighlight(foundEl, foundIsFolder);
       return;
@@ -274,7 +330,10 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
 
     if (mergeTargetRef.current && mergeTargetRef.current !== candidateId) {
       if (mergeTargetElRef.current) {
-        mergeTargetElRef.current.classList.remove("merge-target-glow", "merge-target-folder");
+        mergeTargetElRef.current.classList.remove(
+          "merge-target-glow",
+          "merge-target-folder",
+        );
         mergeTargetElRef.current.style.transform = "";
         mergeTargetElRef.current.style.boxShadow = "";
         mergeTargetElRef.current = null;
@@ -322,10 +381,16 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
         const name = groupName?.(action.groupId);
         // 进度态：移动 API 期间显示 loading toast(同一 id)，落地后原地替换为成功/失败。
         const toastId = `nav-move-${dragId}`;
-        toast.loading(name ? `正在移动到「${name}」…` : "正在移动…", { id: toastId });
-        Promise.resolve(onMoveGroupItem(draggedItem.kind, draggedItem.id, action.groupId, 0))
+        toast.loading(name ? `正在移动到「${name}」…` : "正在移动…", {
+          id: toastId,
+        });
+        Promise.resolve(
+          onMoveGroupItem(draggedItem.kind, draggedItem.id, action.groupId, 0),
+        )
           .then(() => {
-            toast.success(name ? `已移动到「${name}」` : "已移动到其他分类", { id: toastId });
+            toast.success(name ? `已移动到「${name}」` : "已移动到其他分类", {
+              id: toastId,
+            });
           })
           .catch(() => {
             toast.error("移动失败", { id: toastId });
@@ -344,7 +409,10 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
       mergeCandidateSinceRef.current = 0;
       clearMergeDwellTimer();
       if (mergeTargetEl) {
-        mergeTargetEl.classList.remove("merge-target-glow", "merge-target-folder");
+        mergeTargetEl.classList.remove(
+          "merge-target-glow",
+          "merge-target-folder",
+        );
         mergeTargetEl.style.transform = "";
         mergeTargetEl.style.boxShadow = "";
         mergeTargetEl.classList.add("merge-absorb");
@@ -376,7 +444,9 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
     clearMergeTarget();
   };
 
-  const activeItem = activeId ? gridItems.find((it) => it.id === activeId) ?? null : null;
+  const activeItem = activeId
+    ? (gridItems.find((it) => it.id === activeId) ?? null)
+    : null;
 
   return {
     sensors,

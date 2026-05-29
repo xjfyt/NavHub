@@ -48,9 +48,9 @@ describe("parseHex / relativeLuminance / rgbToHex", () => {
 
 describe("composite - alpha 合成", () => {
   it("alpha=1 时即前景色", () => {
-    expect(composite({ r: 10, g: 20, b: 30, a: 1 }, { r: 0, g: 0, b: 0 })).toEqual(
-      { r: 10, g: 20, b: 30 },
-    );
+    expect(
+      composite({ r: 10, g: 20, b: 30, a: 1 }, { r: 0, g: 0, b: 0 }),
+    ).toEqual({ r: 10, g: 20, b: 30 });
   });
   it("alpha=0 时即背景色", () => {
     expect(
@@ -68,9 +68,15 @@ describe("composite - alpha 合成", () => {
 // 把半透明 token 合成到具代表性的不透明面板/模态背景上再算对比度。
 describe("token AA 审计 - 静音文本", () => {
   // 暗色模态面板:rgba(30,30,38,0.72) 叠在偏暗壁纸(~#20202a)上
-  const darkSurface = composite({ r: 30, g: 30, b: 38, a: 0.72 }, { r: 0x20, g: 0x20, b: 0x2a });
+  const darkSurface = composite(
+    { r: 30, g: 30, b: 38, a: 0.72 },
+    { r: 0x20, g: 0x20, b: 0x2a },
+  );
   // 亮色模态面板:rgba(255,255,255,0.85) 叠在偏亮壁纸(~#e8e6e2)上
-  const lightSurface = composite({ r: 255, g: 255, b: 255, a: 0.85 }, { r: 0xe8, g: 0xe6, b: 0xe2 });
+  const lightSurface = composite(
+    { r: 255, g: 255, b: 255, a: 0.85 },
+    { r: 0xe8, g: 0xe6, b: 0xe2 },
+  );
 
   it("暗色 --text-mute rgba(255,255,255,0.50) 满足 AA(4.5:1)", () => {
     const mute = composite({ r: 255, g: 255, b: 255, a: 0.5 }, darkSurface);

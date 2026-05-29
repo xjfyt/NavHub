@@ -27,7 +27,8 @@ function ensureAudioContext(): AudioContext | null {
     if (!audioCtx) {
       const Ctor =
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
       if (!Ctor) return null;
       audioCtx = new Ctor();
     }
@@ -126,7 +127,12 @@ class PomodoroStore {
       return;
     }
     // 到点:切换阶段、记轮次、设新的结束时间戳,并播放真实提示音。
-    const next = advancePhase(this.state.phase, { workSec: this.state.workSec, breakSec: this.state.breakSec }, this.state.rounds, now);
+    const next = advancePhase(
+      this.state.phase,
+      { workSec: this.state.workSec, breakSec: this.state.breakSec },
+      this.state.rounds,
+      now,
+    );
     playChime();
     this.setState({
       phase: next.phase,
@@ -160,7 +166,10 @@ class PomodoroStore {
       this.startTick();
     } else {
       // 暂停:把当前剩余冻结下来,清掉 endTs。
-      const remaining = this.state.endTs !== null ? remainingSeconds(this.state.endTs, Date.now()) : this.state.remaining;
+      const remaining =
+        this.state.endTs !== null
+          ? remainingSeconds(this.state.endTs, Date.now())
+          : this.state.remaining;
       this.stopTick();
       this.setState({ running: false, remaining, endTs: null });
     }
@@ -168,7 +177,12 @@ class PomodoroStore {
 
   reset = () => {
     this.stopTick();
-    this.setState({ running: false, phase: "work", remaining: this.state.workSec, endTs: null });
+    this.setState({
+      running: false,
+      phase: "work",
+      remaining: this.state.workSec,
+      endTs: null,
+    });
   };
 
   // FE-8: 视图挂载时 retain,卸载时 release。最后一个视图卸载后停掉 interval
@@ -239,8 +253,12 @@ export const PomodoroWidget = ({ w }: WidgetProps<PomodoroConfig> = {}) => {
   return (
     <div className="widget w-pomodoro">
       <div className="widget-header">
-        <span className="widget-title">{state.phase === "work" ? "专注" : "休息"}</span>
-        <span className="muted mono" style={{ fontSize: 10 }}>第 {state.rounds + 1} 轮</span>
+        <span className="widget-title">
+          {state.phase === "work" ? "专注" : "休息"}
+        </span>
+        <span className="muted mono" style={{ fontSize: 10 }}>
+          第 {state.rounds + 1} 轮
+        </span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span
@@ -256,20 +274,48 @@ export const PomodoroWidget = ({ w }: WidgetProps<PomodoroConfig> = {}) => {
           {fmt(state.remaining)}
         </span>
       </div>
-      <div style={{ marginTop: 12, height: 4, borderRadius: 3, background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
-        <div style={{ width: `${progress * 100}%`, height: "100%", background: state.phase === "work" ? "#ff9b7b" : "#7bd88f", transition: "width 300ms ease" }} />
+      <div
+        style={{
+          marginTop: 12,
+          height: 4,
+          borderRadius: 3,
+          background: "rgba(255,255,255,0.1)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${progress * 100}%`,
+            height: "100%",
+            background: state.phase === "work" ? "#ff9b7b" : "#7bd88f",
+            transition: "width 300ms ease",
+          }}
+        />
       </div>
       <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
         <button
           className="wcc-btn-add"
           style={{ flex: 1, padding: "6px 10px" }}
-          onClick={(e) => { e.stopPropagation(); store.toggle(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            store.toggle();
+          }}
           onMouseDown={(e) => e.stopPropagation()}
         >
           <Icon name={state.running ? "pause" : "play-sm"} size={12} />
-          <span style={{ marginLeft: 6 }}>{state.running ? "暂停" : "开始"}</span>
+          <span style={{ marginLeft: 6 }}>
+            {state.running ? "暂停" : "开始"}
+          </span>
         </button>
-        <button className="wcc-btn-cancel" style={{ padding: "6px 10px" }} onClick={(e) => { e.stopPropagation(); store.reset(); }} onMouseDown={(e) => e.stopPropagation()}>
+        <button
+          className="wcc-btn-cancel"
+          style={{ padding: "6px 10px" }}
+          onClick={(e) => {
+            e.stopPropagation();
+            store.reset();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           重置
         </button>
       </div>
@@ -301,30 +347,103 @@ export const PomodoroDetail = ({ w }: WidgetProps<PomodoroConfig> = {}) => {
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <div style={{ textAlign: "center" }}>
-        <div className="muted" style={{ fontSize: 12 }}>{state.phase === "work" ? "专注中" : "休息中"} · 第 {state.rounds + 1} 轮</div>
-        <div style={{ fontSize: 64, fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", marginTop: 6, color: state.phase === "work" ? "inherit" : "#7bd88f" }}>{fmt(state.remaining)}</div>
+        <div className="muted" style={{ fontSize: 12 }}>
+          {state.phase === "work" ? "专注中" : "休息中"} · 第 {state.rounds + 1}{" "}
+          轮
+        </div>
+        <div
+          style={{
+            fontSize: 64,
+            fontWeight: 700,
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: "-0.03em",
+            marginTop: 6,
+            color: state.phase === "work" ? "inherit" : "#7bd88f",
+          }}
+        >
+          {fmt(state.remaining)}
+        </div>
       </div>
-      <div style={{ height: 6, borderRadius: 4, background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
-        <div style={{ width: `${progress * 100}%`, height: "100%", background: state.phase === "work" ? "#ff9b7b" : "#7bd88f", transition: "width 300ms" }} />
+      <div
+        style={{
+          height: 6,
+          borderRadius: 4,
+          background: "rgba(255,255,255,0.1)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${progress * 100}%`,
+            height: "100%",
+            background: state.phase === "work" ? "#ff9b7b" : "#7bd88f",
+            transition: "width 300ms",
+          }}
+        />
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-        <button className="wcc-btn-add" style={{ padding: "10px 24px" }} onClick={() => store.toggle()}>
+        <button
+          className="wcc-btn-add"
+          style={{ padding: "10px 24px" }}
+          onClick={() => store.toggle()}
+        >
           <Icon name={state.running ? "pause" : "play-sm"} size={14} />
-          <span style={{ marginLeft: 8 }}>{state.running ? "暂停" : "开始"}</span>
+          <span style={{ marginLeft: 8 }}>
+            {state.running ? "暂停" : "开始"}
+          </span>
         </button>
-        <button className="wcc-btn-cancel" style={{ padding: "10px 24px" }} onClick={() => store.reset()}>重置</button>
+        <button
+          className="wcc-btn-cancel"
+          style={{ padding: "10px 24px" }}
+          onClick={() => store.reset()}
+        >
+          重置
+        </button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-        <div style={{ padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 10, textAlign: "center" }}>
-          <div className="muted" style={{ fontSize: 11 }}>专注时长</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            padding: 10,
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: 10,
+            textAlign: "center",
+          }}
+        >
+          <div className="muted" style={{ fontSize: 11 }}>
+            专注时长
+          </div>
           <div style={{ fontSize: 18, marginTop: 4 }}>{workMin} 分钟</div>
         </div>
-        <div style={{ padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 10, textAlign: "center" }}>
-          <div className="muted" style={{ fontSize: 11 }}>休息时长</div>
+        <div
+          style={{
+            padding: 10,
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: 10,
+            textAlign: "center",
+          }}
+        >
+          <div className="muted" style={{ fontSize: 11 }}>
+            休息时长
+          </div>
           <div style={{ fontSize: 18, marginTop: 4 }}>{breakMin} 分钟</div>
         </div>
-        <div style={{ padding: 10, background: "rgba(255,255,255,0.04)", borderRadius: 10, textAlign: "center" }}>
-          <div className="muted" style={{ fontSize: 11 }}>本次完成</div>
+        <div
+          style={{
+            padding: 10,
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: 10,
+            textAlign: "center",
+          }}
+        >
+          <div className="muted" style={{ fontSize: 11 }}>
+            本次完成
+          </div>
           <div style={{ fontSize: 18, marginTop: 4 }}>{state.rounds} 轮</div>
         </div>
       </div>

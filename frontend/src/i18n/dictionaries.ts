@@ -38,7 +38,8 @@ export const dictionaries: Dictionaries = {
     "login.err.generic": "登录失败",
 
     // 访客横幅
-    "guest.banner": "你正在以访客身份浏览，登录后可保存图标、组件与个性化设置。",
+    "guest.banner":
+      "你正在以访客身份浏览，登录后可保存图标、组件与个性化设置。",
 
     // 导航空状态
     "nav.empty.noGroupsTitle": "还没有任何分类",
@@ -81,7 +82,8 @@ export const dictionaries: Dictionaries = {
       "First time here? Default account <b>superadmin</b> / password <b>superadmin</b> — change it right after signing in.",
     "login.dismissHint": "Don't show again",
     "login.err.ssoRequired": "This account only supports SSO login.",
-    "login.err.passwordDisabled": "Password login is disabled by the administrator.",
+    "login.err.passwordDisabled":
+      "Password login is disabled by the administrator.",
     "login.err.badCredentials": "Incorrect username or password.",
     "login.err.generic": "Sign-in failed.",
 

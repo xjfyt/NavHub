@@ -21,7 +21,11 @@ export function parseLocalDate(s?: string | null): Date | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   const d = new Date(year, month - 1, day, 0, 0, 0, 0);
   // 防止 JS Date 的溢出归一化(例如 2 月 30 日 → 3 月 2 日)被当作合法值。
-  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
+  if (
+    d.getFullYear() !== year ||
+    d.getMonth() !== month - 1 ||
+    d.getDate() !== day
+  ) {
     return null;
   }
   return d;

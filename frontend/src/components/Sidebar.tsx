@@ -28,7 +28,11 @@ export const Sidebar = ({
   onSideContext?: (e: React.MouseEvent) => void;
   onAddCategory: () => void;
   onReorderGroup: (old: string, to: string) => void;
-  onDropItemToGroup?: (itemType: string, itemId: string, groupId: string) => void;
+  onDropItemToGroup?: (
+    itemType: string,
+    itemId: string,
+    groupId: string,
+  ) => void;
   /**
    * UX-27：当前是否有图标/组件正被 @dnd-kit 拖拽(来自 Shell 的 useNavDnd)。
    * 非 null 时，分类按钮作为 @dnd-kit droppable 亮起，提示「可拖到这里移动到该分类」。
@@ -47,12 +51,11 @@ export const Sidebar = ({
   };
 
   if (sidebarMode === "hidden") return null;
-  const cls = "sidebar glass" + (sidebarMode === "autohide" ? " auto-hide" : "");
+  const cls =
+    "sidebar glass" + (sidebarMode === "autohide" ? " auto-hide" : "");
 
   const isGuest = user === null;
-  const label = isGuest
-    ? "登录"
-    : user!.displayName || user!.username;
+  const label = isGuest ? "登录" : user!.displayName || user!.username;
   const initials = isGuest
     ? "访"
     : (user!.displayName || user!.username).substring(0, 2).toUpperCase();
@@ -104,14 +107,27 @@ export const Sidebar = ({
                 if (!isGuest && dragId !== g.id) onReorderGroup(dragId, g.id);
               } else {
                 try {
-                  const data = JSON.parse(e.dataTransfer.getData('application/x-navhub-item') || '{}');
-                  if (data.id && data.type && onDropItemToGroup && data.groupId !== g.id) {
+                  const data = JSON.parse(
+                    e.dataTransfer.getData("application/x-navhub-item") || "{}",
+                  );
+                  if (
+                    data.id &&
+                    data.type &&
+                    onDropItemToGroup &&
+                    data.groupId !== g.id
+                  ) {
                     onDropItemToGroup(data.type, data.id, g.id);
                     // 用户可能在 500ms hover 自动切换前就松手，这里兜底切到目标分类
                     if (activeGroup !== g.id) setActiveGroup(g.id);
                     // 接收反馈
                     e.currentTarget.classList.add("group-receive-pulse");
-                    window.setTimeout(() => e.currentTarget?.classList.remove("group-receive-pulse"), 520);
+                    window.setTimeout(
+                      () =>
+                        e.currentTarget?.classList.remove(
+                          "group-receive-pulse",
+                        ),
+                      520,
+                    );
                   }
                 } catch {}
               }
@@ -201,7 +217,9 @@ const CategoryButton = ({
   onContextMenu: (e: React.MouseEvent) => void;
 }) => {
   // @dnd-kit droppable —— id 用 "group:<id>" 命名空间(见 utils/dragTarget)。
-  const { setNodeRef, isOver } = useDroppable({ id: groupDroppableId(group.id) });
+  const { setNodeRef, isOver } = useDroppable({
+    id: groupDroppableId(group.id),
+  });
   const showDndTarget = dndDropActive && !active;
   return (
     <button

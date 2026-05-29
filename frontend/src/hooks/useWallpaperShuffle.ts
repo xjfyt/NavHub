@@ -13,18 +13,23 @@ import { api } from "../api";
  * 若缓存为空再回退到本地内置 WALLPAPER_PRESETS。
  */
 export function useWallpaperShuffle(tweaks: Tweaks) {
-  const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(() => {
-    try {
-      const cached = window.localStorage.getItem("navhub_last_wallpaper");
-      if (cached) return JSON.parse(cached);
-    } catch {}
-    return randomWallpaperPreset(null);
-  });
+  const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(
+    () => {
+      try {
+        const cached = window.localStorage.getItem("navhub_last_wallpaper");
+        if (cached) return JSON.parse(cached);
+      } catch {}
+      return randomWallpaperPreset(null);
+    },
+  );
 
   useEffect(() => {
     if (shufflePreset) {
       try {
-        window.localStorage.setItem("navhub_last_wallpaper", JSON.stringify(shufflePreset));
+        window.localStorage.setItem(
+          "navhub_last_wallpaper",
+          JSON.stringify(shufflePreset),
+        );
       } catch {}
     }
   }, [shufflePreset]);
@@ -33,20 +38,24 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
 
   const shuffleEnabled =
     tweaks.wallpaperShuffle !== false && tweaks.backgroundMode !== "theme";
-  const shuffleIntervalSec = normalizeShuffleInterval(tweaks.wallpaperShuffleInterval);
+  const shuffleIntervalSec = normalizeShuffleInterval(
+    tweaks.wallpaperShuffleInterval,
+  );
 
-  const mediaType = (tweaks.wallpaperShuffleMediaType as "" | "image" | "video") || "";
+  const mediaType =
+    (tweaks.wallpaperShuffleMediaType as "" | "image" | "video") || "";
   const sourceId = tweaks.wallpaperShuffleSource || "";
 
   // 拉取一次远程壁纸池（最多 100 张），缓存到 ref。
   useEffect(() => {
     if (!shuffleEnabled) return;
     let alive = true;
-    api.wallpapers({ 
-      limit: 100,
-      mediaType: mediaType || undefined,
-      sourceId: sourceId || undefined,
-    })
+    api
+      .wallpapers({
+        limit: 100,
+        mediaType: mediaType || undefined,
+        sourceId: sourceId || undefined,
+      })
       .then((resp) => {
         if (!alive) return;
         const pool = resp.items.map(remoteToPreset);
@@ -62,7 +71,9 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
         if (!alive) return;
         poolRef.current = [];
       });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [shuffleEnabled, mediaType, sourceId]);
 
   useEffect(() => {
@@ -99,9 +110,13 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
   return { shufflePreset, shuffleEnabled, shuffleActive, nextPreset };
 }
 
-function pickRandom(pool: WallpaperPreset[], excludeId: string | null): WallpaperPreset {
+function pickRandom(
+  pool: WallpaperPreset[],
+  excludeId: string | null,
+): WallpaperPreset {
   if (!pool.length) return randomWallpaperPreset(excludeId);
-  const filtered = pool.length > 1 ? pool.filter((p) => p.id !== excludeId) : pool;
+  const filtered =
+    pool.length > 1 ? pool.filter((p) => p.id !== excludeId) : pool;
   return filtered[Math.floor(Math.random() * filtered.length)] || pool[0];
 }
 

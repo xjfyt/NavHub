@@ -16,13 +16,22 @@ export const Row = ({
   children?: ReactNode;
   onClick?: () => void;
 }) => (
-  <div className={"tw-row" + (onClick ? " tw-row-click" : "")} onClick={onClick}>
+  <div
+    className={"tw-row" + (onClick ? " tw-row-click" : "")}
+    onClick={onClick}
+  >
     <div className="tw-row-label">{label}</div>
     <div className="tw-row-ctrl">{children}</div>
   </div>
 );
 
-export const Toggle = ({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) => (
+export const Toggle = ({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+}) => (
   <button
     className={"tw-toggle" + (on ? " on" : "")}
     onClick={(e) => {
@@ -48,7 +57,8 @@ export const Dropdown = ({
   useEffect(() => {
     if (!open) return;
     const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
@@ -143,7 +153,9 @@ export const SliderPopover = ({
         <div key={i} className="tw-slider-row">
           <div className="tw-slider-top">
             <span>{it.label}</span>
-            <span className="tw-slider-val">{it.format ? it.format(it.value) : it.value}</span>
+            <span className="tw-slider-val">
+              {it.format ? it.format(it.value) : it.value}
+            </span>
           </div>
           <input
             type="range"

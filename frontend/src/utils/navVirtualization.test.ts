@@ -8,12 +8,18 @@ describe("shouldUseContentVisibility", () => {
   it("小分类(项数低于阈值)不启用 content-visibility,避免给小网格平添开销", () => {
     expect(shouldUseContentVisibility(0)).toBe(false);
     expect(shouldUseContentVisibility(1)).toBe(false);
-    expect(shouldUseContentVisibility(NAV_CONTENT_VISIBILITY_THRESHOLD - 1)).toBe(false);
+    expect(
+      shouldUseContentVisibility(NAV_CONTENT_VISIBILITY_THRESHOLD - 1),
+    ).toBe(false);
   });
 
   it("项数达到阈值即视为大分类,启用 content-visibility 让浏览器跳过离屏单元格渲染", () => {
-    expect(shouldUseContentVisibility(NAV_CONTENT_VISIBILITY_THRESHOLD)).toBe(true);
-    expect(shouldUseContentVisibility(NAV_CONTENT_VISIBILITY_THRESHOLD + 1)).toBe(true);
+    expect(shouldUseContentVisibility(NAV_CONTENT_VISIBILITY_THRESHOLD)).toBe(
+      true,
+    );
+    expect(
+      shouldUseContentVisibility(NAV_CONTENT_VISIBILITY_THRESHOLD + 1),
+    ).toBe(true);
     expect(shouldUseContentVisibility(1000)).toBe(true);
   });
 

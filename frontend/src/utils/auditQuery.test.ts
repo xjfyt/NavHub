@@ -61,7 +61,9 @@ describe("buildAuditParams", () => {
   it("非法 pageSize 回退到默认 50,且至少为 1", () => {
     expect(buildAuditParams({ ...base(), pageSize: 0 }).limit).toBe(50);
     expect(buildAuditParams({ ...base(), pageSize: -10 }).limit).toBe(50);
-    expect(buildAuditParams({ ...base(), pageSize: Number.NaN }).limit).toBe(50);
+    expect(buildAuditParams({ ...base(), pageSize: Number.NaN }).limit).toBe(
+      50,
+    );
   });
 
   it("pageSize 超过 500 被夹到 500(与后端 clamp 对齐)", () => {

@@ -14,8 +14,11 @@ export function deriveTitle(content: string, fallback = "未命名笔记"): stri
   const firstLine = content.split(/\n/).find((l) => l.trim().length > 0);
   if (!firstLine) return fallback;
   return (
-    firstLine.replace(/^#{1,6}\s+/, "").replace(/[*_`>]/g, "").trim().slice(0, 32) ||
-    fallback
+    firstLine
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/[*_`>]/g, "")
+      .trim()
+      .slice(0, 32) || fallback
   );
 }
 
@@ -38,7 +41,10 @@ export function formatDate(ts: number): string {
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) {
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
   const sameYear = d.getFullYear() === now.getFullYear();
   return sameYear

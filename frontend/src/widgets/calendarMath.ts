@@ -98,8 +98,16 @@ export function buildMonthGrid(
   // 本月。
   for (let d = 1; d <= dim; d++) {
     const isToday =
-      !!today && today.year === year && today.month === month && today.day === d;
-    cells.push({ d, out: false, today: isToday, holiday: holidayName(month, d) });
+      !!today &&
+      today.year === year &&
+      today.month === month &&
+      today.day === d;
+    cells.push({
+      d,
+      out: false,
+      today: isToday,
+      holiday: holidayName(month, d),
+    });
   }
 
   // 尾随:补足到 42 格,填下月起始日期。
@@ -112,8 +120,18 @@ export function buildMonthGrid(
 }
 
 export const MONTH_NAMES_CN = [
-  "一月", "二月", "三月", "四月", "五月", "六月",
-  "七月", "八月", "九月", "十月", "十一月", "十二月",
+  "一月",
+  "二月",
+  "三月",
+  "四月",
+  "五月",
+  "六月",
+  "七月",
+  "八月",
+  "九月",
+  "十月",
+  "十一月",
+  "十二月",
 ];
 
 /** 周日到周六的单字星期表头(日历网格列头)。 */

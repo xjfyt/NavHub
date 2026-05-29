@@ -63,7 +63,9 @@ export function useWidgetConfig<T extends object>(
     inFlightRef.current = true;
     setSaving(true);
     try {
-      await api.updateWidget(w.id, { config: snapshot as unknown as Record<string, unknown> });
+      await api.updateWidget(w.id, {
+        config: snapshot as unknown as Record<string, unknown>,
+      });
       updateWidgetLocal(w.id, snapshot as unknown as Record<string, unknown>);
       setSavedAt(Date.now());
       // UX-16: 保存成功,清除失败态并允许下次故障再次提示。

@@ -21,7 +21,9 @@ export function groupDroppableId(groupId: string): string {
 }
 
 /** 若 over-id 是一个分类 droppable，返回其 groupId，否则返回 null。 */
-export function parseGroupDroppableId(overId: string | null | undefined): string | null {
+export function parseGroupDroppableId(
+  overId: string | null | undefined,
+): string | null {
   if (typeof overId !== "string") return null;
   if (!overId.startsWith(GROUP_DROPPABLE_PREFIX)) return null;
   const gid = overId.slice(GROUP_DROPPABLE_PREFIX.length);
@@ -64,7 +66,14 @@ export interface ResolveDragActionInput {
  *   4) 否则 none
  */
 export function resolveDragAction(input: ResolveDragActionInput): DragAction {
-  const { activeId, overId, activeGroupId, activeIsIcon, mergeConfirmed, mergeTargetId } = input;
+  const {
+    activeId,
+    overId,
+    activeGroupId,
+    activeIsIcon,
+    mergeConfirmed,
+    mergeTargetId,
+  } = input;
 
   // 1) 跨分类：over 命中某个分类 droppable。
   const overGroupId = parseGroupDroppableId(overId);
@@ -74,7 +83,12 @@ export function resolveDragAction(input: ResolveDragActionInput): DragAction {
   }
 
   // 2) 合并：仅图标，且过程中已确认了合并目标(刻意重叠 + 停留)。
-  if (mergeConfirmed && activeIsIcon && mergeTargetId && mergeTargetId !== activeId) {
+  if (
+    mergeConfirmed &&
+    activeIsIcon &&
+    mergeTargetId &&
+    mergeTargetId !== activeId
+  ) {
     return { type: "merge", targetId: mergeTargetId };
   }
 

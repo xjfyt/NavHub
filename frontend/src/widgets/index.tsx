@@ -6,36 +6,96 @@ import { SearchWidget } from "./SearchWidget";
 // Everything else only renders when the user has actually placed it on a
 // dashboard, so we lazy-import per-component.
 
-const ClockWidget = lazy(() => import("./ClockWidget").then((m) => ({ default: m.ClockWidget })));
-const ClockDetail = lazy(() => import("./ClockWidget").then((m) => ({ default: m.ClockDetail })));
-const WeatherWidget = lazy(() => import("./WeatherWidget").then((m) => ({ default: m.WeatherWidget })));
-const WeatherDetail = lazy(() => import("./WeatherWidget").then((m) => ({ default: m.WeatherDetail })));
-const CountdownWidget = lazy(() => import("./CountdownWidget").then((m) => ({ default: m.CountdownWidget })));
-const CountdownDetail = lazy(() => import("./CountdownWidget").then((m) => ({ default: m.CountdownDetail })));
-const TodoWidget = lazy(() => import("./TodoWidget").then((m) => ({ default: m.TodoWidget })));
-const TodoDetail = lazy(() => import("./TodoWidget").then((m) => ({ default: m.TodoDetail })));
-const NotesWidget = lazy(() => import("./NotesWidget").then((m) => ({ default: m.NotesWidget })));
-const NotesDetail = lazy(() => import("./NotesWidget").then((m) => ({ default: m.NotesDetail })));
-const CalendarWidget = lazy(() => import("./CalendarWidget").then((m) => ({ default: m.CalendarWidget })));
-const CalendarDetail = lazy(() => import("./CalendarWidget").then((m) => ({ default: m.CalendarDetail })));
-const RssWidget = lazy(() => import("./RssWidget").then((m) => ({ default: m.RssWidget })));
-const RssDetail = lazy(() => import("./RssWidget").then((m) => ({ default: m.RssDetail })));
-const MusicWidget = lazy(() => import("./MusicWidget").then((m) => ({ default: m.MusicWidget })));
-const MusicDetail = lazy(() => import("./MusicWidget").then((m) => ({ default: m.MusicDetail })));
-const CalculatorWidget = lazy(() => import("./CalculatorWidget").then((m) => ({ default: m.CalculatorWidget })));
-const IframeWidget = lazy(() => import("./IframeWidget").then((m) => ({ default: m.IframeWidget })));
-const PomodoroWidget = lazy(() => import("./PomodoroWidget").then((m) => ({ default: m.PomodoroWidget })));
-const PomodoroDetail = lazy(() => import("./PomodoroWidget").then((m) => ({ default: m.PomodoroDetail })));
-const YearProgressWidget = lazy(() => import("./YearProgressWidget").then((m) => ({ default: m.YearProgressWidget })));
-const YearProgressDetail = lazy(() => import("./YearProgressWidget").then((m) => ({ default: m.YearProgressDetail })));
-const HitokotoWidget = lazy(() => import("./HitokotoWidget").then((m) => ({ default: m.HitokotoWidget })));
-const HitokotoDetail = lazy(() => import("./HitokotoWidget").then((m) => ({ default: m.HitokotoDetail })));
-const MarkdownWidget = lazy(() => import("./MarkdownWidget").then((m) => ({ default: m.MarkdownWidget })));
-const MarkdownDetail = lazy(() => import("./MarkdownWidget").then((m) => ({ default: m.MarkdownDetail })));
+const ClockWidget = lazy(() =>
+  import("./ClockWidget").then((m) => ({ default: m.ClockWidget })),
+);
+const ClockDetail = lazy(() =>
+  import("./ClockWidget").then((m) => ({ default: m.ClockDetail })),
+);
+const WeatherWidget = lazy(() =>
+  import("./WeatherWidget").then((m) => ({ default: m.WeatherWidget })),
+);
+const WeatherDetail = lazy(() =>
+  import("./WeatherWidget").then((m) => ({ default: m.WeatherDetail })),
+);
+const CountdownWidget = lazy(() =>
+  import("./CountdownWidget").then((m) => ({ default: m.CountdownWidget })),
+);
+const CountdownDetail = lazy(() =>
+  import("./CountdownWidget").then((m) => ({ default: m.CountdownDetail })),
+);
+const TodoWidget = lazy(() =>
+  import("./TodoWidget").then((m) => ({ default: m.TodoWidget })),
+);
+const TodoDetail = lazy(() =>
+  import("./TodoWidget").then((m) => ({ default: m.TodoDetail })),
+);
+const NotesWidget = lazy(() =>
+  import("./NotesWidget").then((m) => ({ default: m.NotesWidget })),
+);
+const NotesDetail = lazy(() =>
+  import("./NotesWidget").then((m) => ({ default: m.NotesDetail })),
+);
+const CalendarWidget = lazy(() =>
+  import("./CalendarWidget").then((m) => ({ default: m.CalendarWidget })),
+);
+const CalendarDetail = lazy(() =>
+  import("./CalendarWidget").then((m) => ({ default: m.CalendarDetail })),
+);
+const RssWidget = lazy(() =>
+  import("./RssWidget").then((m) => ({ default: m.RssWidget })),
+);
+const RssDetail = lazy(() =>
+  import("./RssWidget").then((m) => ({ default: m.RssDetail })),
+);
+const MusicWidget = lazy(() =>
+  import("./MusicWidget").then((m) => ({ default: m.MusicWidget })),
+);
+const MusicDetail = lazy(() =>
+  import("./MusicWidget").then((m) => ({ default: m.MusicDetail })),
+);
+const CalculatorWidget = lazy(() =>
+  import("./CalculatorWidget").then((m) => ({ default: m.CalculatorWidget })),
+);
+const IframeWidget = lazy(() =>
+  import("./IframeWidget").then((m) => ({ default: m.IframeWidget })),
+);
+const PomodoroWidget = lazy(() =>
+  import("./PomodoroWidget").then((m) => ({ default: m.PomodoroWidget })),
+);
+const PomodoroDetail = lazy(() =>
+  import("./PomodoroWidget").then((m) => ({ default: m.PomodoroDetail })),
+);
+const YearProgressWidget = lazy(() =>
+  import("./YearProgressWidget").then((m) => ({
+    default: m.YearProgressWidget,
+  })),
+);
+const YearProgressDetail = lazy(() =>
+  import("./YearProgressWidget").then((m) => ({
+    default: m.YearProgressDetail,
+  })),
+);
+const HitokotoWidget = lazy(() =>
+  import("./HitokotoWidget").then((m) => ({ default: m.HitokotoWidget })),
+);
+const HitokotoDetail = lazy(() =>
+  import("./HitokotoWidget").then((m) => ({ default: m.HitokotoDetail })),
+);
+const MarkdownWidget = lazy(() =>
+  import("./MarkdownWidget").then((m) => ({ default: m.MarkdownWidget })),
+);
+const MarkdownDetail = lazy(() =>
+  import("./MarkdownWidget").then((m) => ({ default: m.MarkdownDetail })),
+);
 
 /** Wraps a widget tile so its chunk can stream in without crashing the dashboard. */
 function tile(node: React.ReactNode) {
-  return <Suspense fallback={<div className="widget-tile-fallback" aria-hidden />}>{node}</Suspense>;
+  return (
+    <Suspense fallback={<div className="widget-tile-fallback" aria-hidden />}>
+      {node}
+    </Suspense>
+  );
 }
 
 /** Detail modals already render inside a modal shell; let it look loading. */
@@ -43,7 +103,15 @@ function detail(node: React.ReactNode) {
   return (
     <Suspense
       fallback={
-        <div style={{ padding: 32, textAlign: "center", color: "var(--text-soft)" }}>加载中 …</div>
+        <div
+          style={{
+            padding: 32,
+            textAlign: "center",
+            color: "var(--text-soft)",
+          }}
+        >
+          加载中 …
+        </div>
       }
     >
       {node}
@@ -61,7 +129,10 @@ export { SearchWidget } from "./SearchWidget";
  */
 export type WidgetSizeId = "small" | "medium" | "large";
 
-export const WIDGET_SIZE_DIMENSIONS: Record<WidgetSizeId, { wSpan: number; wRow: number }> = {
+export const WIDGET_SIZE_DIMENSIONS: Record<
+  WidgetSizeId,
+  { wSpan: number; wRow: number }
+> = {
   small: { wSpan: 6, wRow: 3 },
   medium: { wSpan: 6, wRow: 6 },
   large: { wSpan: 12, wRow: 5 },
@@ -76,7 +147,10 @@ export const WIDGET_SIZE_LABEL: Record<WidgetSizeId, string> = {
 };
 
 /** 把任意存储的 wSpan/wRow 归约到三档之一（用于兼容旧数据） */
-export function snapWidgetSize(wSpan?: number | null, wRow?: number | null): WidgetSizeId {
+export function snapWidgetSize(
+  wSpan?: number | null,
+  wRow?: number | null,
+): WidgetSizeId {
   const w = wSpan ?? 0;
   const r = wRow ?? 0;
   if (w <= 0 || r <= 0) return "medium";
@@ -177,7 +251,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     id: "calendar",
     icon: "calendar",
     name: "日历",
-    description: "月历视图,标记固定公历节日(元旦/劳动节/国庆/圣诞等),磁贴与详情翻月同步。",
+    description:
+      "月历视图,标记固定公历节日(元旦/劳动节/国庆/圣诞等),磁贴与详情翻月同步。",
     defaultSize: "medium",
     render: (w) => tile(<CalendarWidget w={w} />),
     renderDetail: (w) => detail(<CalendarDetail w={w} />),
@@ -252,7 +327,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     id: "search",
     icon: "search",
     name: "搜索",
-    description: "直接在磁贴里发起网页搜索，支持多引擎切换。search / google / baidu / bing。",
+    description:
+      "直接在磁贴里发起网页搜索，支持多引擎切换。search / google / baidu / bing。",
     defaultSize: "small",
     editable: true,
     floatingBar: true,
@@ -262,7 +338,8 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     id: "markdown",
     icon: "edit",
     name: "Markdown 笔记",
-    description: "多条笔记本，所见即所得编辑；支持颜色标记、搜索、表格、任务列表。笔记 / 文档 / note / Typora。",
+    description:
+      "多条笔记本，所见即所得编辑；支持颜色标记、搜索、表格、任务列表。笔记 / 文档 / note / Typora。",
     defaultSize: "medium",
     detailWidth: "min(1100px, 94vw)",
     detailMaxHeight: "82vh",
@@ -289,12 +366,12 @@ export const DEMO_CONFIG: Record<string, Record<string, unknown>> = {
       { id: "d4", t: "预约牙医", done: false },
     ],
   },
-  notes: { text: "本周目标\n · 发布 v1.2\n · 和设计同步图标方案\n · 整理账号权限" },
+  notes: {
+    text: "本周目标\n · 发布 v1.2\n · 和设计同步图标方案\n · 整理账号权限",
+  },
   rss: { source: "weibo" },
   music: {
-    playlist: [
-      { id: 0, title: "晴天", artist: "周杰伦", picUrl: "" },
-    ],
+    playlist: [{ id: 0, title: "晴天", artist: "周杰伦", picUrl: "" }],
   },
   iframe: { url: "https://example.com" },
   pomodoro: { workMin: 25, breakMin: 5 },
@@ -306,14 +383,16 @@ export const DEMO_CONFIG: Record<string, Record<string, unknown>> = {
         id: "n1",
         title: "本周目标",
         color: "#f59e0b",
-        content: "# 本周目标\n\n- 发布 v1.2 版本\n- 和设计同步图标方案\n- 整理账号权限",
+        content:
+          "# 本周目标\n\n- 发布 v1.2 版本\n- 和设计同步图标方案\n- 整理账号权限",
         updatedAt: Date.now() - 1000 * 60 * 60 * 2,
       },
       {
         id: "n2",
         title: "读书笔记",
         color: "#10b981",
-        content: "# 深度工作\n\n专注力是这个时代最稀缺的资源，也是最有价值的技能之一。",
+        content:
+          "# 深度工作\n\n专注力是这个时代最稀缺的资源，也是最有价值的技能之一。",
         updatedAt: Date.now() - 1000 * 60 * 60 * 24,
       },
       {

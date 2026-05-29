@@ -22,20 +22,25 @@ export const TodoWidget = ({ w }: WidgetProps<TodoConfig> = {}) => {
   const add = () => {
     const v = txt.trim();
     if (!v) return;
-    const id = (typeof crypto !== "undefined" && "randomUUID" in crypto)
-      ? crypto.randomUUID()
-      : String(Date.now());
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now());
     update({ items: [...items, { id, t: v, done: false }] });
     setTxt("");
   };
   const toggle = (id: string) =>
-    update({ items: items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)) });
+    update({
+      items: items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)),
+    });
   const remove = (id: string) =>
     update({ items: items.filter((i) => i.id !== id) });
   return (
     <div className="widget w-todo">
       <div className="widget-header">
-        <span className="widget-title">待办 · {items.filter((i) => !i.done).length}</span>
+        <span className="widget-title">
+          待办 · {items.filter((i) => !i.done).length}
+        </span>
         <span className="muted mono" style={{ fontSize: 10 }}>
           {items.filter((i) => i.done).length}/{items.length}
         </span>
@@ -49,7 +54,10 @@ export const TodoWidget = ({ w }: WidgetProps<TodoConfig> = {}) => {
               aria-checked={it.done}
               aria-label={(it.done ? "标记未完成：" : "标记完成：") + it.t}
               className={"todo-check" + (it.done ? " done" : "")}
-              onClick={(e) => { e.stopPropagation(); toggle(it.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggle(it.id);
+              }}
               onMouseDown={(e) => e.stopPropagation()}
             />
             <span className="txt">{it.t}</span>
@@ -58,7 +66,10 @@ export const TodoWidget = ({ w }: WidgetProps<TodoConfig> = {}) => {
               className="todo-del"
               aria-label={"删除待办：" + it.t}
               title="删除"
-              onClick={(e) => { e.stopPropagation(); remove(it.id); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                remove(it.id);
+              }}
               onMouseDown={(e) => e.stopPropagation()}
             >
               <Icon name="trash" size={12} />
@@ -75,7 +86,13 @@ export const TodoWidget = ({ w }: WidgetProps<TodoConfig> = {}) => {
           onClick={(e) => e.stopPropagation()}
           placeholder="添加一项…"
         />
-        <button onClick={(e) => { e.stopPropagation(); add(); }} onMouseDown={(e) => e.stopPropagation()}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            add();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Icon name="plus" size={14} />
         </button>
       </div>
@@ -91,12 +108,19 @@ export const TodoDetail = ({ w }: WidgetProps<TodoConfig> = {}) => {
   const add = () => {
     const v = txt.trim();
     if (!v) return;
-    const id = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Date.now());
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now());
     update({ items: [...items, { id, t: v, done: false }] });
     setTxt("");
   };
-  const toggle = (id: string) => update({ items: items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)) });
-  const remove = (id: string) => update({ items: items.filter((i) => i.id !== id) });
+  const toggle = (id: string) =>
+    update({
+      items: items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)),
+    });
+  const remove = (id: string) =>
+    update({ items: items.filter((i) => i.id !== id) });
   const clearDone = () => update({ items: items.filter((i) => !i.done) });
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -106,23 +130,79 @@ export const TodoDetail = ({ w }: WidgetProps<TodoConfig> = {}) => {
           onChange={(e) => setTxt(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="添加一项…"
-          style={{ flex: 1, padding: "8px 12px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "inherit" }}
+          style={{
+            flex: 1,
+            padding: "8px 12px",
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+            color: "inherit",
+          }}
         />
-        <button onClick={add} className="wcc-btn-add" style={{ padding: "8px 14px" }}>添加</button>
+        <button
+          onClick={add}
+          className="wcc-btn-add"
+          style={{ padding: "8px 14px" }}
+        >
+          添加
+        </button>
       </div>
-      <div className="muted" style={{ fontSize: 11 }}>共 {items.length} 项 · 完成 {doneCount} · 剩余 {items.length - doneCount}</div>
-      <div style={{ display: "grid", gap: 6, maxHeight: 360, overflowY: "auto" }}>
-        {items.length === 0 && <div className="muted" style={{ fontSize: 12 }}>还没有任何待办项。</div>}
+      <div className="muted" style={{ fontSize: 11 }}>
+        共 {items.length} 项 · 完成 {doneCount} · 剩余{" "}
+        {items.length - doneCount}
+      </div>
+      <div
+        style={{ display: "grid", gap: 6, maxHeight: 360, overflowY: "auto" }}
+      >
+        {items.length === 0 && (
+          <div className="muted" style={{ fontSize: 12 }}>
+            还没有任何待办项。
+          </div>
+        )}
         {items.map((it) => (
-          <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
-            <input type="checkbox" checked={it.done} onChange={() => toggle(it.id)} />
-            <span style={{ flex: 1, textDecoration: it.done ? "line-through" : undefined, opacity: it.done ? 0.55 : 1 }}>{it.t}</span>
-            <button className="wcc-btn-cancel" style={{ padding: "4px 8px", fontSize: 11 }} onClick={() => remove(it.id)}>删除</button>
+          <div
+            key={it.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 10px",
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 8,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={it.done}
+              onChange={() => toggle(it.id)}
+            />
+            <span
+              style={{
+                flex: 1,
+                textDecoration: it.done ? "line-through" : undefined,
+                opacity: it.done ? 0.55 : 1,
+              }}
+            >
+              {it.t}
+            </span>
+            <button
+              className="wcc-btn-cancel"
+              style={{ padding: "4px 8px", fontSize: 11 }}
+              onClick={() => remove(it.id)}
+            >
+              删除
+            </button>
           </div>
         ))}
       </div>
       {doneCount > 0 && (
-        <button className="wcc-btn-cancel" onClick={clearDone} style={{ alignSelf: "flex-start" }}>清除已完成</button>
+        <button
+          className="wcc-btn-cancel"
+          onClick={clearDone}
+          style={{ alignSelf: "flex-start" }}
+        >
+          清除已完成
+        </button>
       )}
     </div>
   );

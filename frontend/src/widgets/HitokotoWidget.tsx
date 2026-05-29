@@ -3,7 +3,18 @@ import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import type { WidgetProps } from "./types";
 
 export type HitokotoType =
-  | "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l";
+  | "a"
+  | "b"
+  | "c"
+  | "d"
+  | "e"
+  | "f"
+  | "g"
+  | "h"
+  | "i"
+  | "j"
+  | "k"
+  | "l";
 
 interface HitokotoConfig {
   type?: HitokotoType | "";
@@ -54,7 +65,10 @@ export const HitokotoWidget = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
       <div className="widget-header">
         <span className="widget-title">一言</span>
         <button
-          onClick={(e) => { e.stopPropagation(); load(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            load();
+          }}
           onMouseDown={(e) => e.stopPropagation()}
           disabled={loading}
           style={{
@@ -67,13 +81,29 @@ export const HitokotoWidget = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
           }}
           title="换一句"
         >
-          <span style={{ fontSize: 14, display: "inline-block", transform: loading ? "rotate(180deg)" : undefined, transition: "transform 300ms" }}>↻</span>
+          <span
+            style={{
+              fontSize: 14,
+              display: "inline-block",
+              transform: loading ? "rotate(180deg)" : undefined,
+              transition: "transform 300ms",
+            }}
+          >
+            ↻
+          </span>
         </button>
       </div>
       {data ? (
         <>
           {error && (
-            <div className="muted" style={{ fontSize: 11, color: "var(--warn, #d98a00)", marginBottom: 6 }}>
+            <div
+              className="muted"
+              style={{
+                fontSize: 11,
+                color: "var(--warn, #d98a00)",
+                marginBottom: 6,
+              }}
+            >
               {error}
             </div>
           )}
@@ -96,7 +126,9 @@ export const HitokotoWidget = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
           )}
         </>
       ) : (
-        <div className="muted" style={{ fontSize: 12 }}>{loading ? "加载中…" : ""}</div>
+        <div className="muted" style={{ fontSize: 12 }}>
+          {loading ? "加载中…" : ""}
+        </div>
       )}
     </div>
   );
@@ -108,7 +140,8 @@ export const HitokotoDetail = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = async () => {
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const url = config.type
         ? `https://v1.hitokoto.cn/?c=${encodeURIComponent(config.type)}&encode=json`
@@ -121,19 +154,37 @@ export const HitokotoDetail = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
       console.error("Hitokoto load failed", e);
       setData({ hitokoto: "生活明朗，万物可爱。", from: "NavHub" });
       setError("一言加载失败，已显示离线文案");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => { load();   }, [config.type]);
+  useEffect(() => {
+    load();
+  }, [config.type]);
   return (
     <div style={{ display: "grid", gap: 20, padding: "20px 0" }}>
       {data ? (
         <>
           {error && (
-            <div className="muted" style={{ fontSize: 12, color: "var(--warn, #d98a00)", textAlign: "center" }}>
+            <div
+              className="muted"
+              style={{
+                fontSize: 12,
+                color: "var(--warn, #d98a00)",
+                textAlign: "center",
+              }}
+            >
               {error}
             </div>
           )}
-          <div style={{ fontSize: 22, lineHeight: 1.7, textAlign: "center", letterSpacing: "0.02em" }}>
+          <div
+            style={{
+              fontSize: 22,
+              lineHeight: 1.7,
+              textAlign: "center",
+              letterSpacing: "0.02em",
+            }}
+          >
             「{data.hitokoto}」
           </div>
           {(data.from_who || data.from) && (
@@ -143,10 +194,19 @@ export const HitokotoDetail = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
           )}
         </>
       ) : (
-        <div className="muted" style={{ fontSize: 13, textAlign: "center" }}>{loading ? "加载中…" : ""}</div>
+        <div className="muted" style={{ fontSize: 13, textAlign: "center" }}>
+          {loading ? "加载中…" : ""}
+        </div>
       )}
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <button className="wcc-btn-add" style={{ padding: "8px 22px" }} onClick={load} disabled={loading}>换一句</button>
+        <button
+          className="wcc-btn-add"
+          style={{ padding: "8px 22px" }}
+          onClick={load}
+          disabled={loading}
+        >
+          换一句
+        </button>
       </div>
     </div>
   );

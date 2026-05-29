@@ -41,23 +41,54 @@ export function RenameIconModal({
       title="重命名图标"
       overlayClassName="wcc-backdrop"
       className="wcc-modal glass"
-      contentStyle={{ width: 400, height: 'auto' }}
+      contentStyle={{ width: 400, height: "auto" }}
     >
-        <div className="wcc-head">
-          <div className="wcc-tabs">
-            <span className="active">重命名图标</span>
-          </div>
-          <button className="modal-close" onClick={onClose} style={{background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-soft)'}}>×</button>
+      <div className="wcc-head">
+        <div className="wcc-tabs">
+          <span className="active">重命名图标</span>
         </div>
-        <form className="wcc-body" onSubmit={handleSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="rename-icon-name">新名称</label>
-            <input id="rename-icon-name" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="输入图标名称" />
-          </div>
-          <button type="submit" className="wcc-btn-add" disabled={saving} style={{ alignSelf: 'flex-end', marginTop: 8 }}>
-            {saving ? "保存中..." : "保存修改"}
-          </button>
-        </form>
+        <button
+          className="modal-close"
+          onClick={onClose}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--text-soft)",
+          }}
+        >
+          ×
+        </button>
+      </div>
+      <form
+        className="wcc-body"
+        onSubmit={handleSubmit}
+        style={{
+          padding: 24,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="rename-icon-name">新名称</label>
+          <input
+            id="rename-icon-name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="输入图标名称"
+          />
+        </div>
+        <button
+          type="submit"
+          className="wcc-btn-add"
+          disabled={saving}
+          style={{ alignSelf: "flex-end", marginTop: 8 }}
+        >
+          {saving ? "保存中..." : "保存修改"}
+        </button>
+      </form>
     </Modal>
   );
 }

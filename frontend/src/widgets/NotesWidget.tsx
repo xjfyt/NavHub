@@ -9,8 +9,11 @@ interface NotesConfig {
 const DEFAULTS: NotesConfig = { text: "" };
 
 export const NotesWidget = ({ w }: WidgetProps<NotesConfig> = {}) => {
-  const { config, update, saving, savedAt, saveError } = useWidgetConfig<NotesConfig>(w, DEFAULTS);
-  const [indicator, setIndicator] = useState<"idle" | "saving" | "saved">("idle");
+  const { config, update, saving, savedAt, saveError } =
+    useWidgetConfig<NotesConfig>(w, DEFAULTS);
+  const [indicator, setIndicator] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
 
   useEffect(() => {
     if (saving) {
@@ -36,7 +39,12 @@ export const NotesWidget = ({ w }: WidgetProps<NotesConfig> = {}) => {
     <div className="widget w-notes">
       <div className="widget-header">
         <span className="widget-title">便签</span>
-        <span className="muted mono" style={{ fontSize: 10, color: saveError ? "#ff6b6b" : undefined }}>{hint}</span>
+        <span
+          className="muted mono"
+          style={{ fontSize: 10, color: saveError ? "#ff6b6b" : undefined }}
+        >
+          {hint}
+        </span>
       </div>
       <textarea
         value={config.text}
@@ -50,9 +58,16 @@ export const NotesWidget = ({ w }: WidgetProps<NotesConfig> = {}) => {
 };
 
 export const NotesDetail = ({ w }: WidgetProps<NotesConfig> = {}) => {
-  const { config, update, saving, savedAt, saveError } = useWidgetConfig<NotesConfig>(w, DEFAULTS);
+  const { config, update, saving, savedAt, saveError } =
+    useWidgetConfig<NotesConfig>(w, DEFAULTS);
   const words = (config.text || "").length;
-  const state = saveError ? "保存失败" : saving ? "保存中…" : savedAt ? "已保存" : "自动保存";
+  const state = saveError
+    ? "保存失败"
+    : saving
+      ? "保存中…"
+      : savedAt
+        ? "已保存"
+        : "自动保存";
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <textarea
@@ -74,7 +89,14 @@ export const NotesDetail = ({ w }: WidgetProps<NotesConfig> = {}) => {
           resize: "vertical",
         }}
       />
-      <div className="muted" style={{ fontSize: 11, display: "flex", justifyContent: "space-between" }}>
+      <div
+        className="muted"
+        style={{
+          fontSize: 11,
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
         <span>{words} 字</span>
         <span>{state}</span>
       </div>

@@ -12,14 +12,33 @@ export const DEFAULT_ICON_COLORS = [
   { bg: "linear-gradient(145deg, #14b8a6 0%, #0f766e 100%)", name: "teal" },
   { bg: "linear-gradient(145deg, #6366f1 0%, #4338ca 100%)", name: "indigo" },
   { bg: "linear-gradient(145deg, #f43f5e 0%, #be123c 100%)", name: "rose" },
-  { bg: "conic-gradient(from 225deg at 50% 50%, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)", name: "palette" },
+  {
+    bg: "conic-gradient(from 225deg at 50% 50%, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)",
+    name: "palette",
+  },
 ];
 
 export const ROLES = [
-  { id: "superadmin", label: "超级管理员 · Superadmin", desc: "全局唯一 · 独占 SSO 接入配置 · 拥有所有管理员权限" },
-  { id: "admin", label: "管理员 · Admin", desc: "管理用户、分类、权限、系统设置 · 可推送分类给所有用户" },
-  { id: "user", label: "普通用户 · User", desc: "可自建分类、编辑自有图标/壁纸；推送分类仅可改壁纸与侧边栏顺序" },
-  { id: "guest", label: "访客 · Guest", desc: "未登录 · 只读预览 · 禁用所有编辑操作" },
+  {
+    id: "superadmin",
+    label: "超级管理员 · Superadmin",
+    desc: "全局唯一 · 独占 SSO 接入配置 · 拥有所有管理员权限",
+  },
+  {
+    id: "admin",
+    label: "管理员 · Admin",
+    desc: "管理用户、分类、权限、系统设置 · 可推送分类给所有用户",
+  },
+  {
+    id: "user",
+    label: "普通用户 · User",
+    desc: "可自建分类、编辑自有图标/壁纸；推送分类仅可改壁纸与侧边栏顺序",
+  },
+  {
+    id: "guest",
+    label: "访客 · Guest",
+    desc: "未登录 · 只读预览 · 禁用所有编辑操作",
+  },
 ];
 
 // 权限矩阵在 docs/02-permissions.md 维护，前端不再展示

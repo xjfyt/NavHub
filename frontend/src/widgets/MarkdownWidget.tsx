@@ -1,12 +1,23 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
-import { Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx, prosePluginsCtx } from "@milkdown/core";
+import {
+  Editor,
+  rootCtx,
+  defaultValueCtx,
+  editorViewOptionsCtx,
+  prosePluginsCtx,
+} from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { history } from "@milkdown/plugin-history";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { linkSanitizerPlugin } from "./markdownSanitize";
-import { deriveTitle, formatDate, plainPreview, type Note } from "./markdownNote";
+import {
+  deriveTitle,
+  formatDate,
+  plainPreview,
+  type Note,
+} from "./markdownNote";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { Icon } from "../components/Icon";
 import { confirmDialog } from "../components/Dialogs";
@@ -58,7 +69,9 @@ const TileNoteRow = memo(function TileNoteRow({ note }: { note: Note }) {
         <div className="md-note-title">{title}</div>
         {preview && <div className="md-note-preview muted">{preview}</div>}
       </div>
-      <span className="md-note-date muted mono">{formatDate(note.updatedAt)}</span>
+      <span className="md-note-date muted mono">
+        {formatDate(note.updatedAt)}
+      </span>
     </li>
   );
 });
@@ -117,7 +130,10 @@ const MilkdownEditor = ({ initial, onChange }: MilkdownEditorProps) => {
           attributes: { class: "milkdown-root", spellcheck: "false" },
         }));
         // FE-2: 注册链接/图片清洗插件,过滤渲染输出中的危险 href/src(XSS)。
-        ctx.update(prosePluginsCtx, (plugins) => [...plugins, linkSanitizerPlugin()]);
+        ctx.update(prosePluginsCtx, (plugins) => [
+          ...plugins,
+          linkSanitizerPlugin(),
+        ]);
         ctx
           .get(listenerCtx)
           .markdownUpdated((_, md) => onChangeRef.current(md));
@@ -296,7 +312,9 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
       const cur = configRef.current.notes ?? [];
       const next = cur.filter((n) => n.id !== id);
       const nextActive =
-        configRef.current.activeId === id ? next[0]?.id : configRef.current.activeId;
+        configRef.current.activeId === id
+          ? next[0]?.id
+          : configRef.current.activeId;
       commit({ notes: next, activeId: nextActive });
     },
     [commit],
@@ -325,7 +343,9 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
 
   const confirmDelete = useCallback(
     async (id: string, title: string) => {
-      if (await confirmDialog(`删除「${title}」？`, undefined, { danger: true })) {
+      if (
+        await confirmDialog(`删除「${title}」？`, undefined, { danger: true })
+      ) {
         deleteNote(id);
       }
     },

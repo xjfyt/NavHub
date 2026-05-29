@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { api } from "../api";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
-import { cycleLoopMode, fmtTime, nextIndex, seekTime, type LoopMode } from "./musicMath";
+import {
+  cycleLoopMode,
+  fmtTime,
+  nextIndex,
+  seekTime,
+  type LoopMode,
+} from "./musicMath";
 import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
@@ -39,7 +45,8 @@ const LOOP_LABEL: Record<LoopMode, string> = {
 export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
   const { config, update } = useWidgetConfig<MusicConfig>(w, DEFAULTS);
   const playlist = config.playlist ?? [];
-  const current = playlist.find((s) => s.id === config.currentId) ?? playlist[0];
+  const current =
+    playlist.find((s) => s.id === config.currentId) ?? playlist[0];
   const loop: LoopMode = config.loop ?? "all";
   const volume = config.volume ?? 1;
   // WIDGET-7: 小尺寸隐藏剩余时间行与音量滑块,只留封面/标题/进度/播放控制,防溢出。
@@ -85,7 +92,9 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
       a.pause();
       setPlaying(false);
     } else {
-      a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+      a.play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
     }
   };
 
@@ -151,18 +160,25 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
   const onProgPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!seeking) return;
     setSeeking(false);
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
   };
 
   const toggleLoop = () => update({ loop: cycleLoopMode(loop) });
-  const setVolume = (v: number) => update({ volume: Math.min(1, Math.max(0, v)) });
+  const setVolume = (v: number) =>
+    update({ volume: Math.min(1, Math.max(0, v)) });
 
   if (!current) {
     return (
       <div className="widget w-music">
         <div className="widget-header">
           <span className="widget-title">音乐</span>
-          <span className="muted mono" style={{ fontSize: 10 }}>空</span>
+          <span className="muted mono" style={{ fontSize: 10 }}>
+            空
+          </span>
         </div>
         <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
           通过右键菜单的"编辑"搜索并添加歌曲。
@@ -179,12 +195,21 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
         <span className="widget-title">正在播放</span>
         <button
           title={LOOP_LABEL[loop]}
-          onClick={(e) => { e.stopPropagation(); toggleLoop(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleLoop();
+          }}
           onMouseDown={(e) => e.stopPropagation()}
           style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            fontSize: 10, color: loop === "none" ? "var(--text-mute)" : "#fff",
-            background: "none", border: "none", cursor: "pointer", padding: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 10,
+            color: loop === "none" ? "var(--text-mute)" : "#fff",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
           }}
         >
           <Icon name={LOOP_ICON[loop]} size={12} />
@@ -226,7 +251,12 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
         onPointerUp={onProgPointerUp}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div style={{ width: `${progress}%`, transition: seeking ? "none" : undefined }} />
+        <div
+          style={{
+            width: `${progress}%`,
+            transition: seeking ? "none" : undefined,
+          }}
+        />
       </div>
       {tier !== "sm" && (
         <div className="ptime">
@@ -235,15 +265,46 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
         </div>
       )}
       <div className="ctrls">
-        <button onClick={(e) => { e.stopPropagation(); skip(-1); }} onMouseDown={(e) => e.stopPropagation()}><Icon name="skip-prev" size={14} /></button>
-        <button className="play" onClick={(e) => { e.stopPropagation(); toggle(); }} onMouseDown={(e) => e.stopPropagation()}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            skip(-1);
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <Icon name="skip-prev" size={14} />
+        </button>
+        <button
+          className="play"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Icon name={playing ? "pause" : "play-sm"} size={16} />
         </button>
-        <button onClick={(e) => { e.stopPropagation(); skip(1); }} onMouseDown={(e) => e.stopPropagation()}><Icon name="skip-next" size={14} /></button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            skip(1);
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <Icon name="skip-next" size={14} />
+        </button>
       </div>
       {/* WIDGET-4(c): 音量控制(WIDGET-7:小尺寸隐藏以让出垂直空间) */}
       {tier !== "sm" && (
-        <div className="mvol" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+        <div
+          className="mvol"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginTop: 8,
+          }}
+        >
           <Icon name={volume === 0 ? "volume-x" : "volume"} size={12} />
           <input
             type="range"
@@ -264,7 +325,9 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <audio
         ref={audioRef}
-        onTimeUpdate={(e) => { if (!seeking) setPos(e.currentTarget.currentTime); }}
+        onTimeUpdate={(e) => {
+          if (!seeking) setPos(e.currentTarget.currentTime);
+        }}
         onDurationChange={(e) => setDur(e.currentTarget.duration || 0)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -277,16 +340,24 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
 export const MusicDetail = ({ w }: WidgetProps<MusicConfig> = {}) => {
   const { config, update } = useWidgetConfig<MusicConfig>(w, DEFAULTS);
   const playlist = config.playlist ?? [];
-  const current = playlist.find((s) => s.id === config.currentId) ?? playlist[0];
+  const current =
+    playlist.find((s) => s.id === config.currentId) ?? playlist[0];
   const loop: LoopMode = config.loop ?? "all";
   const remove = (id: number) => {
     const next = playlist.filter((s) => s.id !== id);
-    update({ playlist: next, currentId: config.currentId === id ? next[0]?.id : config.currentId });
+    update({
+      playlist: next,
+      currentId: config.currentId === id ? next[0]?.id : config.currentId,
+    });
   };
   const play = (id: number) => update({ currentId: id });
   const toggleLoop = () => update({ loop: cycleLoopMode(loop) });
   if (playlist.length === 0) {
-    return <div className="muted" style={{ fontSize: 13 }}>播放列表为空，请通过右键"编辑"搜索添加歌曲。</div>;
+    return (
+      <div className="muted" style={{ fontSize: 13 }}>
+        播放列表为空，请通过右键"编辑"搜索添加歌曲。
+      </div>
+    );
   }
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -294,21 +365,44 @@ export const MusicDetail = ({ w }: WidgetProps<MusicConfig> = {}) => {
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
           <div
             style={{
-              width: 120, height: 120, borderRadius: 12, flex: "0 0 auto",
+              width: 120,
+              height: 120,
+              borderRadius: 12,
+              flex: "0 0 auto",
               background: current.picUrl
                 ? `center / cover url(${current.picUrl})`
                 : "rgba(255,255,255,0.06)",
             }}
           />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="muted" style={{ fontSize: 11 }}>正在播放</div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis" }}>{current.title}</div>
+            <div className="muted" style={{ fontSize: 11 }}>
+              正在播放
+            </div>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 600,
+                marginTop: 4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {current.title}
+            </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {current.artist}{current.album ? ` · ${current.album}` : ""}
+              {current.artist}
+              {current.album ? ` · ${current.album}` : ""}
             </div>
             <button
               className="wcc-btn-cancel"
-              style={{ marginTop: 10, padding: "4px 10px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}
+              style={{
+                marginTop: 10,
+                padding: "4px 10px",
+                fontSize: 12,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
               onClick={toggleLoop}
             >
               <Icon name={LOOP_ICON[loop]} size={12} />
@@ -318,8 +412,12 @@ export const MusicDetail = ({ w }: WidgetProps<MusicConfig> = {}) => {
         </div>
       )}
       <div>
-        <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>播放列表 · {playlist.length}</div>
-        <div style={{ display: "grid", gap: 4, maxHeight: 300, overflowY: "auto" }}>
+        <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>
+          播放列表 · {playlist.length}
+        </div>
+        <div
+          style={{ display: "grid", gap: 4, maxHeight: 300, overflowY: "auto" }}
+        >
           {playlist.map((s, i) => {
             const active = s.id === current?.id;
             return (
@@ -336,15 +434,33 @@ export const MusicDetail = ({ w }: WidgetProps<MusicConfig> = {}) => {
                 }}
                 onClick={() => play(s.id)}
               >
-                <span className="muted" style={{ fontSize: 11, width: 18, textAlign: "center" }}>{i + 1}</span>
-                <span style={{ flex: 1, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span
+                  className="muted"
+                  style={{ fontSize: 11, width: 18, textAlign: "center" }}
+                >
+                  {i + 1}
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {s.title} <span className="muted">— {s.artist}</span>
                 </span>
                 <button
                   className="wcc-btn-cancel"
                   style={{ padding: "4px 8px", fontSize: 11 }}
-                  onClick={(e) => { e.stopPropagation(); remove(s.id); }}
-                >移除</button>
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(s.id);
+                  }}
+                >
+                  移除
+                </button>
               </div>
             );
           })}

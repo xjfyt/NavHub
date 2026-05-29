@@ -42,7 +42,12 @@ describe("advancePhase", () => {
 
   it("break 结束切回 work,不加轮次", () => {
     const now = 2_000_000;
-    const next = advancePhase("break", { workSec: 1500, breakSec: 300 }, 5, now);
+    const next = advancePhase(
+      "break",
+      { workSec: 1500, breakSec: 300 },
+      5,
+      now,
+    );
     expect(next.phase).toBe("work");
     expect(next.rounds).toBe(5);
     expect(next.endTs).toBe(now + 1500 * 1000);

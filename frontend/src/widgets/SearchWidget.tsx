@@ -26,7 +26,13 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
   const allEngines = useMemo(() => {
     const map = { ...BUILTIN_ENGINES };
     customEngines.forEach((e) => {
-      map[e.id] = { id: e.id, name: e.name, url: e.url, color: e.color, label: e.label };
+      map[e.id] = {
+        id: e.id,
+        name: e.name,
+        url: e.url,
+        color: e.color,
+        label: e.label,
+      };
     });
     return map;
   }, [customEngines]);
@@ -61,13 +67,21 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
 
         {pickerOpen && (
           <>
-            <div className="engine-backdrop" onClick={() => setPickerOpen(false)} />
-            <div className="engine-grid-pop" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="engine-backdrop"
+              onClick={() => setPickerOpen(false)}
+            />
+            <div
+              className="engine-grid-pop"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="engine-grid">
                 {Object.values(allEngines).map((v) => (
                   <div
                     key={v.id}
-                    className={"engine-tile " + (v.id === engineKey ? "active" : "")}
+                    className={
+                      "engine-tile " + (v.id === engineKey ? "active" : "")
+                    }
                     onClick={() => {
                       updateTweaks({ searchEngine: v.id });
                       setPickerOpen(false);

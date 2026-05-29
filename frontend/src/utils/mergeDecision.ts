@@ -30,7 +30,10 @@ export interface MergeDecisionInput {
 }
 
 /** 该重叠率是否已达到「候选合并目标」的门槛(尚未计停留)。 */
-export function meetsMergeOverlap(overlapRatio: number, isFolder: boolean): boolean {
+export function meetsMergeOverlap(
+  overlapRatio: number,
+  isFolder: boolean,
+): boolean {
   if (!Number.isFinite(overlapRatio) || overlapRatio <= 0) return false;
   const threshold = isFolder
     ? MERGE_OVERLAP_THRESHOLD_FOLDER

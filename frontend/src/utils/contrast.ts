@@ -74,6 +74,8 @@ export function contrastRatio(hex1: string, hex2: string): number {
 /** 把 RGB 转回 #rrggbb(小写),便于把合成结果喂给 contrastRatio。 */
 export function rgbToHex(c: RGB): string {
   const h = (n: number) =>
-    Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+    Math.max(0, Math.min(255, Math.round(n)))
+      .toString(16)
+      .padStart(2, "0");
   return `#${h(c.r)}${h(c.g)}${h(c.b)}`;
 }

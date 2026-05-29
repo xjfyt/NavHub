@@ -12,7 +12,11 @@ export function WorkspaceScreen(props: {
   const { me, workspace, onRequestLogin, onLogout, onReload } = props;
 
   return (
-    <WorkspaceProvider initialMe={me} initialWorkspace={workspace} onReload={onReload}>
+    <WorkspaceProvider
+      initialMe={me}
+      initialWorkspace={workspace}
+      onReload={onReload}
+    >
       <Shell onLogout={onLogout} onRequestLogin={onRequestLogin} />
     </WorkspaceProvider>
   );

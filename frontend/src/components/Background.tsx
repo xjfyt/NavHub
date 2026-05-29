@@ -63,7 +63,9 @@ export function Background({
       }, 1000);
     };
     img.onload = () => {
-      const decoded = img.decode ? img.decode().catch(() => undefined) : Promise.resolve();
+      const decoded = img.decode
+        ? img.decode().catch(() => undefined)
+        : Promise.resolve();
       decoded.then(() => window.requestAnimationFrame(finish));
     };
     img.onerror = () => {
@@ -76,7 +78,8 @@ export function Background({
     };
   }, [wallpaperUrl, wallpaperMediaType, loadedUrl]);
 
-  const fullImageReady = wallpaperMediaType === "video" || loadedUrl === wallpaperUrl;
+  const fullImageReady =
+    wallpaperMediaType === "video" || loadedUrl === wallpaperUrl;
   const showPrevious = !!prevUrl && prevUrl !== wallpaperUrl;
   const isCrossfade = !!prevUrl && fullImageReady && prevUrl !== loadedUrl;
 
@@ -86,7 +89,11 @@ export function Background({
 
       {/* Previous wallpaper stays underneath during crossfade */}
       {showWallpaper && showPrevious ? (
-        <div className="bg-wallpaper-frame" key={`prev-${prevUrl}`} style={{ zIndex: 0 }}>
+        <div
+          className="bg-wallpaper-frame"
+          key={`prev-${prevUrl}`}
+          style={{ zIndex: 0 }}
+        >
           <div
             className="bg-wallpaper"
             style={{ backgroundImage: `url("${prevUrl}")` }}
@@ -100,7 +107,10 @@ export function Background({
           when the browser finishes decoding. */}
       {showWallpaper && wallpaperUrl ? (
         <div
-          className={"bg-wallpaper-frame" + (isCrossfade ? " bg-wallpaper-frame-fade" : "")}
+          className={
+            "bg-wallpaper-frame" +
+            (isCrossfade ? " bg-wallpaper-frame-fade" : "")
+          }
           key={`wallpaper-${wallpaperUrl}`}
           style={{ zIndex: 1 }}
         >

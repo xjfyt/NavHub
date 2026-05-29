@@ -19,7 +19,7 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
   const { config } = useWidgetConfig<IframeConfig>(w, DEFAULTS);
   const rawUrl = config.url?.trim();
   // SEC-9: 仅允许 http/https,挡掉 javascript:/data: 等伪协议。
-  const url = rawUrl ? safeHttpUrl(rawUrl) ?? undefined : undefined;
+  const url = rawUrl ? (safeHttpUrl(rawUrl) ?? undefined) : undefined;
   const title = config.title || rawUrl;
 
   // SEC-7: 默认拒绝白名单,精确域名或子域匹配(逻辑已抽到 iframeWhitelist 并单测)。
@@ -36,9 +36,16 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
   const renderFallback = (icon: string, message: string) => (
     <div
       style={{
-        textAlign: "center", padding: 20, color: "var(--text-soft)", fontSize: 13,
-        display: "flex", flexDirection: "column", gap: 12, alignItems: "center",
-        justifyContent: "center", height: "100%",
+        textAlign: "center",
+        padding: 20,
+        color: "var(--text-soft)",
+        fontSize: 13,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100%",
       }}
     >
       <Icon name={icon} size={32} />
@@ -51,9 +58,13 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            fontSize: 12, color: "var(--accent, #8ee6b8)",
-            textDecoration: "none", wordBreak: "break-all",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            color: "var(--accent, #8ee6b8)",
+            textDecoration: "none",
+            wordBreak: "break-all",
           }}
         >
           <Icon name="external" size={12} />
@@ -82,7 +93,10 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
         {url ? (
           isAllowed ? (
             loadFailed ? (
-              renderFallback("info", "该网页无法被嵌入(可能被站点的 X-Frame-Options / CSP 拒绝)。")
+              renderFallback(
+                "info",
+                "该网页无法被嵌入(可能被站点的 X-Frame-Options / CSP 拒绝)。",
+              )
             ) : (
               <iframe
                 src={url}

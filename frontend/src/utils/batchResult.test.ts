@@ -3,11 +3,7 @@ import { summarizeBatch, formatBatchSummary } from "./batchResult";
 
 describe("summarizeBatch", () => {
   it("统计成功/失败数量", () => {
-    const results = [
-      { ok: true },
-      { ok: false, error: "boom" },
-      { ok: true },
-    ];
+    const results = [{ ok: true }, { ok: false, error: "boom" }, { ok: true }];
     const s = summarizeBatch(results);
     expect(s.ok).toBe(2);
     expect(s.fail).toBe(1);
@@ -38,24 +34,32 @@ describe("summarizeBatch", () => {
 
 describe("formatBatchSummary", () => {
   it("全部成功:成功 X", () => {
-    expect(formatBatchSummary({ ok: 3, fail: 0, total: 3, errors: [] })).toBe("成功 3");
+    expect(formatBatchSummary({ ok: 3, fail: 0, total: 3, errors: [] })).toBe(
+      "成功 3",
+    );
   });
 
   it("全部失败:失败 Y", () => {
-    expect(formatBatchSummary({ ok: 0, fail: 2, total: 2, errors: [] })).toBe("失败 2");
+    expect(formatBatchSummary({ ok: 0, fail: 2, total: 2, errors: [] })).toBe(
+      "失败 2",
+    );
   });
 
   it("混合:成功 X，失败 Y", () => {
-    expect(formatBatchSummary({ ok: 2, fail: 1, total: 3, errors: [] })).toBe("成功 2，失败 1");
+    expect(formatBatchSummary({ ok: 2, fail: 1, total: 3, errors: [] })).toBe(
+      "成功 2，失败 1",
+    );
   });
 
   it("空批次返回空字符串", () => {
-    expect(formatBatchSummary({ ok: 0, fail: 0, total: 0, errors: [] })).toBe("");
+    expect(formatBatchSummary({ ok: 0, fail: 0, total: 0, errors: [] })).toBe(
+      "",
+    );
   });
 
   it("可覆盖名词单位(如「张」)", () => {
-    expect(formatBatchSummary({ ok: 2, fail: 1, total: 3, errors: [] }, "张")).toBe(
-      "成功 2 张，失败 1 张",
-    );
+    expect(
+      formatBatchSummary({ ok: 2, fail: 1, total: 3, errors: [] }, "张"),
+    ).toBe("成功 2 张，失败 1 张");
   });
 });

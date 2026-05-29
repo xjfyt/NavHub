@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { DragOverlay } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -56,7 +62,10 @@ export const NavView = ({
   widgets: WidgetView[];
   tweaks: Tweaks;
   setActiveGroup: (id: string) => void;
-  onOpenIcon: (e: React.MouseEvent | React.DragEvent | null, icon: IconView) => void;
+  onOpenIcon: (
+    e: React.MouseEvent | React.DragEvent | null,
+    icon: IconView,
+  ) => void;
   onCtxTile: (e: React.MouseEvent, item: IconView | WidgetView) => void;
   onAddClick: (e: React.MouseEvent) => void;
   onExpandWidget?: (w: WidgetView) => void;
@@ -75,7 +84,9 @@ export const NavView = ({
   const [slideDir, setSlideDir] = useState(0);
   const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
   // UX-19: 拖拽手势首次引导是否已被用户关闭(持久化在 localStorage)。初值从 localStorage 读。
-  const [dragHintDismissed, setDragHintDismissed] = useState(() => readDragHintDismissed());
+  const [dragHintDismissed, setDragHintDismissed] = useState(() =>
+    readDragHintDismissed(),
+  );
   const dismissDragHint = () => {
     setDragHintDismissed(true);
     persistDragHintDismissed();
@@ -107,18 +118,24 @@ export const NavView = ({
   const lastNativeScrollRef = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
     if (tweaks.wheelPage === false) return;
-    const ay = Math.abs(e.deltaY), ax = Math.abs(e.deltaX);
+    const ay = Math.abs(e.deltaY),
+      ax = Math.abs(e.deltaX);
     if (ay < ax) return;
     // 1) 子元素自带滚动条 → 让子元素吃滚轮
     let el = e.target as HTMLElement | null;
     while (el && el !== e.currentTarget) {
       const s = getComputedStyle(el);
-      if ((s.overflowY === "auto" || s.overflowY === "scroll") && el.scrollHeight > el.clientHeight) return;
+      if (
+        (s.overflowY === "auto" || s.overflowY === "scroll") &&
+        el.scrollHeight > el.clientHeight
+      )
+        return;
       el = el.parentElement;
     }
     // 2) 当前分类自身还能滚 → 走原生滚动，重置翻页累积
     const container = e.currentTarget as HTMLDivElement;
-    const canScrollDown = container.scrollTop + container.clientHeight < container.scrollHeight - 1;
+    const canScrollDown =
+      container.scrollTop + container.clientHeight < container.scrollHeight - 1;
     const canScrollUp = container.scrollTop > 0;
     if ((e.deltaY > 0 && canScrollDown) || (e.deltaY < 0 && canScrollUp)) {
       wheelAccumRef.current = 0;
@@ -145,14 +162,22 @@ export const NavView = ({
     setActiveGroup(groups[nextIdx].id);
   };
 
-  const currentIcons = useMemo(() => icons.filter((i) => i.groupId === activeGroup), [icons, activeGroup]);
-  const currentWidgets = useMemo(() => widgets.filter((w) => w.groupId === activeGroup), [widgets, activeGroup]);
+  const currentIcons = useMemo(
+    () => icons.filter((i) => i.groupId === activeGroup),
+    [icons, activeGroup],
+  );
+  const currentWidgets = useMemo(
+    () => widgets.filter((w) => w.groupId === activeGroup),
+    [widgets, activeGroup],
+  );
 
   // 新增图标的 pop-in 动画
   useEffect(() => {
     const currentIds = new Set(currentIcons.map((i) => i.id));
     const added: string[] = [];
-    currentIds.forEach((id) => { if (!prevIconIdsRef.current.has(id)) added.push(id); });
+    currentIds.forEach((id) => {
+      if (!prevIconIdsRef.current.has(id)) added.push(id);
+    });
     prevIconIdsRef.current = currentIds;
     if (added.length === 0) return;
     setNewIconIds(new Set(added));
@@ -196,11 +221,13 @@ export const NavView = ({
   const handlersRef = useRef({ onOpenIcon, onCtxTile, onExpandWidget });
   handlersRef.current = { onOpenIcon, onCtxTile, onExpandWidget };
   const handleOpenIcon = useCallback(
-    (e: React.MouseEvent, x: IconView) => handlersRef.current.onOpenIcon(e as React.MouseEvent, x),
+    (e: React.MouseEvent, x: IconView) =>
+      handlersRef.current.onOpenIcon(e as React.MouseEvent, x),
     [],
   );
   const handleCtxTile = useCallback(
-    (e: React.MouseEvent, item: IconView | WidgetView) => handlersRef.current.onCtxTile(e, item),
+    (e: React.MouseEvent, item: IconView | WidgetView) =>
+      handlersRef.current.onCtxTile(e, item),
     [],
   );
   const handleExpandWidget = useCallback((w: WidgetView) => {
@@ -242,7 +269,11 @@ export const NavView = ({
           const dataStr = e.dataTransfer.getData("application/x-navhub-item");
           if (!dataStr) return;
           const data = JSON.parse(dataStr);
-          if (data.type === "folder-item" && data.folderId && onExtractFolderItem) {
+          if (
+            data.type === "folder-item" &&
+            data.folderId &&
+            onExtractFolderItem
+          ) {
             e.preventDefault();
             onExtractFolderItem(data.folderId, data.id);
           }
@@ -254,7 +285,11 @@ export const NavView = ({
       <div
         className={
           "nav-area" +
-          (slideDir === 1 ? " slide-in-up" : slideDir === -1 ? " slide-in-down" : "")
+          (slideDir === 1
+            ? " slide-in-up"
+            : slideDir === -1
+              ? " slide-in-down"
+              : "")
         }
         style={{
           maxWidth:
@@ -265,7 +300,11 @@ export const NavView = ({
       >
         {/* 顶部保留区：永远渲染，用 min-height 把搜索条空间撑开。
             分类内即使没有搜索小组件，这块区域也是空白保留，不允许图标进入。 */}
-        <div className={"nav-top-reserve" + (floatingBars.length > 0 ? " has-bar" : "")}>
+        <div
+          className={
+            "nav-top-reserve" + (floatingBars.length > 0 ? " has-bar" : "")
+          }
+        >
           {floatingBars.map((fb) => {
             const r = WIDGET_REGISTRY[fb.widget];
             if (!r) return null;
@@ -320,15 +359,23 @@ export const NavView = ({
             </button>
           </div>
         ) : null}
-        <SortableContext items={gridItems.map((it) => it.id)} strategy={rectSortingStrategy}>
+        <SortableContext
+          items={gridItems.map((it) => it.id)}
+          strategy={rectSortingStrategy}
+        >
           {emptyState ? (
             <div className="nav-empty">
               <div className="nav-empty-glyph">
-                <Icon name={emptyState === "no-groups" ? "grid" : "plus"} size={30} />
+                <Icon
+                  name={emptyState === "no-groups" ? "grid" : "plus"}
+                  size={30}
+                />
               </div>
               {emptyState === "no-groups" ? (
                 <>
-                  <div className="nav-empty-title">{t("nav.empty.noGroupsTitle")}</div>
+                  <div className="nav-empty-title">
+                    {t("nav.empty.noGroupsTitle")}
+                  </div>
                   <div className="nav-empty-desc">
                     {editable
                       ? t("nav.empty.noGroupsDescEditable")
@@ -349,7 +396,9 @@ export const NavView = ({
                 </>
               ) : (
                 <>
-                  <div className="nav-empty-title">{t("nav.empty.noItemsTitle")}</div>
+                  <div className="nav-empty-title">
+                    {t("nav.empty.noItemsTitle")}
+                  </div>
                   <div className="nav-empty-desc">
                     {editable
                       ? t("nav.empty.noItemsDescEditable")
@@ -371,7 +420,11 @@ export const NavView = ({
               )}
             </div>
           ) : null}
-          <div className={"nav-grid" + (useContentVisibility ? " nav-grid-cv" : "")}>
+          <div
+            className={
+              "nav-grid" + (useContentVisibility ? " nav-grid-cv" : "")
+            }
+          >
             {gridItems.map((item) => (
               <NavGridCell
                 key={item.id}
@@ -400,7 +453,9 @@ export const NavView = ({
         </SortableContext>
         <DragOverlay>
           {activeItem ? (
-            <div className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview`}>
+            <div
+              className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview`}
+            >
               {renderItemContent(activeItem)}
             </div>
           ) : null}
@@ -435,7 +490,11 @@ const NavCellContentImpl = ({
     const r = WIDGET_REGISTRY[w.widget];
     if (!r) {
       return (
-        <div className="widget-slot widget-invalid" data-nav-item-id={w.id} data-nav-item-type="widget">
+        <div
+          className="widget-slot widget-invalid"
+          data-nav-item-id={w.id}
+          data-nav-item-type="widget"
+        >
           无效小组件
         </div>
       );
@@ -446,14 +505,23 @@ const NavCellContentImpl = ({
         className={"widget-slot" + (canExpand ? " expandable" : "")}
         data-nav-item-id={w.id}
         data-nav-item-type="widget"
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onCtxTile(e, w); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onCtxTile(e, w);
+        }}
       >
         <div
           className="widget-content"
           onClick={
             canExpand
               ? (e) => {
-                  if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [data-nobubble]")) return;
+                  if (
+                    (e.target as HTMLElement).closest(
+                      "a, button, input, textarea, select, [data-nobubble]",
+                    )
+                  )
+                    return;
                   onExpandWidget(w);
                 }
               : undefined
@@ -503,8 +571,14 @@ const NavGridCellImpl = ({
   onCtxTile: (e: React.MouseEvent, item: IconView | WidgetView) => void;
   onExpandWidget: (w: WidgetView) => void;
 }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: item.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -514,7 +588,10 @@ const NavGridCellImpl = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`nav-cell w-${item.span.w} h-${item.span.h}` + (isDragging ? " is-dragging" : "")}
+      className={
+        `nav-cell w-${item.span.w} h-${item.span.h}` +
+        (isDragging ? " is-dragging" : "")
+      }
       {...attributes}
       {...listeners}
     >

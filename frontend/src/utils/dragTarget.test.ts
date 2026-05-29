@@ -66,9 +66,10 @@ describe("resolveDragAction", () => {
   });
 
   it("合并未确认 + over 是另一个元素 → reorder", () => {
-    expect(
-      resolveDragAction({ ...base, overId: "icon-2" }),
-    ).toEqual({ type: "reorder", overId: "icon-2" });
+    expect(resolveDragAction({ ...base, overId: "icon-2" })).toEqual({
+      type: "reorder",
+      overId: "icon-2",
+    });
   });
 
   it("widget(非图标)即便 mergeConfirmed 也不合并，走 reorder", () => {
@@ -85,14 +86,18 @@ describe("resolveDragAction", () => {
   });
 
   it("over 是自己 → none", () => {
-    expect(
-      resolveDragAction({ ...base, overId: "icon-1" }),
-    ).toEqual({ type: "none" });
+    expect(resolveDragAction({ ...base, overId: "icon-1" })).toEqual({
+      type: "none",
+    });
   });
 
   it("没有 over → none", () => {
-    expect(resolveDragAction({ ...base, overId: null })).toEqual({ type: "none" });
-    expect(resolveDragAction({ ...base, overId: undefined })).toEqual({ type: "none" });
+    expect(resolveDragAction({ ...base, overId: null })).toEqual({
+      type: "none",
+    });
+    expect(resolveDragAction({ ...base, overId: undefined })).toEqual({
+      type: "none",
+    });
   });
 
   it("合并已确认但目标就是自己 → 退化为 reorder/none(不自合并)", () => {

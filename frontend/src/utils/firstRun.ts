@@ -22,7 +22,9 @@ export interface DefaultCredsHintInput {
   dismissed: boolean;
 }
 
-export function shouldShowDefaultCredsHint(input: DefaultCredsHintInput): boolean {
+export function shouldShowDefaultCredsHint(
+  input: DefaultCredsHintInput,
+): boolean {
   if (!input.passwordEnabled) return false;
   if (input.dismissed) return false;
   // 仅在「零次尝试」时展示；负数 / NaN 等异常值一律按非首次处理（保守不泄露）。
@@ -30,11 +32,14 @@ export function shouldShowDefaultCredsHint(input: DefaultCredsHintInput): boolea
 }
 
 /** localStorage key：记录用户已关闭首次使用提示。 */
-export const DEFAULT_CREDS_HINT_DISMISSED_KEY = "navhub_first_run_hint_dismissed";
+export const DEFAULT_CREDS_HINT_DISMISSED_KEY =
+  "navhub_first_run_hint_dismissed";
 
 export function readDefaultCredsHintDismissed(): boolean {
   try {
-    return window.localStorage.getItem(DEFAULT_CREDS_HINT_DISMISSED_KEY) === "1";
+    return (
+      window.localStorage.getItem(DEFAULT_CREDS_HINT_DISMISSED_KEY) === "1"
+    );
   } catch {
     return false;
   }

@@ -1,7 +1,11 @@
 import React, { useRef } from "react";
 import { IconView, FolderItemView } from "../types";
 import { Icon } from "./Icon";
-import { parseBuiltinIconUrl, resolveSiteLink, safeHttpUrl } from "../utils/iconSources";
+import {
+  parseBuiltinIconUrl,
+  resolveSiteLink,
+  safeHttpUrl,
+} from "../utils/iconSources";
 import { safeIconColor } from "../utils/iconColor";
 
 type TileRenderable = Pick<
@@ -76,11 +80,18 @@ const IconTileImpl = ({
           onClick={(e) => {
             // 仅拦截「左键纯点击且伴随拖拽位移」的情况:中键/带修饰键的点击交给浏览器
             // 原生处理(新标签页 / 后台标签页),不可在此 preventDefault。
-            if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            if (
+              e.button === 0 &&
+              !e.metaKey &&
+              !e.ctrlKey &&
+              !e.shiftKey &&
+              !e.altKey
+            ) {
               const start = downPosRef.current;
               if (start) {
                 const moved =
-                  Math.abs(e.clientX - start.x) > 4 || Math.abs(e.clientY - start.y) > 4;
+                  Math.abs(e.clientX - start.x) > 4 ||
+                  Math.abs(e.clientY - start.y) > 4;
                 if (moved) {
                   e.preventDefault();
                   return;
@@ -109,10 +120,12 @@ const IconTileImpl = ({
 
   // Default to "plain" for image icons so the favicon fills the tile like a native app icon.
   // "framed" (padded inside a colored box) can still be forced via explicit imageStyle setting.
-  const imageMode = icon.imageUrl ? (icon.imageStyle || "plain") : "framed";
+  const imageMode = icon.imageUrl ? icon.imageStyle || "plain" : "framed";
   const radiusClass =
     icon.imageUrl && icon.size !== "circle-size"
-      ? (icon.imageRadius === "square" ? "radius-square" : "radius-rounded")
+      ? icon.imageRadius === "square"
+        ? "radius-square"
+        : "radius-rounded"
       : "";
   const fontSize = icon.fontSize || "md";
   const textAlign = icon.textAlign || "center";
@@ -121,10 +134,13 @@ const IconTileImpl = ({
   const renderGlyph = (item: TileRenderable, fallback?: string) => {
     const builtin = parseBuiltinIconUrl(item.imageUrl);
     const plain = !!item.imageUrl && (item.imageStyle || "plain") === "plain";
-    const shapeClass = item.imageRadius === "square" ? "radius-square" : "radius-rounded";
+    const shapeClass =
+      item.imageRadius === "square" ? "radius-square" : "radius-rounded";
     if (builtin) {
       return (
-        <span className={"tile-image-glyph " + shapeClass + (plain ? " plain" : "")}>
+        <span
+          className={"tile-image-glyph " + shapeClass + (plain ? " plain" : "")}
+        >
           <Icon name={builtin} size="100%" stroke={1.8} />
         </span>
       );
@@ -132,7 +148,9 @@ const IconTileImpl = ({
     if (item.imageUrl) {
       return (
         <img
-          className={"tile-image " + shapeClass + (plain ? " plain" : " framed")}
+          className={
+            "tile-image " + shapeClass + (plain ? " plain" : " framed")
+          }
           src={item.imageUrl}
           alt={item.name || ""}
           draggable={false}
@@ -153,73 +171,160 @@ const IconTileImpl = ({
       const maxItems = isLg4 ? 4 : 9;
       const displayItems = items.slice(0, maxItems);
       return (
-        <div className={`tile folder-grid lg ${isLg9 ? "grid-9" : "grid-4"}`} onClick={e => onClick?.(e, icon)} onContextMenu={ctx} {...(dragProps || {})}>
+        <div
+          className={`tile folder-grid lg ${isLg9 ? "grid-9" : "grid-4"}`}
+          onClick={(e) => onClick?.(e, icon)}
+          onContextMenu={ctx}
+          {...(dragProps || {})}
+        >
           <div className="folder-grid-square">
-          <div className="folder-grid-bg" />
-          <div className="folder-grid-items">
-            {Array.from({ length: maxItems }).map((_, i) => {
-              const it = displayItems[i];
-              const isLast = i === maxItems - 1;
+            <div className="folder-grid-bg" />
+            <div className="folder-grid-items">
+              {Array.from({ length: maxItems }).map((_, i) => {
+                const it = displayItems[i];
+                const isLast = i === maxItems - 1;
 
-              if (isLast) {
-                const overflowStart = maxItems - 1;
-                const overflowItems = items.slice(overflowStart, overflowStart + 4);
-                
-                if (overflowItems.length === 0) {
-                  return <div key={"e"+i} className="fg-item empty" onClick={e => { e.stopPropagation(); onClick?.(e, icon); }} onContextMenu={ctx} />;
-                }
-                
-                return (
-                  <div key="expand" className="fg-item expander" onClick={e => { e.stopPropagation(); onClick?.(e, icon); }} onContextMenu={ctx}>
-                    <div className="folder-overflow-grid" style={{ width: '100%', height: '100%', borderRadius: isLg9 ? '12px' : '20px' }}>
-                      {overflowItems.map((ov, idx) => {
-                        const c = safeIconColor(ov.color);
-                        const plain = !!ov.imageUrl && (ov.imageStyle || "plain") === "plain";
-                        const shapeClass = ov.imageRadius === "square" ? "radius-square " : "radius-rounded ";
-                        return (
+                if (isLast) {
+                  const overflowStart = maxItems - 1;
+                  const overflowItems = items.slice(
+                    overflowStart,
+                    overflowStart + 4,
+                  );
+
+                  if (overflowItems.length === 0) {
+                    return (
+                      <div
+                        key={"e" + i}
+                        className="fg-item empty"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onClick?.(e, icon);
+                        }}
+                        onContextMenu={ctx}
+                      />
+                    );
+                  }
+
+                  return (
+                    <div
+                      key="expand"
+                      className="fg-item expander"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClick?.(e, icon);
+                      }}
+                      onContextMenu={ctx}
+                    >
+                      <div
+                        className="folder-overflow-grid"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          borderRadius: isLg9 ? "12px" : "20px",
+                        }}
+                      >
+                        {overflowItems.map((ov, idx) => {
+                          const c = safeIconColor(ov.color);
+                          const plain =
+                            !!ov.imageUrl &&
+                            (ov.imageStyle || "plain") === "plain";
+                          const shapeClass =
+                            ov.imageRadius === "square"
+                              ? "radius-square "
+                              : "radius-rounded ";
+                          return (
+                            <div
+                              key={ov.id || idx}
+                              className={
+                                "folder-mini " +
+                                shapeClass +
+                                (plain ? "plain-image" : "")
+                              }
+                              style={{
+                                background: plain ? "transparent" : c.bg,
+                              }}
+                            >
+                              {renderGlyph(
+                                ov,
+                                ov.letter || ov.name?.[0] || "?",
+                              )}
+                            </div>
+                          );
+                        })}
+                        {Array.from({
+                          length: Math.max(0, 4 - overflowItems.length),
+                        }).map((_, idx) => (
                           <div
-                            key={ov.id || idx}
-                            className={"folder-mini " + shapeClass + (plain ? "plain-image" : "")}
-                            style={{ background: plain ? "transparent" : c.bg }}
-                          >
-                            {renderGlyph(ov, ov.letter || ov.name?.[0] || "?")}
-                          </div>
-                        );
-                      })}
-                      {Array.from({ length: Math.max(0, 4 - overflowItems.length) }).map((_, idx) => (
-                        <div key={"e" + idx} className="folder-mini" style={{ background: 'transparent' }} />
-                      ))}
+                            key={"e" + idx}
+                            className="folder-mini"
+                            style={{ background: "transparent" }}
+                          />
+                        ))}
+                      </div>
                     </div>
+                  );
+                }
+
+                if (!it) {
+                  return (
+                    <div
+                      key={"e" + i}
+                      className="fg-item empty"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onClick?.(e, icon);
+                      }}
+                      onContextMenu={ctx}
+                    />
+                  );
+                }
+
+                const c = safeIconColor(it.color);
+                const plain =
+                  !!it.imageUrl && (it.imageStyle || "plain") === "plain";
+                const shapeClass =
+                  it.imageRadius === "square"
+                    ? "radius-square"
+                    : "radius-rounded";
+
+                const isLink = !!it.url && it.url !== "#";
+                const Inner = (
+                  <div
+                    className={
+                      "fi-icon " +
+                      shapeClass +
+                      (plain ? " has-plain-image" : "")
+                    }
+                    style={{ background: plain ? "transparent" : c.bg }}
+                  >
+                    {renderGlyph(it, it.letter || it.name?.[0] || "?")}
                   </div>
                 );
-              }
 
-              if (!it) {
-                return <div key={"e"+i} className="fg-item empty" onClick={e => { e.stopPropagation(); onClick?.(e, icon); }} onContextMenu={ctx} />;
-              }
-
-              const c = safeIconColor(it.color);
-              const plain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
-              const shapeClass = it.imageRadius === "square" ? "radius-square" : "radius-rounded";
-              
-              const isLink = !!it.url && it.url !== "#";
-              const Inner = (
-                <div className={"fi-icon " + shapeClass + (plain ? " has-plain-image" : "")} style={{ background: plain ? "transparent" : c.bg }}>
-                   {renderGlyph(it, it.letter || it.name?.[0] || "?")}
-                </div>
-              );
-
-              return (
-                <div key={it.id} className="fg-item direct-link" style={{ WebkitUserDrag: 'none' } as React.CSSProperties & { WebkitUserDrag?: string }} onClick={e => {
-                  e.stopPropagation();
-                  if (isLink) { const safe = safeHttpUrl(it.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); }
-                  else onClick?.(e, icon);
-                }} onContextMenu={ctx}>
-                  {Inner}
-                </div>
-              );
-            })}
-          </div>
+                return (
+                  <div
+                    key={it.id}
+                    className="fg-item direct-link"
+                    style={
+                      { WebkitUserDrag: "none" } as React.CSSProperties & {
+                        WebkitUserDrag?: string;
+                      }
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isLink) {
+                        const safe = safeHttpUrl(it.url);
+                        if (safe)
+                          window.open(safe, "_blank", "noopener,noreferrer");
+                      } else onClick?.(e, icon);
+                    }}
+                    onContextMenu={ctx}
+                  >
+                    {Inner}
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div className={labelClass}>{icon.name}</div>
         </div>
@@ -230,17 +335,26 @@ const IconTileImpl = ({
     // 用真正的 <button type="button"> 以获得原生键盘激活(Enter/Space)与语义。
     // (lg / lg-9 文件夹网格内含可点击的直达项/展开器,嵌套进 button 属无效 HTML,故保持 div。)
     return (
-      <button type="button" className={"tile folder sq"} {...(dragProps || {})} onClick={e => onClick?.(e, icon)} onContextMenu={ctx}>
+      <button
+        type="button"
+        className={"tile folder sq"}
+        {...(dragProps || {})}
+        onClick={(e) => onClick?.(e, icon)}
+        onContextMenu={ctx}
+      >
         <div className="tile-icon">
           {items.slice(0, 4).map((it, i) => {
             const c = safeIconColor(it.color);
-            const folderPlain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
+            const folderPlain =
+              !!it.imageUrl && (it.imageStyle || "plain") === "plain";
             return (
               <div
                 key={it.id || i}
                 className={
                   "folder-mini " +
-                  (it.imageRadius === "square" ? "radius-square " : "radius-rounded ") +
+                  (it.imageRadius === "square"
+                    ? "radius-square "
+                    : "radius-rounded ") +
                   (folderPlain ? "plain-image" : "")
                 }
                 style={{ background: folderPlain ? "transparent" : c.bg }}
@@ -254,14 +368,20 @@ const IconTileImpl = ({
       </button>
     );
   }
-  
+
   if (icon.size === "lg") {
     return renderSurface(
       "tile lg",
       <>
         <div
-          className={"tile-icon " + radiusClass + (imageMode === "plain" ? " has-plain-image" : "")}
-          style={{ background: imageMode === "plain" ? "transparent" : color.bg }}
+          className={
+            "tile-icon " +
+            radiusClass +
+            (imageMode === "plain" ? " has-plain-image" : "")
+          }
+          style={{
+            background: imageMode === "plain" ? "transparent" : color.bg,
+          }}
         >
           {renderGlyph(icon)}
         </div>
@@ -275,8 +395,14 @@ const IconTileImpl = ({
       "tile pill-size",
       <>
         <div
-          className={"tile-icon " + radiusClass + (imageMode === "plain" ? " has-plain-image" : "")}
-          style={{ background: imageMode === "plain" ? "transparent" : color.bg }}
+          className={
+            "tile-icon " +
+            radiusClass +
+            (imageMode === "plain" ? " has-plain-image" : "")
+          }
+          style={{
+            background: imageMode === "plain" ? "transparent" : color.bg,
+          }}
         >
           {renderGlyph(icon)}
         </div>
@@ -293,8 +419,14 @@ const IconTileImpl = ({
       "tile circle-size",
       <>
         <div
-          className={"tile-icon " + radiusClass + (imageMode === "plain" ? " has-plain-image" : "")}
-          style={{ background: imageMode === "plain" ? "transparent" : color.bg }}
+          className={
+            "tile-icon " +
+            radiusClass +
+            (imageMode === "plain" ? " has-plain-image" : "")
+          }
+          style={{
+            background: imageMode === "plain" ? "transparent" : color.bg,
+          }}
         >
           {renderGlyph(icon)}
         </div>
@@ -307,7 +439,11 @@ const IconTileImpl = ({
     "tile sq",
     <>
       <div
-        className={"tile-icon " + radiusClass + (imageMode === "plain" ? " has-plain-image" : "")}
+        className={
+          "tile-icon " +
+          radiusClass +
+          (imageMode === "plain" ? " has-plain-image" : "")
+        }
         style={{ background: imageMode === "plain" ? "transparent" : color.bg }}
       >
         {renderGlyph(icon)}

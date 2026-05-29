@@ -43,13 +43,21 @@ describe("formatClock", () => {
   });
 
   it("时区切换:东京(UTC+9)同一时刻为 22 点", () => {
-    const r = formatClock(t, { hour12: false, timeZone: "Asia/Tokyo", seconds: false });
+    const r = formatClock(t, {
+      hour12: false,
+      timeZone: "Asia/Tokyo",
+      seconds: false,
+    });
     expect(r).toContain("22");
     expect(r).toContain("05");
   });
 
   it("seconds=false 时不含秒(09 不出现)", () => {
-    const r = formatClock(t, { hour12: false, timeZone: "UTC", seconds: false });
+    const r = formatClock(t, {
+      hour12: false,
+      timeZone: "UTC",
+      seconds: false,
+    });
     expect(r).toContain("13");
     expect(r).toContain("05");
     expect(r).not.toContain("09");

@@ -7,7 +7,9 @@ describe("isUrlAllowed (SEC-7 白名单)", () => {
   });
 
   it("精确域名命中", () => {
-    expect(isUrlAllowed("https://example.com/path", ["example.com"])).toBe(true);
+    expect(isUrlAllowed("https://example.com/path", ["example.com"])).toBe(
+      true,
+    );
   });
 
   it("子域命中(.example.com)", () => {
@@ -16,7 +18,9 @@ describe("isUrlAllowed (SEC-7 白名单)", () => {
   });
 
   it("后缀绕过被挡(evil-example.com 不应命中 example.com)", () => {
-    expect(isUrlAllowed("https://evil-example.com", ["example.com"])).toBe(false);
+    expect(isUrlAllowed("https://evil-example.com", ["example.com"])).toBe(
+      false,
+    );
     expect(isUrlAllowed("https://notexample.com", ["example.com"])).toBe(false);
   });
 

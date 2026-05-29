@@ -46,7 +46,9 @@ export function buildAuditParams(state: AuditFilterState): AuditParams {
   if (!Number.isFinite(limit) || limit < 1) limit = DEFAULT_AUDIT_PAGE_SIZE;
   if (limit > AUDIT_MAX_LIMIT) limit = AUDIT_MAX_LIMIT;
 
-  const page = Number.isFinite(state.page) ? Math.max(0, Math.floor(state.page)) : 0;
+  const page = Number.isFinite(state.page)
+    ? Math.max(0, Math.floor(state.page))
+    : 0;
   const offset = page * limit;
 
   const params: AuditParams = { limit, offset };

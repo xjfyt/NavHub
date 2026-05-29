@@ -44,9 +44,14 @@ export interface ShellMenuCtx {
 }
 
 const widgetSizeToConfig = (sz: WidgetSizeId) => WIDGET_SIZE_DIMENSIONS[sz];
-const widgetConfigToSize = (span?: number | null, row?: number | null): WidgetSizeId =>
-  snapWidgetSize(span, row);
-const WIDGET_SIZE_OPTIONS = WIDGET_SIZE_ORDER.map((id) => ({ id, label: WIDGET_SIZE_LABEL[id] }));
+const widgetConfigToSize = (
+  span?: number | null,
+  row?: number | null,
+): WidgetSizeId => snapWidgetSize(span, row);
+const WIDGET_SIZE_OPTIONS = WIDGET_SIZE_ORDER.map((id) => ({
+  id,
+  label: WIDGET_SIZE_LABEL[id],
+}));
 
 /** Right-click on empty workspace area. */
 export function buildBlankCtx(ctx: ShellMenuCtx, e: React.MouseEvent) {
@@ -55,18 +60,40 @@ export function buildBlankCtx(ctx: ShellMenuCtx, e: React.MouseEvent) {
   if (ctx.isGuest) {
     ctx.openCtx(x, y, [
       { icon: "sparkle", label: "随机壁纸", onClick: ctx.randomWallpaper },
-      { icon: "search", label: "搜索图标", shortcut: "⌘+F", onClick: () => ctx.setIconSearchOpen(true) },
+      {
+        icon: "search",
+        label: "搜索图标",
+        shortcut: "⌘+F",
+        onClick: () => ctx.setIconSearchOpen(true),
+      },
     ]);
     return;
   }
   const editable = ctx.canEditGroup(ctx.activeGroup);
   const items: CtxItem[] = [];
   if (editable) {
-    items.push({ icon: "plus", label: "添加图标", onClick: () => ctx.setAddIconOpen(true) });
-    items.push({ icon: "grid", label: "添加小组件...", onClick: () => ctx.setCatalogOpen(true) });
+    items.push({
+      icon: "plus",
+      label: "添加图标",
+      onClick: () => ctx.setAddIconOpen(true),
+    });
+    items.push({
+      icon: "grid",
+      label: "添加小组件...",
+      onClick: () => ctx.setCatalogOpen(true),
+    });
   }
-  items.push({ icon: "sparkle", label: "随机壁纸", onClick: ctx.randomWallpaper });
-  if (editable) items.push({ icon: "edit", label: "编辑主页", onClick: () => ctx.setTweaksOpen(true) });
+  items.push({
+    icon: "sparkle",
+    label: "随机壁纸",
+    onClick: ctx.randomWallpaper,
+  });
+  if (editable)
+    items.push({
+      icon: "edit",
+      label: "编辑主页",
+      onClick: () => ctx.setTweaksOpen(true),
+    });
   items.push({ divider: true });
   items.push({
     icon: "search",
@@ -78,13 +105,21 @@ export function buildBlankCtx(ctx: ShellMenuCtx, e: React.MouseEvent) {
 }
 
 /** Right-click on a tile (icon or widget). */
-export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconView | WidgetView) {
+export function buildTileCtx(
+  ctx: ShellMenuCtx,
+  e: React.MouseEvent,
+  item: IconView | WidgetView,
+) {
   const x = e.clientX;
   const y = e.clientY;
   if (ctx.isGuest) {
     if (!("widget" in item)) {
       ctx.openCtx(x, y, [
-        { icon: "external", label: "打开", onClick: () => ctx.openIcon(item as IconView) },
+        {
+          icon: "external",
+          label: "打开",
+          onClick: () => ctx.openIcon(item as IconView),
+        },
       ]);
     }
     return;
@@ -95,14 +130,19 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
     const items: CtxItem[] = [];
     if (editable) {
       if (WIDGET_REGISTRY[w.widget]?.editable) {
-        items.push({ icon: "settings", label: "编辑", onClick: () => ctx.setEditingWidgetId(w.id) });
+        items.push({
+          icon: "settings",
+          label: "编辑",
+          onClick: () => ctx.setEditingWidgetId(w.id),
+        });
         items.push({ divider: true });
       }
       items.push({
         kind: "size",
         current: widgetConfigToSize(w.wSpan, w.wRow),
         sizes: WIDGET_SIZE_OPTIONS,
-        onPick: (sz) => void ctx.updateWidget(w.id, widgetSizeToConfig(sz as WidgetSizeId)),
+        onPick: (sz) =>
+          void ctx.updateWidget(w.id, widgetSizeToConfig(sz as WidgetSizeId)),
       });
       items.push({ divider: true });
       items.push({
@@ -119,16 +159,33 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
   if (ic.isFolder) {
     if (!editable) return;
     ctx.openCtx(x, y, [
-      { icon: "square", label: "小", onClick: () => void ctx.updateIcon(ic.id, { size: "sq" }) },
-      { icon: "grid", label: "四宫格", onClick: () => void ctx.updateIcon(ic.id, { size: "lg-4" }) },
-      { icon: "grid-3x3", label: "九宫格", onClick: () => void ctx.updateIcon(ic.id, { size: "lg-9" }) },
+      {
+        icon: "square",
+        label: "小",
+        onClick: () => void ctx.updateIcon(ic.id, { size: "sq" }),
+      },
+      {
+        icon: "grid",
+        label: "四宫格",
+        onClick: () => void ctx.updateIcon(ic.id, { size: "lg-4" }),
+      },
+      {
+        icon: "grid-3x3",
+        label: "九宫格",
+        onClick: () => void ctx.updateIcon(ic.id, { size: "lg-9" }),
+      },
       { divider: true },
       {
         icon: "trash",
         label: "删除",
         danger: true,
         onClick: async () => {
-          if (await confirmDialog(`删除文件夹"${ic.name}"?`, undefined, { danger: true })) void ctx.deleteIcon(ic.id);
+          if (
+            await confirmDialog(`删除文件夹"${ic.name}"?`, undefined, {
+              danger: true,
+            })
+          )
+            void ctx.deleteIcon(ic.id);
         },
       },
     ]);
@@ -143,16 +200,27 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
         if (safe) window.location.href = safe;
       },
     },
-    { icon: "external", label: "新标签页打开", onClick: () => ctx.openIcon(ic) },
+    {
+      icon: "external",
+      label: "新标签页打开",
+      onClick: () => ctx.openIcon(ic),
+    },
   ];
   if (editable) {
-    items.push({ icon: "edit", label: "编辑图标", onClick: () => ctx.setAddIconOpen(ic) });
+    items.push({
+      icon: "edit",
+      label: "编辑图标",
+      onClick: () => ctx.setAddIconOpen(ic),
+    });
     items.push({
       icon: "trash",
       label: "删除图标",
       danger: true,
       onClick: async () => {
-        if (await confirmDialog(`删除"${ic.name}"?`, undefined, { danger: true })) void ctx.deleteIcon(ic.id);
+        if (
+          await confirmDialog(`删除"${ic.name}"?`, undefined, { danger: true })
+        )
+          void ctx.deleteIcon(ic.id);
       },
     });
   }
@@ -160,7 +228,11 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
 }
 
 /** Right-click on a group entry in the sidebar. */
-export function buildGroupCtx(ctx: ShellMenuCtx, e: React.MouseEvent, groupId: string) {
+export function buildGroupCtx(
+  ctx: ShellMenuCtx,
+  e: React.MouseEvent,
+  groupId: string,
+) {
   if (ctx.isGuest) return;
   const g = ctx.groups.find((x) => x.id === groupId);
   if (!g) return;
@@ -178,7 +250,12 @@ export function buildGroupCtx(ctx: ShellMenuCtx, e: React.MouseEvent, groupId: s
       label: "删除分组",
       danger: true,
       onClick: async () => {
-        if (await confirmDialog(`删除"${g.name}"及其所有图标/组件?`, undefined, { danger: true })) void ctx.deleteGroup(groupId);
+        if (
+          await confirmDialog(`删除"${g.name}"及其所有图标/组件?`, undefined, {
+            danger: true,
+          })
+        )
+          void ctx.deleteGroup(groupId);
       },
     });
   }
@@ -189,7 +266,11 @@ export function buildGroupCtx(ctx: ShellMenuCtx, e: React.MouseEvent, groupId: s
 export function buildSideCtx(ctx: ShellMenuCtx, e: React.MouseEvent) {
   const items: CtxItem[] = [];
   if (!ctx.isGuest) {
-    items.push({ icon: "plus", label: "新建分组", onClick: () => ctx.setAddCatOpen(true) });
+    items.push({
+      icon: "plus",
+      label: "新建分组",
+      onClick: () => ctx.setAddCatOpen(true),
+    });
     items.push({ divider: true });
   }
   items.push({

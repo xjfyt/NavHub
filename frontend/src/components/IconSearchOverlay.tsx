@@ -38,13 +38,7 @@ export const IconSearchOverlay = ({
   const rows = icons
     .map((icon, index) => {
       const group = groupMap.get(icon.groupId);
-      const haystack = [
-        icon.name,
-        icon.sub,
-        icon.title,
-        icon.url,
-        group?.name,
-      ]
+      const haystack = [icon.name, icon.sub, icon.title, icon.url, group?.name]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -57,9 +51,13 @@ export const IconSearchOverlay = ({
     })
     .filter((row) => row.matched)
     .sort((a, b) => {
-      if (sort === "name") return a.icon.name.localeCompare(b.icon.name, "zh-CN");
+      if (sort === "name")
+        return a.icon.name.localeCompare(b.icon.name, "zh-CN");
       if (sort === "group") {
-        const byGroup = (a.group?.name || "").localeCompare(b.group?.name || "", "zh-CN");
+        const byGroup = (a.group?.name || "").localeCompare(
+          b.group?.name || "",
+          "zh-CN",
+        );
         if (byGroup !== 0) return byGroup;
         return a.icon.name.localeCompare(b.icon.name, "zh-CN");
       }
@@ -84,7 +82,10 @@ export const IconSearchOverlay = ({
       role="dialog"
       aria-modal="true"
     >
-      <div className="icon-search-shell glass-strong" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="icon-search-shell glass-strong"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="icon-search-top">
           <div className="icon-search-input-wrap">
             <Icon name="search" size={26} stroke={2} />
@@ -103,19 +104,25 @@ export const IconSearchOverlay = ({
             </div>
             <div className="icon-search-sort">
               <button
-                className={"icon-search-sort-btn" + (sort === "manual" ? " active" : "")}
+                className={
+                  "icon-search-sort-btn" + (sort === "manual" ? " active" : "")
+                }
                 onClick={() => setSort("manual")}
               >
                 当前顺序
               </button>
               <button
-                className={"icon-search-sort-btn" + (sort === "name" ? " active" : "")}
+                className={
+                  "icon-search-sort-btn" + (sort === "name" ? " active" : "")
+                }
                 onClick={() => setSort("name")}
               >
                 名称
               </button>
               <button
-                className={"icon-search-sort-btn" + (sort === "group" ? " active" : "")}
+                className={
+                  "icon-search-sort-btn" + (sort === "group" ? " active" : "")
+                }
                 onClick={() => setSort("group")}
               >
                 分类
@@ -128,7 +135,9 @@ export const IconSearchOverlay = ({
           {rows.length === 0 ? (
             <div className="icon-search-empty">
               <div className="icon-search-empty-title">没有匹配的图标</div>
-              <div className="icon-search-empty-sub">试试名称、分类、备注或链接关键字。</div>
+              <div className="icon-search-empty-sub">
+                试试名称、分类、备注或链接关键字。
+              </div>
             </div>
           ) : (
             <div className="icon-search-grid">
@@ -157,13 +166,18 @@ const SearchResultCard = ({
   groupName: string;
   onClick: () => void;
 }) => {
-  const color = DEFAULT_ICON_COLORS[icon.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
+  const color =
+    DEFAULT_ICON_COLORS[icon.color % DEFAULT_ICON_COLORS.length] ||
+    DEFAULT_ICON_COLORS[0];
   const text = icon.letter || icon.name?.[0] || "?";
   const builtin = parseBuiltinIconUrl(icon.imageUrl);
-  const plainImage = !!icon.imageUrl && (icon.imageStyle || "plain") === "plain";
+  const plainImage =
+    !!icon.imageUrl && (icon.imageStyle || "plain") === "plain";
   const radiusClass =
     icon.size !== "circle-size"
-      ? (icon.imageRadius === "square" ? "radius-square" : "radius-rounded")
+      ? icon.imageRadius === "square"
+        ? "radius-square"
+        : "radius-rounded"
       : "";
 
   return (
@@ -181,9 +195,17 @@ const SearchResultCard = ({
             <Icon name={builtin} size={28} stroke={1.8} />
           </div>
         ) : icon.imageUrl && plainImage ? (
-          <img className={"icon-search-art-image plain " + radiusClass} src={icon.imageUrl} alt={icon.name || ""} />
+          <img
+            className={"icon-search-art-image plain " + radiusClass}
+            src={icon.imageUrl}
+            alt={icon.name || ""}
+          />
         ) : icon.imageUrl ? (
-          <img className={"icon-search-art-image framed " + radiusClass} src={icon.imageUrl} alt={icon.name || ""} />
+          <img
+            className={"icon-search-art-image framed " + radiusClass}
+            src={icon.imageUrl}
+            alt={icon.name || ""}
+          />
         ) : (
           <div
             className={"icon-search-art icon-search-art-" + (icon.size || "sq")}

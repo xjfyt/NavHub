@@ -263,12 +263,19 @@ export function App() {
         <div className="nh-boot-text">
           {conn.online ? "无法连接服务器" : "网络已断开"}
         </div>
-        <div className="nh-boot-text" style={{ fontSize: 13, opacity: 0.7, marginTop: 6 }}>
+        <div
+          className="nh-boot-text"
+          style={{ fontSize: 13, opacity: 0.7, marginTop: 6 }}
+        >
           {conn.online
             ? "后端暂时不可用，请稍后重试。"
             : "请检查网络连接后重试。"}
         </div>
-        <button className="nh-btn-ghost" onClick={() => void boot()} style={{ marginTop: 14 }}>
+        <button
+          className="nh-btn-ghost"
+          onClick={() => void boot()}
+          style={{ marginTop: 14 }}
+        >
           重试连接
         </button>
       </div>

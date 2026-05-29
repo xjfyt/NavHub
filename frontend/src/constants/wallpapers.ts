@@ -124,12 +124,20 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
     name: "Landscape Mountains Nature Lake",
     provider: "Wikimedia Commons",
     providerUrl: "https://commons.wikimedia.org/",
-    sourceUrl: commonsFilePage("Landscape-mountains-nature-lake (24326735085).jpg"),
+    sourceUrl: commonsFilePage(
+      "Landscape-mountains-nature-lake (24326735085).jpg",
+    ),
     license: "CC0",
     author: "pixellaphoto",
     mediaType: "image",
-    assetUrl: commonsFileImage("Landscape-mountains-nature-lake (24326735085).jpg", 1920),
-    thumbUrl: commonsFileImage("Landscape-mountains-nature-lake (24326735085).jpg", 640),
+    assetUrl: commonsFileImage(
+      "Landscape-mountains-nature-lake (24326735085).jpg",
+      1920,
+    ),
+    thumbUrl: commonsFileImage(
+      "Landscape-mountains-nature-lake (24326735085).jpg",
+      640,
+    ),
   },
   {
     id: "gangapurna-lake",
@@ -139,8 +147,14 @@ export const WALLPAPER_PRESETS: WallpaperPreset[] = [
     sourceUrl: commonsFilePage("Morning Reflection at Gangapurna Lake.jpg"),
     license: "CC0",
     mediaType: "image",
-    assetUrl: commonsFileImage("Morning Reflection at Gangapurna Lake.jpg", 1920),
-    thumbUrl: commonsFileImage("Morning Reflection at Gangapurna Lake.jpg", 640),
+    assetUrl: commonsFileImage(
+      "Morning Reflection at Gangapurna Lake.jpg",
+      1920,
+    ),
+    thumbUrl: commonsFileImage(
+      "Morning Reflection at Gangapurna Lake.jpg",
+      640,
+    ),
   },
   {
     id: "aurora-blankets-earth",
@@ -276,7 +290,10 @@ export const MAX_SHUFFLE_INTERVAL_SEC = 30 * 24 * 60 * 60;
 export function normalizeShuffleInterval(value: unknown): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return DEFAULT_SHUFFLE_INTERVAL_SEC;
-  return Math.max(MIN_SHUFFLE_INTERVAL_SEC, Math.min(MAX_SHUFFLE_INTERVAL_SEC, Math.round(n)));
+  return Math.max(
+    MIN_SHUFFLE_INTERVAL_SEC,
+    Math.min(MAX_SHUFFLE_INTERVAL_SEC, Math.round(n)),
+  );
 }
 
 export type ShuffleIntervalUnit = "s" | "m" | "h" | "d";
@@ -289,7 +306,10 @@ const UNIT_SECONDS: Record<ShuffleIntervalUnit, number> = {
 };
 
 /** 把秒拆成最大整除的（数值，单位）展示形式 */
-export function decomposeShuffleInterval(totalSec: number): { value: number; unit: ShuffleIntervalUnit } {
+export function decomposeShuffleInterval(totalSec: number): {
+  value: number;
+  unit: ShuffleIntervalUnit;
+} {
   const sec = normalizeShuffleInterval(totalSec);
   const units: ShuffleIntervalUnit[] = ["d", "h", "m", "s"];
   for (const u of units) {
@@ -301,7 +321,10 @@ export function decomposeShuffleInterval(totalSec: number): { value: number; uni
   return { value: sec, unit: "s" };
 }
 
-export function composeShuffleInterval(value: number, unit: ShuffleIntervalUnit): number {
+export function composeShuffleInterval(
+  value: number,
+  unit: ShuffleIntervalUnit,
+): number {
   const factor = UNIT_SECONDS[unit];
   const total = Math.max(1, Math.round(value)) * factor;
   return normalizeShuffleInterval(total);
@@ -309,7 +332,12 @@ export function composeShuffleInterval(value: number, unit: ShuffleIntervalUnit)
 
 export function formatShuffleInterval(totalSec: number): string {
   const { value, unit } = decomposeShuffleInterval(totalSec);
-  const label: Record<ShuffleIntervalUnit, string> = { s: "秒", m: "分钟", h: "小时", d: "天" };
+  const label: Record<ShuffleIntervalUnit, string> = {
+    s: "秒",
+    m: "分钟",
+    h: "小时",
+    d: "天",
+  };
   return `${value} ${label[unit]}`;
 }
 
@@ -335,7 +363,9 @@ export function buildWallpaperTweaks(preset: WallpaperPreset): Partial<Tweaks> {
   };
 }
 
-export function randomWallpaperPreset(excludeId?: string | null): WallpaperPreset {
+export function randomWallpaperPreset(
+  excludeId?: string | null,
+): WallpaperPreset {
   const pool = WALLPAPER_PRESETS.filter((item) => item.id !== excludeId);
   return pool[Math.floor(Math.random() * pool.length)] || WALLPAPER_PRESETS[0];
 }

@@ -65,9 +65,8 @@ export function ContextMenu({
   // A11Y-5 / UX-25:菜单打开后聚焦第一个 menuitem。
   useEffect(() => {
     const id = window.setTimeout(() => {
-      const first = menuRef.current?.querySelector<HTMLElement>(
-        '[role="menuitem"]',
-      );
+      const first =
+        menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
       first?.focus();
     }, 0);
     return () => window.clearTimeout(id);

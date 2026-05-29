@@ -25,7 +25,13 @@ export interface GroupView {
   readOnly: boolean;
 }
 
-export type IconSize = "sq" | "pill-size" | "circle-size" | "lg" | "lg-4" | "lg-9";
+export type IconSize =
+  | "sq"
+  | "pill-size"
+  | "circle-size"
+  | "lg"
+  | "lg-4"
+  | "lg-9";
 export type IconImageStyle = "framed" | "plain";
 export type IconImageRadius = "rounded" | "square";
 export type IconFontSize = "sm" | "md" | "lg";

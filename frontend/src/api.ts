@@ -23,7 +23,10 @@ import type {
   IconAssetSourceView,
   AdminPaginatedIconAssets,
 } from "./types";
-import { withTimeoutSignal, DEFAULT_REQUEST_TIMEOUT_MS } from "./utils/abortTimeout";
+import {
+  withTimeoutSignal,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+} from "./utils/abortTimeout";
 
 export interface WeatherHour {
   h: string;
@@ -57,7 +60,6 @@ export interface NeteaseSong {
   durationMs?: number;
 }
 
-
 class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -68,10 +70,7 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData)) {
     if (!headers.has("content-type")) {
@@ -82,7 +81,10 @@ async function request<T>(
   // init.signal(如组件卸载时的 AbortController)合并,任一触发即中止 fetch,
   // 避免后端挂起时 UI 永久卡死。
   // QUAL-14: 复用命名常量,避免 15s 超时这个有含义的数字散落成裸字面量。
-  const { signal, cleanup, didTimeout } = withTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, init.signal);
+  const { signal, cleanup, didTimeout } = withTimeoutSignal(
+    DEFAULT_REQUEST_TIMEOUT_MS,
+    init.signal,
+  );
   let res: Response;
   try {
     res = await fetch(path, {
@@ -191,10 +193,16 @@ export const api = {
       body: JSON.stringify({ username, password }),
     });
   },
-  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
     await request("/api/auth/password/change", {
       method: "POST",
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
     });
   },
   async logout(): Promise<void> {
@@ -205,7 +213,10 @@ export const api = {
   async me(): Promise<Me> {
     return request("/api/me");
   },
-  async patchMe(patch: { avatarUrl?: string | null; displayName?: string | null }): Promise<Me> {
+  async patchMe(patch: {
+    avatarUrl?: string | null;
+    displayName?: string | null;
+  }): Promise<Me> {
     return request("/api/me", {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -284,7 +295,15 @@ export const api = {
       body: JSON.stringify({ order }),
     });
   },
-  async reorderGroupItems(id: string, order: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]): Promise<void> {
+  async reorderGroupItems(
+    id: string,
+    order: {
+      id: string;
+      type: "icon" | "widget";
+      x: number | null;
+      y: number | null;
+    }[],
+  ): Promise<void> {
     await request(`/api/groups/${id}/reorder-items`, {
       method: "POST",
       body: JSON.stringify({ order }),
@@ -292,7 +311,9 @@ export const api = {
   },
 
   // ---------- Icons ----------
-  async createIcon(body: Partial<IconView> & { groupId: string; name: string }): Promise<IconView> {
+  async createIcon(
+    body: Partial<IconView> & { groupId: string; name: string },
+  ): Promise<IconView> {
     return request("/api/icons", {
       method: "POST",
       body: JSON.stringify({
@@ -351,7 +372,10 @@ export const api = {
       method: "POST",
     });
   },
-  async extractFolderItem(folderId: string, itemId: string): Promise<IconView[]> {
+  async extractFolderItem(
+    folderId: string,
+    itemId: string,
+  ): Promise<IconView[]> {
     return request(`/api/icons/${folderId}/extract-item/${itemId}`, {
       method: "POST",
     });
@@ -382,7 +406,10 @@ export const api = {
       }),
     });
   },
-  async updateWidget(id: string, body: Partial<WidgetView>): Promise<WidgetView> {
+  async updateWidget(
+    id: string,
+    body: Partial<WidgetView>,
+  ): Promise<WidgetView> {
     return request(`/api/widgets/${id}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -427,7 +454,15 @@ export const api = {
   },
 
   // ---------- Remote Wallpapers ----------
-  async wallpapers(params: { limit?: number; offset?: number; mediaType?: string; sourceId?: string; q?: string } = {}): Promise<PaginatedWallpapers> {
+  async wallpapers(
+    params: {
+      limit?: number;
+      offset?: number;
+      mediaType?: string;
+      sourceId?: string;
+      q?: string;
+    } = {},
+  ): Promise<PaginatedWallpapers> {
     const qs = new URLSearchParams();
     if (params.limit != null) qs.set("limit", String(params.limit));
     if (params.offset != null) qs.set("offset", String(params.offset));
@@ -442,15 +477,21 @@ export const api = {
   },
 
   // ---------- Upload / favicon ----------
-  async upload(file: File, purpose: string = 'icon'): Promise<{ url: string; filename: string; size: number; sha256?: string }> {
+  async upload(
+    file: File,
+    purpose: string = "icon",
+  ): Promise<{ url: string; filename: string; size: number; sha256?: string }> {
     const fd = new FormData();
     fd.append("file", file);
-    return request(`/api/upload?purpose=${purpose}`, { method: "POST", body: fd });
+    return request(`/api/upload?purpose=${purpose}`, {
+      method: "POST",
+      body: fd,
+    });
   },
   faviconUrl(url: string, size = 64): string {
     return `/api/favicon?url=${encodeURIComponent(url)}&sz=${size}`;
   },
-  async faviconSearch(url: string): Promise<{url: string; source: string}[]> {
+  async faviconSearch(url: string): Promise<{ url: string; source: string }[]> {
     return request(`/api/favicon/search?url=${encodeURIComponent(url)}`);
   },
 
@@ -477,13 +518,16 @@ export const api = {
     async deleteUser(id: string): Promise<void> {
       await request(`/api/admin/users/${id}`, { method: "DELETE" });
     },
-    async pushGroup(id: string, body: {
-      targetType: "all" | "role" | "user";
-      targetRole?: string | null;
-      targetUserId?: string | null;
-      pushAllowEdit?: boolean;
-    }): Promise<void> {
-      await request(`/api/admin/groups/${id}/push`, { 
+    async pushGroup(
+      id: string,
+      body: {
+        targetType: "all" | "role" | "user";
+        targetRole?: string | null;
+        targetUserId?: string | null;
+        pushAllowEdit?: boolean;
+      },
+    ): Promise<void> {
+      await request(`/api/admin/groups/${id}/push`, {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -500,9 +544,14 @@ export const api = {
         body: JSON.stringify(data),
       });
     },
-    async audit(params: { kind?: string; q?: string; limit?: number; offset?: number } = {}): Promise<
-      AuditEntry[]
-    > {
+    async audit(
+      params: {
+        kind?: string;
+        q?: string;
+        limit?: number;
+        offset?: number;
+      } = {},
+    ): Promise<AuditEntry[]> {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params)) {
         if (v != null && v !== "") qs.set(k, String(v));
@@ -534,7 +583,9 @@ export const api = {
     async deleteMessage(id: string): Promise<void> {
       await request(`/api/admin/messages/${id}`, { method: "DELETE" });
     },
-    async patchSettings(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async patchSettings(
+      body: Record<string, unknown>,
+    ): Promise<Record<string, unknown>> {
       return request("/api/admin/settings", {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -550,14 +601,16 @@ export const api = {
     }> {
       return request("/api/admin/sso");
     },
-    async patchSso(body: Partial<{
-      enabled: boolean;
-      issuer: string;
-      clientId: string;
-      clientSecret: string;
-      redirectUri: string;
-      scopes: string[];
-    }>): Promise<unknown> {
+    async patchSso(
+      body: Partial<{
+        enabled: boolean;
+        issuer: string;
+        clientId: string;
+        clientSecret: string;
+        redirectUri: string;
+        scopes: string[];
+      }>,
+    ): Promise<unknown> {
       return request("/api/admin/sso", {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -566,7 +619,10 @@ export const api = {
     async iconLibraries(): Promise<IconLibraryView[]> {
       return request("/api/admin/icon-libraries");
     },
-    async createIconLibrary(body: { name: string; description?: string }): Promise<IconLibraryView> {
+    async createIconLibrary(body: {
+      name: string;
+      description?: string;
+    }): Promise<IconLibraryView> {
       return request("/api/admin/icon-libraries", {
         method: "POST",
         body: JSON.stringify(body),
@@ -575,16 +631,30 @@ export const api = {
     async deleteIconLibrary(id: string): Promise<void> {
       await request(`/api/admin/icon-libraries/${id}`, { method: "DELETE" });
     },
-    async exportIconLibrary(id: string): Promise<{ library: IconLibraryView; icons: LibraryIconView[] }> {
+    async exportIconLibrary(
+      id: string,
+    ): Promise<{ library: IconLibraryView; icons: LibraryIconView[] }> {
       return request(`/api/admin/icon-libraries/${id}/export`);
     },
-    async importIconLibrary(data: { library: IconLibraryView; icons: LibraryIconView[] }): Promise<void> {
+    async importIconLibrary(data: {
+      library: IconLibraryView;
+      icons: LibraryIconView[];
+    }): Promise<void> {
       await request(`/api/admin/icon-libraries/import`, {
         method: "POST",
         body: JSON.stringify(data),
       });
     },
-    async addIconsToLibrary(libraryId: string, items: { sha256: string; name: string; url: string; size: number; contentType: string }[]): Promise<void> {
+    async addIconsToLibrary(
+      libraryId: string,
+      items: {
+        sha256: string;
+        name: string;
+        url: string;
+        size: number;
+        contentType: string;
+      }[],
+    ): Promise<void> {
       await request(`/api/admin/icon-libraries/${libraryId}/icons`, {
         method: "POST",
         body: JSON.stringify(items),
@@ -598,7 +668,10 @@ export const api = {
       if (search) q.append("search", search);
       return request(`/api/admin/icons?${q.toString()}`);
     },
-    async updateLibraryIcon(id: string, name: string): Promise<LibraryIconView> {
+    async updateLibraryIcon(
+      id: string,
+      name: string,
+    ): Promise<LibraryIconView> {
       return request(`/api/admin/icons/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ name }),
@@ -627,16 +700,19 @@ export const api = {
         body: JSON.stringify(body),
       });
     },
-    async updateWallpaperSource(id: string, body: Partial<{
-      name: string;
-      siteUrl: string;
-      enabled: boolean;
-      fetchBatchSize: number;
-      cacheTtlHours: number;
-      fetchIntervalHours: number;
-      sourceType: string;
-      scraperType: string;
-    }>): Promise<WallpaperSourceView> {
+    async updateWallpaperSource(
+      id: string,
+      body: Partial<{
+        name: string;
+        siteUrl: string;
+        enabled: boolean;
+        fetchBatchSize: number;
+        cacheTtlHours: number;
+        fetchIntervalHours: number;
+        sourceType: string;
+        scraperType: string;
+      }>,
+    ): Promise<WallpaperSourceView> {
       return request(`/api/admin/wallpaper-sources/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -646,7 +722,9 @@ export const api = {
       await request(`/api/admin/wallpaper-sources/${id}`, { method: "DELETE" });
     },
     async triggerWallpaperFetch(id: string): Promise<{ status: string }> {
-      return request(`/api/admin/wallpaper-sources/${id}/fetch`, { method: "POST" });
+      return request(`/api/admin/wallpaper-sources/${id}/fetch`, {
+        method: "POST",
+      });
     },
     async uploadWallpaper(
       sourceId: string,
@@ -655,9 +733,20 @@ export const api = {
     ): Promise<AdminRemoteWallpaper> {
       const fd = new FormData();
       fd.append("file", file);
-      return uploadFormWithProgress(`/api/admin/wallpaper-sources/${sourceId}/upload`, fd, onProgress);
+      return uploadFormWithProgress(
+        `/api/admin/wallpaper-sources/${sourceId}/upload`,
+        fd,
+        onProgress,
+      );
     },
-    async remoteWallpapers(params: { sourceId?: string; limit?: number; offset?: number; search?: string } = {}): Promise<AdminPaginatedWallpapers> {
+    async remoteWallpapers(
+      params: {
+        sourceId?: string;
+        limit?: number;
+        offset?: number;
+        search?: string;
+      } = {},
+    ): Promise<AdminPaginatedWallpapers> {
       const qs = new URLSearchParams();
       if (params.sourceId) qs.set("sourceId", params.sourceId);
       if (params.limit != null) qs.set("limit", String(params.limit));
@@ -665,7 +754,10 @@ export const api = {
       const tail = qs.toString() ? `?${qs}` : "";
       return request(`/api/admin/remote-wallpapers${tail}`);
     },
-    async updateRemoteWallpaper(id: string, body: { title?: string }): Promise<AdminRemoteWallpaper> {
+    async updateRemoteWallpaper(
+      id: string,
+      body: { title?: string },
+    ): Promise<AdminRemoteWallpaper> {
       return request(`/api/admin/remote-wallpapers/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -694,35 +786,57 @@ export const api = {
         body: JSON.stringify(body),
       });
     },
-    async updateIconAssetSource(id: string, body: Partial<{
-      name: string;
-      siteUrl: string;
-      enabled: boolean;
-      fetchBatchSize: number;
-      cacheTtlHours: number;
-      fetchIntervalHours: number;
-      sourceType: string;
-      scraperType: string;
-    }>): Promise<IconAssetSourceView> {
+    async updateIconAssetSource(
+      id: string,
+      body: Partial<{
+        name: string;
+        siteUrl: string;
+        enabled: boolean;
+        fetchBatchSize: number;
+        cacheTtlHours: number;
+        fetchIntervalHours: number;
+        sourceType: string;
+        scraperType: string;
+      }>,
+    ): Promise<IconAssetSourceView> {
       return request(`/api/admin/icon-asset-sources/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
       });
     },
     async deleteIconAssetSource(id: string): Promise<void> {
-      await request(`/api/admin/icon-asset-sources/${id}`, { method: "DELETE" });
+      await request(`/api/admin/icon-asset-sources/${id}`, {
+        method: "DELETE",
+      });
     },
     async triggerIconAssetFetch(id: string): Promise<{ status: string }> {
-      return request(`/api/admin/icon-asset-sources/${id}/fetch`, { method: "POST" });
+      return request(`/api/admin/icon-asset-sources/${id}/fetch`, {
+        method: "POST",
+      });
     },
-    async addManualIconsToSource(sourceId: string, items: { title?: string, originalUrl: string, storageKey: string, fileSizeBytes: number }[]): Promise<{ added: number }> {
+    async addManualIconsToSource(
+      sourceId: string,
+      items: {
+        title?: string;
+        originalUrl: string;
+        storageKey: string;
+        fileSizeBytes: number;
+      }[],
+    ): Promise<{ added: number }> {
       // UX-18: 后端返回真实新增数 { added: n }(去重后实际入库的条数)。
       return request(`/api/admin/icon-asset-sources/${sourceId}/icons`, {
         method: "POST",
         body: JSON.stringify(items),
       });
     },
-    async remoteIconAssets(params: { sourceId?: string; limit?: number; offset?: number; search?: string } = {}): Promise<AdminPaginatedIconAssets> {
+    async remoteIconAssets(
+      params: {
+        sourceId?: string;
+        limit?: number;
+        offset?: number;
+        search?: string;
+      } = {},
+    ): Promise<AdminPaginatedIconAssets> {
       const qs = new URLSearchParams();
       if (params.sourceId) qs.set("sourceId", params.sourceId);
       if (params.limit != null) qs.set("limit", String(params.limit));
@@ -732,7 +846,9 @@ export const api = {
       return request(`/api/admin/remote-icon-assets${tail}`);
     },
     async deleteRemoteIconAsset(id: string): Promise<void> {
-      await request(`/api/admin/remote-icon-assets/${id}`, { method: "DELETE" });
+      await request(`/api/admin/remote-icon-assets/${id}`, {
+        method: "DELETE",
+      });
     },
   },
 };

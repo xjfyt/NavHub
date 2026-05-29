@@ -19,8 +19,16 @@ import {
 import { api } from "../api";
 import { toast } from "sonner";
 import { createUndoQueue, DEFAULT_UNDO_DELAY_MS } from "../utils/undoQueue";
-import { reorderGroups, reorderIconsInGroup, reorderByIdList } from "../utils/reorder";
-import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, type WidgetSizeId } from "../widgets";
+import {
+  reorderGroups,
+  reorderIconsInGroup,
+  reorderByIdList,
+} from "../utils/reorder";
+import {
+  WIDGET_REGISTRY,
+  WIDGET_SIZE_DIMENSIONS,
+  type WidgetSizeId,
+} from "../widgets";
 
 // UX-11 / QUAL-14: 危险删除延迟落库的时长。期间用户可点「撤销」恢复。
 // 复用 undoQueue 导出的单一事实来源,避免 5s 这个有含义的数字重复定义。
@@ -43,7 +51,15 @@ interface WorkspaceActionsContextProps {
   updateTweaks: (t: Partial<Tweaks>) => void;
   reorderGroup: (oldId: string, newId: string) => void;
   reorderIcon: (dragId: string, dropId: string) => void;
-  reorderGroupItems: (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => void;
+  reorderGroupItems: (
+    groupId: string,
+    items: {
+      id: string;
+      type: "icon" | "widget";
+      x: number | null;
+      y: number | null;
+    }[],
+  ) => void;
   mergeIcon: (sourceId: string, targetId: string) => Promise<void>;
   extractFolderItem: (folderId: string, itemId: string) => Promise<void>;
   reorderFolderItems: (folderId: string, order: string[]) => Promise<void>;
@@ -53,25 +69,50 @@ interface WorkspaceActionsContextProps {
   updateWidget: (id: string, patch: Partial<WidgetView>) => Promise<void>;
   updateWidgetLocal: (id: string, config: Record<string, unknown>) => void;
   deleteWidget: (id: string) => Promise<void>;
-  addWidget: (groupId: string, kind: string, size?: WidgetSizeId) => Promise<void>;
-  addIcon: (body: Partial<IconView> & { groupId: string; name: string }) => Promise<IconView | null>;
+  addWidget: (
+    groupId: string,
+    kind: string,
+    size?: WidgetSizeId,
+  ) => Promise<void>;
+  addIcon: (
+    body: Partial<IconView> & { groupId: string; name: string },
+  ) => Promise<IconView | null>;
   updateGroup: (id: string, patch: Partial<GroupView>) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   addGroup: (name: string, icon?: string) => Promise<void>;
   canEditGroup: (groupId: string) => boolean;
-  addCustomEngine: (input: { name: string; url: string; color?: string; label?: string }) => Promise<void>;
-  updateCustomEngine: (id: string, patch: { name?: string; url?: string }) => Promise<void>;
+  addCustomEngine: (input: {
+    name: string;
+    url: string;
+    color?: string;
+    label?: string;
+  }) => Promise<void>;
+  updateCustomEngine: (
+    id: string,
+    patch: { name?: string; url?: string },
+  ) => Promise<void>;
   deleteCustomEngine: (id: string) => Promise<void>;
   refreshWorkspace: () => void;
-  updateMe: (patch: { avatarUrl?: string | null; displayName?: string | null }) => Promise<void>;
+  updateMe: (patch: {
+    avatarUrl?: string | null;
+    displayName?: string | null;
+  }) => Promise<void>;
 }
 
-type WorkspaceContextProps = WorkspaceDataContextProps & WorkspaceActionsContextProps;
+type WorkspaceContextProps = WorkspaceDataContextProps &
+  WorkspaceActionsContextProps;
 
-const WorkspaceDataContext = createContext<WorkspaceDataContextProps | null>(null);
-const WorkspaceActionsContext = createContext<WorkspaceActionsContextProps | null>(null);
+const WorkspaceDataContext = createContext<WorkspaceDataContextProps | null>(
+  null,
+);
+const WorkspaceActionsContext =
+  createContext<WorkspaceActionsContextProps | null>(null);
 
-function arrUpdate<T extends { id: string }>(arr: T[], id: string, patch: Partial<T>): T[] {
+function arrUpdate<T extends { id: string }>(
+  arr: T[],
+  id: string,
+  patch: Partial<T>,
+): T[] {
   return arr.map((x) => (x.id === id ? { ...x, ...patch } : x));
 }
 
@@ -92,7 +133,7 @@ export function WorkspaceProvider({
 }) {
   const [me, setMe] = useState<Me | null>(initialMe);
   const [workspace, setWorkspace] = useState(initialWorkspace);
-  
+
   useEffect(() => {
     setWorkspace(initialWorkspace);
   }, [initialWorkspace]);
@@ -158,7 +199,10 @@ export function WorkspaceProvider({
     }));
     if (latestRef.current.isGuest) {
       try {
-        window.localStorage.setItem("navhub_guest_tweaks", JSON.stringify(nextTweaks));
+        window.localStorage.setItem(
+          "navhub_guest_tweaks",
+          JSON.stringify(nextTweaks),
+        );
       } catch {}
       return;
     }
@@ -199,7 +243,15 @@ export function WorkspaceProvider({
   }, []);
 
   const reorderGroupItems = useCallback(
-    (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => {
+    (
+      groupId: string,
+      items: {
+        id: string;
+        type: "icon" | "widget";
+        x: number | null;
+        y: number | null;
+      }[],
+    ) => {
       if (latestRef.current.isGuest) return;
       setWorkspace((s) => {
         const icons = [...s.icons];
@@ -207,10 +259,22 @@ export function WorkspaceProvider({
         items.forEach((it, idx) => {
           if (it.type === "icon") {
             const idxIcon = icons.findIndex((i) => i.id === it.id);
-            if (idxIcon >= 0) icons[idxIcon] = { ...icons[idxIcon], sortOrder: idx, gridX: it.x, gridY: it.y };
+            if (idxIcon >= 0)
+              icons[idxIcon] = {
+                ...icons[idxIcon],
+                sortOrder: idx,
+                gridX: it.x,
+                gridY: it.y,
+              };
           } else {
             const idxWidget = widgets.findIndex((w) => w.id === it.id);
-            if (idxWidget >= 0) widgets[idxWidget] = { ...widgets[idxWidget], sortOrder: idx, gridX: it.x, gridY: it.y };
+            if (idxWidget >= 0)
+              widgets[idxWidget] = {
+                ...widgets[idxWidget],
+                sortOrder: idx,
+                gridX: it.x,
+                gridY: it.y,
+              };
           }
         });
         return { ...s, icons, widgets };
@@ -222,11 +286,23 @@ export function WorkspaceProvider({
           const expected = items.map((x) => `${x.type}:${x.id}`);
           const latestGroupItems = [
             ...latest.widgets
-              .filter((w) => w.groupId === groupId && !WIDGET_REGISTRY[w.widget]?.floatingBar)
-              .map((w) => ({ type: "widget" as const, id: w.id, sortOrder: w.sortOrder })),
+              .filter(
+                (w) =>
+                  w.groupId === groupId &&
+                  !WIDGET_REGISTRY[w.widget]?.floatingBar,
+              )
+              .map((w) => ({
+                type: "widget" as const,
+                id: w.id,
+                sortOrder: w.sortOrder,
+              })),
             ...latest.icons
               .filter((i) => i.groupId === groupId)
-              .map((i) => ({ type: "icon" as const, id: i.id, sortOrder: i.sortOrder })),
+              .map((i) => ({
+                type: "icon" as const,
+                id: i.id,
+                sortOrder: i.sortOrder,
+              })),
           ]
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((x) => `${x.type}:${x.id}`);
@@ -252,49 +328,54 @@ export function WorkspaceProvider({
     [],
   );
 
-  const mergeIcon = useCallback(
-    async (sourceId: string, targetId: string) => {
-      if (latestRef.current.isGuest) return;
-      // 合并前快照「被合并图标」的名字，供撤销提示文案使用。
-      const sourceName =
-        latestRef.current.workspace.icons.find((i) => i.id === sourceId)?.name || "图标";
-      try {
-        const targetView = await api.mergeIcon(sourceId, targetId);
-        setWorkspace((ws) => {
-          const nextIcons = ws.icons.filter((i) => i.id !== sourceId).map((i) => (i.id === targetId ? targetView : i));
-          return { ...ws, icons: nextIcons };
-        });
-        // UX-20: 合并易误触，松手后给一条可「撤销」的 toast——撤销即把刚合并进去的图标重新移出文件夹。
-        // 复用 extractFolderItem 的反向操作(targetId 此时是文件夹，sourceId 是其中的项)。
-        toast.success(`已合并「${sourceName}」到文件夹`, {
-          action: {
-            label: "撤销",
-            onClick: () => {
-              void (async () => {
-                try {
-                  const [folderView, newItemView] = await api.extractFolderItem(targetId, sourceId);
-                  setWorkspace((ws) => {
-                    const nextIcons = ws.icons.map((i) => (i.id === targetId ? folderView : i));
-                    nextIcons.push(newItemView);
-                    return { ...ws, icons: nextIcons };
-                  });
-                  toast.success("已撤销合并");
-                } catch (err) {
-                  console.error("undo mergeIcon failed", err);
-                  toast.error("撤销合并失败");
-                  latestRef.current.onReload?.();
-                }
-              })();
-            },
+  const mergeIcon = useCallback(async (sourceId: string, targetId: string) => {
+    if (latestRef.current.isGuest) return;
+    // 合并前快照「被合并图标」的名字，供撤销提示文案使用。
+    const sourceName =
+      latestRef.current.workspace.icons.find((i) => i.id === sourceId)?.name ||
+      "图标";
+    try {
+      const targetView = await api.mergeIcon(sourceId, targetId);
+      setWorkspace((ws) => {
+        const nextIcons = ws.icons
+          .filter((i) => i.id !== sourceId)
+          .map((i) => (i.id === targetId ? targetView : i));
+        return { ...ws, icons: nextIcons };
+      });
+      // UX-20: 合并易误触，松手后给一条可「撤销」的 toast——撤销即把刚合并进去的图标重新移出文件夹。
+      // 复用 extractFolderItem 的反向操作(targetId 此时是文件夹，sourceId 是其中的项)。
+      toast.success(`已合并「${sourceName}」到文件夹`, {
+        action: {
+          label: "撤销",
+          onClick: () => {
+            void (async () => {
+              try {
+                const [folderView, newItemView] = await api.extractFolderItem(
+                  targetId,
+                  sourceId,
+                );
+                setWorkspace((ws) => {
+                  const nextIcons = ws.icons.map((i) =>
+                    i.id === targetId ? folderView : i,
+                  );
+                  nextIcons.push(newItemView);
+                  return { ...ws, icons: nextIcons };
+                });
+                toast.success("已撤销合并");
+              } catch (err) {
+                console.error("undo mergeIcon failed", err);
+                toast.error("撤销合并失败");
+                latestRef.current.onReload?.();
+              }
+            })();
           },
-        });
-      } catch (e) {
-        console.error("mergeIcon failed", e);
-        toast.error("合并图标失败");
-      }
-    },
-    [],
-  );
+        },
+      });
+    } catch (e) {
+      console.error("mergeIcon failed", e);
+      toast.error("合并图标失败");
+    }
+  }, []);
 
   const reorderFolderItems = useCallback(
     async (folderId: string, order: string[]) => {
@@ -304,7 +385,10 @@ export function WorkspaceProvider({
       setWorkspace((ws) => {
         const nextIcons = ws.icons.map((i) => {
           if (i.id !== folderId || !i.isFolder) return i;
-          return { ...i, folderItems: reorderByIdList(i.folderItems || [], order) };
+          return {
+            ...i,
+            folderItems: reorderByIdList(i.folderItems || [], order),
+          };
         });
         return { ...ws, icons: nextIcons };
       });
@@ -323,9 +407,14 @@ export function WorkspaceProvider({
     async (folderId: string, itemId: string) => {
       if (latestRef.current.isGuest) return;
       try {
-        const [folderView, newItemView] = await api.extractFolderItem(folderId, itemId);
+        const [folderView, newItemView] = await api.extractFolderItem(
+          folderId,
+          itemId,
+        );
         setWorkspace((ws) => {
-          const nextIcons = ws.icons.map((i) => (i.id === folderId ? folderView : i));
+          const nextIcons = ws.icons.map((i) =>
+            i.id === folderId ? folderView : i,
+          );
           nextIcons.push(newItemView);
           return { ...ws, icons: nextIcons };
         });
@@ -381,7 +470,9 @@ export function WorkspaceProvider({
           console.error("deleteIcon failed", e);
           // 落库失败:把图标还原回 UI,避免「界面已删但后端仍在」的不一致。
           setWorkspace((s) =>
-            s.icons.some((i) => i.id === id) ? s : { ...s, icons: [...s.icons, removed] },
+            s.icons.some((i) => i.id === id)
+              ? s
+              : { ...s, icons: [...s.icons, removed] },
           );
           toast.error(`删除${label}失败,已恢复`);
         } finally {
@@ -391,7 +482,9 @@ export function WorkspaceProvider({
       onUndo: () => {
         // 撤销:把快照还原回去。
         setWorkspace((s) =>
-          s.icons.some((i) => i.id === id) ? s : { ...s, icons: [...s.icons, removed] },
+          s.icons.some((i) => i.id === id)
+            ? s
+            : { ...s, icons: [...s.icons, removed] },
         );
         toast.dismiss(toastId);
         toast.success("已撤销删除");
@@ -560,7 +653,12 @@ export function WorkspaceProvider({
   }, []);
 
   const addCustomEngine = useCallback(
-    async (input: { name: string; url: string; color?: string; label?: string }) => {
+    async (input: {
+      name: string;
+      url: string;
+      color?: string;
+      label?: string;
+    }) => {
       // FE-7: 增加错误处理。调用方(TweaksPanel)依赖 reject 来区分成功/失败,
       // 因此这里在弹出 toast 后必须 re-throw,保持其 .then/.catch 分支正确。
       try {
@@ -583,13 +681,18 @@ export function WorkspaceProvider({
       // UX-7: 后端无单条引擎编辑接口,但 PATCH /me/preferences 接受整份 custom_engines。
       // 这里在本地数组上就地改名/改 URL,再整体回写,并以返回值更新本地状态。
       const curEngines = latestRef.current.workspace.preferences.customEngines;
-      const cur = Array.isArray(curEngines) ? (curEngines as CustomEngine[]) : [];
+      const cur = Array.isArray(curEngines)
+        ? (curEngines as CustomEngine[])
+        : [];
       const next = cur.map((e) => (e.id === id ? { ...e, ...patch } : e));
       try {
         const prefs = await api.patchPrefs({ customEngines: next });
         setWorkspace((ws) => ({
           ...ws,
-          preferences: { ...ws.preferences, customEngines: prefs.customEngines },
+          preferences: {
+            ...ws.preferences,
+            customEngines: prefs.customEngines,
+          },
         }));
       } catch (e) {
         console.error("updateCustomEngine failed", e);
@@ -600,39 +703,42 @@ export function WorkspaceProvider({
     [],
   );
 
-  const deleteCustomEngine = useCallback(
-    async (id: string) => {
-      // FE-7: 该方法被 fire-and-forget 调用,无 .catch,失败前会静默丢失。
-      // 包裹 try/catch 并弹出 toast,避免删除失败无任何反馈。
-      try {
-        await api.deleteEngine(id);
-        const arr = await api.listEngines();
-        setWorkspace((ws) => ({
-          ...ws,
-          preferences: { ...ws.preferences, customEngines: arr },
-        }));
-      } catch (e) {
-        console.error("deleteCustomEngine failed", e);
-        toast.error("删除搜索引擎失败");
-      }
-    },
-    [],
-  );
+  const deleteCustomEngine = useCallback(async (id: string) => {
+    // FE-7: 该方法被 fire-and-forget 调用,无 .catch,失败前会静默丢失。
+    // 包裹 try/catch 并弹出 toast,避免删除失败无任何反馈。
+    try {
+      await api.deleteEngine(id);
+      const arr = await api.listEngines();
+      setWorkspace((ws) => ({
+        ...ws,
+        preferences: { ...ws.preferences, customEngines: arr },
+      }));
+    } catch (e) {
+      console.error("deleteCustomEngine failed", e);
+      toast.error("删除搜索引擎失败");
+    }
+  }, []);
 
   const refreshWorkspace = useCallback(() => {
     latestRef.current.onReload?.();
   }, []);
 
-  const updateMe = useCallback(async (patch: { avatarUrl?: string | null; displayName?: string | null }) => {
-    if (latestRef.current.isGuest) return;
-    try {
-      const updated = await api.patchMe(patch);
-      setMe(updated);
-    } catch (e) {
-      console.error("updateMe failed", e);
-      toast.error("更新个人信息失败");
-    }
-  }, []);
+  const updateMe = useCallback(
+    async (patch: {
+      avatarUrl?: string | null;
+      displayName?: string | null;
+    }) => {
+      if (latestRef.current.isGuest) return;
+      try {
+        const updated = await api.patchMe(patch);
+        setMe(updated);
+      } catch (e) {
+        console.error("updateMe failed", e);
+        toast.error("更新个人信息失败");
+      }
+    },
+    [],
+  );
 
   // PERF-1: 动作对象——所有回调身份恒稳(都已用 useCallback([]) + latestRef),
   // 故 deps 为空,整个 actions 对象在组件生命周期内只创建一次、永不换引用。
@@ -678,7 +784,9 @@ export function WorkspaceProvider({
 
   return (
     <WorkspaceActionsContext.Provider value={actions}>
-      <WorkspaceDataContext.Provider value={data}>{children}</WorkspaceDataContext.Provider>
+      <WorkspaceDataContext.Provider value={data}>
+        {children}
+      </WorkspaceDataContext.Provider>
     </WorkspaceActionsContext.Provider>
   );
 }
@@ -686,14 +794,18 @@ export function WorkspaceProvider({
 /** 只取动作(身份恒稳的回调集合)。数据变化时使用本 hook 的组件不会重渲染。 */
 export function useWorkspaceActions() {
   const ctx = useContext(WorkspaceActionsContext);
-  if (!ctx) throw new Error("useWorkspaceActions must be used within WorkspaceProvider");
+  if (!ctx)
+    throw new Error(
+      "useWorkspaceActions must be used within WorkspaceProvider",
+    );
   return ctx;
 }
 
 /** 只取数据(workspace / me / activeGroup …)。 */
 export function useWorkspaceData() {
   const ctx = useContext(WorkspaceDataContext);
-  if (!ctx) throw new Error("useWorkspaceData must be used within WorkspaceProvider");
+  if (!ctx)
+    throw new Error("useWorkspaceData must be used within WorkspaceProvider");
   return ctx;
 }
 

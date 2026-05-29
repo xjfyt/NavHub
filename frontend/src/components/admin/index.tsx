@@ -13,14 +13,20 @@ const AdminAudit = lazy(() => import("./tabs/Audit"));
 const AdminSettings = lazy(() => import("./tabs/Settings"));
 const AdminSSO = lazy(() => import("./tabs/SSO"));
 const AdminWallpaperLibrary = lazy(() =>
-  import("./WallpaperLibrary").then((m) => ({ default: m.AdminWallpaperLibrary })),
+  import("./WallpaperLibrary").then((m) => ({
+    default: m.AdminWallpaperLibrary,
+  })),
 );
 const AdminIconAssetLibrary = lazy(() =>
-  import("./IconAssetLibrary").then((m) => ({ default: m.AdminIconAssetLibrary })),
+  import("./IconAssetLibrary").then((m) => ({
+    default: m.AdminIconAssetLibrary,
+  })),
 );
 
 const TabFallback = () => (
-  <div style={{ padding: 40, textAlign: "center", color: "var(--text-soft)" }}>加载中 …</div>
+  <div style={{ padding: 40, textAlign: "center", color: "var(--text-soft)" }}>
+    加载中 …
+  </div>
 );
 
 export const AdminShell = ({
@@ -41,7 +47,9 @@ export const AdminShell = ({
     { id: "push", name: "推送分类", icon: "send" },
     { id: "wallpapers", name: "壁纸库", icon: "image" },
     { id: "iconAssets", name: "图标库", icon: "image" },
-    ...(isSuper ? [{ id: "sso", name: "SSO 接入", icon: "key", super: true }] : []),
+    ...(isSuper
+      ? [{ id: "sso", name: "SSO 接入", icon: "key", super: true }]
+      : []),
     { id: "audit", name: "审计日志", icon: "activity" },
     { id: "settings", name: "系统设置", icon: "settings" },
   ];
@@ -49,7 +57,11 @@ export const AdminShell = ({
   return (
     <div
       className="admin-root theme-dark"
-      style={{ background: "var(--admin-bg)", display: "flex", height: "100vh" }}
+      style={{
+        background: "var(--admin-bg)",
+        display: "flex",
+        height: "100vh",
+      }}
     >
       <div
         className="admin-side glass-strong"
@@ -88,8 +100,12 @@ export const AdminShell = ({
               alignItems: "center",
               gap: 10,
               cursor: "pointer",
-              background: tab === t.id ? "var(--admin-border-str)" : "transparent",
-              borderLeft: tab === t.id ? "2px solid var(--accent)" : "2px solid transparent",
+              background:
+                tab === t.id ? "var(--admin-border-str)" : "transparent",
+              borderLeft:
+                tab === t.id
+                  ? "2px solid var(--accent)"
+                  : "2px solid transparent",
             }}
           >
             <Icon name={t.icon} size={14} />
@@ -129,7 +145,10 @@ export const AdminShell = ({
           返回导航
         </div>
       </div>
-      <div className="admin-main" style={{ flex: 1, padding: "30px 40px", overflowY: "auto" }}>
+      <div
+        className="admin-main"
+        style={{ flex: 1, padding: "30px 40px", overflowY: "auto" }}
+      >
         <ErrorBoundary>
           <Suspense fallback={<TabFallback />}>
             {tab === "dashboard" && <AdminDashboard />}

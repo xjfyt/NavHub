@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  withTimeoutSignal,
-  DEFAULT_REQUEST_TIMEOUT_MS,
-} from "./abortTimeout";
+import { withTimeoutSignal, DEFAULT_REQUEST_TIMEOUT_MS } from "./abortTimeout";
 
 describe("withTimeoutSignal", () => {
   beforeEach(() => {

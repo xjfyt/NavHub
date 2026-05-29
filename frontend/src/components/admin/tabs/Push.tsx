@@ -30,17 +30,31 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
 
   const exportCategory = async (id: string, name: string) => {
     try {
-      setImportProgress({ phase: "导出分类", detail: "正在打包分类与本地图标资源...", percent: 15 });
+      setImportProgress({
+        phase: "导出分类",
+        detail: "正在打包分类与本地图标资源...",
+        percent: 15,
+      });
       const data = await api.admin.exportGroup(id);
-      setImportProgress({ phase: "生成文件", detail: "正在生成 JSON 文件...", percent: 80 });
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      setImportProgress({
+        phase: "生成文件",
+        detail: "正在生成 JSON 文件...",
+        percent: 80,
+      });
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `Category_${name.replace(/\s+/g, "_")}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setImportProgress({ phase: "导出完成", detail: "分类 JSON 已包含可打包的本地图标资源。", percent: 100 });
+      setImportProgress({
+        phase: "导出完成",
+        detail: "分类 JSON 已包含可打包的本地图标资源。",
+        percent: 100,
+      });
       window.setTimeout(() => setImportProgress(null), 700);
     } catch (e: any) {
       toast.error("导出失败：" + e.message);
@@ -52,18 +66,28 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const nextFrame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     let timer: number | undefined;
     try {
       setLoading(true);
       setImportProgress({ phase: "读取文件", detail: file.name, percent: 5 });
       const text = await file.text();
-      setImportProgress({ phase: "解析 JSON", detail: "正在检查分类、图标和组件数据...", percent: 15 });
+      setImportProgress({
+        phase: "解析 JSON",
+        detail: "正在检查分类、图标和组件数据...",
+        percent: 15,
+      });
       await nextFrame();
       const data = JSON.parse(text);
       const iconCount = Array.isArray(data.icons) ? data.icons.length : 0;
       const folderItemCount = Array.isArray(data.icons)
-        ? data.icons.reduce((sum: number, icon: any) => sum + (Array.isArray(icon.folderItems) ? icon.folderItems.length : 0), 0)
+        ? data.icons.reduce(
+            (sum: number, icon: any) =>
+              sum +
+              (Array.isArray(icon.folderItems) ? icon.folderItems.length : 0),
+            0,
+          )
         : 0;
       const widgetCount = Array.isArray(data.widgets) ? data.widgets.length : 0;
       const assetCount = Array.isArray(data.icons)
@@ -89,9 +113,17 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       }, 500);
       await api.admin.importGroup(data);
       if (timer) window.clearInterval(timer);
-      setImportProgress({ phase: "刷新工作区", detail: "导入完成，正在刷新分类列表...", percent: 94 });
+      setImportProgress({
+        phase: "刷新工作区",
+        detail: "导入完成，正在刷新分类列表...",
+        percent: 94,
+      });
       refreshWorkspace();
-      setImportProgress({ phase: "导入完成", detail: "新分类已经可用。", percent: 100 });
+      setImportProgress({
+        phase: "导入完成",
+        detail: "新分类已经可用。",
+        percent: 100,
+      });
       toast.success("分类导入完成");
       window.setTimeout(() => setImportProgress(null), 900);
     } catch (err: any) {
@@ -164,7 +196,12 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
     <>
       <div
         className="admin-head"
-        style={{ marginBottom: 30, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}
+        style={{
+          marginBottom: 30,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
       >
         <div>
           <h2 style={{ fontSize: 24, margin: "0 0 6px 0" }}>推送分类</h2>
@@ -175,10 +212,21 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
         <div>
           <label
             className="pill-btn primary"
-            style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={{
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
             <Icon name="download" size={12} /> 导入分类 JSON
-            <input type="file" accept=".json" style={{ display: "none" }} onChange={importCategory} disabled={loading} />
+            <input
+              type="file"
+              accept=".json"
+              style={{ display: "none" }}
+              onChange={importCategory}
+              disabled={loading}
+            />
           </label>
         </div>
       </div>
@@ -194,23 +242,86 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
       >
         <thead style={{ background: "var(--admin-hover-soft)" }}>
           <tr>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>图标</th>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>分类</th>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>所有者</th>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>当前推送目标</th>
-            <th style={{ padding: 12, textAlign: "center", fontSize: 13, color: "var(--text-soft)" }}>允许编辑</th>
-            <th style={{ padding: 12, textAlign: "right", fontSize: 13, color: "var(--text-soft)" }}>操作</th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              图标
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              分类
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              所有者
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              当前推送目标
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "center",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              允许编辑
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "right",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>
           {groups.map((g) => (
-            <tr key={g.id} style={{ borderBottom: "1px solid var(--admin-border-slight)" }}>
+            <tr
+              key={g.id}
+              style={{ borderBottom: "1px solid var(--admin-border-slight)" }}
+            >
               <td style={{ padding: 12 }}>
                 <Icon name={g.icon || "list"} size={16} />
               </td>
-              <td style={{ padding: 12, fontSize: 14, fontWeight: 500 }}>{g.name}</td>
-              <td style={{ padding: 12, fontSize: 13 }}>{g.ownerName || g.ownerId || "系统全局"}</td>
-              <td style={{ padding: 12, fontSize: 12, color: "var(--text-soft)" }}>
+              <td style={{ padding: 12, fontSize: 14, fontWeight: 500 }}>
+                {g.name}
+              </td>
+              <td style={{ padding: 12, fontSize: 13 }}>
+                {g.ownerName || g.ownerId || "系统全局"}
+              </td>
+              <td
+                style={{ padding: 12, fontSize: 12, color: "var(--text-soft)" }}
+              >
                 {g.pushed ? (
                   <>
                     {g.pushTargetType === "all"
@@ -236,7 +347,13 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
                   <span style={{ color: "var(--admin-border-str)" }}>—</span>
                 )}
               </td>
-              <td style={{ padding: 12, textAlign: "right", whiteSpace: "nowrap" }}>
+              <td
+                style={{
+                  padding: 12,
+                  textAlign: "right",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 <button
                   className="pill-btn"
                   onClick={() => exportCategory(g.id, g.name)}
@@ -251,7 +368,9 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
                     width: 34,
                     height: 20,
                     borderRadius: 10,
-                    background: g.pushed ? "var(--ok)" : "var(--admin-border-str)",
+                    background: g.pushed
+                      ? "var(--ok)"
+                      : "var(--admin-border-str)",
                     cursor: "pointer",
                     position: "relative",
                     verticalAlign: "middle",
@@ -294,16 +413,36 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
         >
           <div
             className="glass-strong"
-            style={{ width: 400, borderRadius: 16, padding: 24, boxShadow: "0 10px 40px rgba(0,0,0,0.3)" }}
+            style={{
+              width: 400,
+              borderRadius: 16,
+              padding: 24,
+              boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+            }}
           >
-            <h3 style={{ margin: "0 0 16px 0", fontSize: 18 }}>配置推送下发目标</h3>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: 18 }}>
+              配置推送下发目标
+            </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 6 }}>推送范围</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-soft)",
+                    marginBottom: 6,
+                  }}
+                >
+                  推送范围
+                </div>
                 <select
                   style={inputStyle}
                   value={form.targetType}
-                  onChange={(e) => setForm((s) => ({ ...s, targetType: e.target.value as MessageTargetType }))}
+                  onChange={(e) =>
+                    setForm((s) => ({
+                      ...s,
+                      targetType: e.target.value as MessageTargetType,
+                    }))
+                  }
                 >
                   {MESSAGE_TARGETS.map((it) => (
                     <option key={it.id} value={it.id}>
@@ -315,11 +454,21 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
 
               {form.targetType === "role" && (
                 <div>
-                  <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 6 }}>目标角色</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-soft)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    目标角色
+                  </div>
                   <select
                     style={inputStyle}
                     value={form.targetRole}
-                    onChange={(e) => setForm((s) => ({ ...s, targetRole: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, targetRole: e.target.value }))
+                    }
                   >
                     {PUSHABLE_ROLES.map((r) => (
                       <option key={r.id} value={r.id}>
@@ -332,16 +481,26 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
 
               {form.targetType === "user" && (
                 <div>
-                  <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 6 }}>目标用户</div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-soft)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    目标用户
+                  </div>
                   <select
                     style={inputStyle}
                     value={form.targetUserId}
-                    onChange={(e) => setForm((s) => ({ ...s, targetUserId: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, targetUserId: e.target.value }))
+                    }
                   >
                     <option value="">请选择用户</option>
                     {users.map((u) => (
                       <option key={u.id} value={u.id}>
-                        {(u.displayName || u.username)} · {u.role}
+                        {u.displayName || u.username} · {u.role}
                       </option>
                     ))}
                   </select>
@@ -349,15 +508,35 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
               )}
 
               <div>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={form.pushAllowEdit}
-                    onChange={(e) => setForm((s) => ({ ...s, pushAllowEdit: e.target.checked }))}
+                    onChange={(e) =>
+                      setForm((s) => ({
+                        ...s,
+                        pushAllowEdit: e.target.checked,
+                      }))
+                    }
                   />
                   允许用户进行编辑
                 </label>
-                <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 4, marginLeft: 21 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-soft)",
+                    marginTop: 4,
+                    marginLeft: 21,
+                  }}
+                >
                   勾选后，该推送分类的内容即可被接受者自由编辑，开放所有编辑功能。
                 </div>
               </div>
@@ -401,17 +580,48 @@ export const AdminPush = ({ groups }: { groups: GroupView[] }) => {
             className="glass-strong"
             style={{ width: "min(420px, 100%)", borderRadius: 14, padding: 20 }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <Icon name={importProgress.percent >= 100 ? "check" : "activity"} size={18} />
-              <div style={{ fontSize: 15, fontWeight: 700 }}>{importProgress.phase}</div>
-              <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-soft)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 10,
+              }}
+            >
+              <Icon
+                name={importProgress.percent >= 100 ? "check" : "activity"}
+                size={18}
+              />
+              <div style={{ fontSize: 15, fontWeight: 700 }}>
+                {importProgress.phase}
+              </div>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  fontSize: 12,
+                  color: "var(--text-soft)",
+                }}
+              >
                 {Math.round(importProgress.percent)}%
               </div>
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-soft)",
+                marginBottom: 12,
+              }}
+            >
               {importProgress.detail}
             </div>
-            <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.12)" }}>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 999,
+                overflow: "hidden",
+                background: "rgba(255,255,255,0.12)",
+              }}
+            >
               <div
                 style={{
                   width: `${importProgress.percent}%`,

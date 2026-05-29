@@ -17,7 +17,9 @@ export const WidgetDetailModal = ({
 
   if (!info) return null;
 
-  const body = info.renderDetail ? info.renderDetail(widget) : info.render(widget);
+  const body = info.renderDetail
+    ? info.renderDetail(widget)
+    : info.render(widget);
   const title = info.name;
 
   return (
@@ -36,43 +38,53 @@ export const WidgetDetailModal = ({
         overflow: "hidden",
       }}
     >
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <h3 id="widget-detail-title" style={{ margin: 0, flex: 1, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
-            {info.icon && <Icon name={info.icon} size={16} />}
-            <span>{title}</span>
-          </h3>
-          {onEdit && (
-            <button
-              className="wcc-btn-cancel"
-              onClick={onEdit}
-              style={{ padding: 4, marginRight: 4 }}
-              title="编辑组件"
-              aria-label="编辑组件"
-            >
-              <Icon name="settings" size={16} />
-            </button>
-          )}
-          <button
-            className="wcc-btn-cancel"
-            onClick={onClose}
-            style={{ padding: 4 }}
-            title="关闭 (Esc)"
-            aria-label="关闭 (Esc)"
-          >
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-        <div
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+        <h3
+          id="widget-detail-title"
           style={{
+            margin: 0,
             flex: 1,
-            minHeight: 0,
-            overflowY: info.detailWidth ? "hidden" : "auto",
+            fontSize: 16,
             display: "flex",
-            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
           }}
         >
-          {body}
-        </div>
+          {info.icon && <Icon name={info.icon} size={16} />}
+          <span>{title}</span>
+        </h3>
+        {onEdit && (
+          <button
+            className="wcc-btn-cancel"
+            onClick={onEdit}
+            style={{ padding: 4, marginRight: 4 }}
+            title="编辑组件"
+            aria-label="编辑组件"
+          >
+            <Icon name="settings" size={16} />
+          </button>
+        )}
+        <button
+          className="wcc-btn-cancel"
+          onClick={onClose}
+          style={{ padding: 4 }}
+          title="关闭 (Esc)"
+          aria-label="关闭 (Esc)"
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: info.detailWidth ? "hidden" : "auto",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {body}
+      </div>
     </Modal>
   );
 };

@@ -24,7 +24,13 @@ export const SearchBar = () => {
   const allEngines = useMemo(() => {
     const map = { ...BUILTIN_ENGINES };
     customEngines.forEach((e) => {
-      map[e.id] = { id: e.id, name: e.name, url: e.url, color: e.color, label: e.label };
+      map[e.id] = {
+        id: e.id,
+        name: e.name,
+        url: e.url,
+        color: e.color,
+        label: e.label,
+      };
     });
     return map;
   }, [customEngines]);
@@ -34,7 +40,9 @@ export const SearchBar = () => {
   const tabSwitchOn = tweaks.tabSwitchEngine !== false;
 
   useEffect(() => {
-    return () => { if (hintTimer.current) window.clearTimeout(hintTimer.current); };
+    return () => {
+      if (hintTimer.current) window.clearTimeout(hintTimer.current);
+    };
   }, []);
 
   const flashHint = () => {
@@ -60,9 +68,12 @@ export const SearchBar = () => {
       return;
     }
     const dirMap: Record<string, "up" | "down" | "home" | "end"> = {
-      ArrowDown: "down", ArrowRight: "down",
-      ArrowUp: "up", ArrowLeft: "up",
-      Home: "home", End: "end",
+      ArrowDown: "down",
+      ArrowRight: "down",
+      ArrowUp: "up",
+      ArrowLeft: "up",
+      Home: "home",
+      End: "end",
     };
     const dir = dirMap[e.key];
     if (!dir) return;
@@ -78,7 +89,14 @@ export const SearchBar = () => {
   const onKeyDown = (e: React.KeyboardEvent) => {
     // UX-7: 完成「Tab 切换搜索引擎」。在搜索框内按 Tab(无修饰键)循环到下一个引擎,
     // 阻止默认的焦点跳转;由偏好开关 tabSwitchEngine 控制(默认开启)。
-    if (e.key === "Tab" && tabSwitchOn && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (
+      e.key === "Tab" &&
+      tabSwitchOn &&
+      !e.shiftKey &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey
+    ) {
       e.preventDefault();
       const ids = Object.keys(allEngines);
       const next = nextEngineId(ids, engineKey);
@@ -100,28 +118,60 @@ export const SearchBar = () => {
     <div className="search">
       <button
         className={"search-engine wt" + (switchHint ? " engine-switched" : "")}
-        onClick={(e)=>{e.stopPropagation(); setPickerOpen(p=>!p);}}
+        onClick={(e) => {
+          e.stopPropagation();
+          setPickerOpen((p) => !p);
+        }}
         title={tabSwitchOn ? `当前：${cur.name}（按 Tab 切换）` : cur.name}
         aria-haspopup="menu"
         aria-expanded={pickerOpen}
         aria-label={`搜索引擎：${cur.name}`}
       >
-        <div className="wt-logo-tile"><EngineLogo engine={cur} size={22}/></div>
-        <Icon name={pickerOpen?"chevron-up":"chevron-down"} size={10}/>
+        <div className="wt-logo-tile">
+          <EngineLogo engine={cur} size={22} />
+        </div>
+        <Icon name={pickerOpen ? "chevron-up" : "chevron-down"} size={10} />
       </button>
 
       {switchHint && (
-        <div className="engine-switch-toast" role="status">{cur.name}</div>
+        <div className="engine-switch-toast" role="status">
+          {cur.name}
+        </div>
       )}
 
       {pickerOpen && (
         <>
-          <div className="engine-backdrop" onClick={()=>setPickerOpen(false)}/>
-          <div className="engine-grid-pop" onClick={e=>e.stopPropagation()}>
-            <div className="engine-grid" ref={gridRef} role="menu" tabIndex={-1} aria-label="选择搜索引擎" onKeyDown={onGridKeyDown}>
+          <div
+            className="engine-backdrop"
+            onClick={() => setPickerOpen(false)}
+          />
+          <div className="engine-grid-pop" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="engine-grid"
+              ref={gridRef}
+              role="menu"
+              tabIndex={-1}
+              aria-label="选择搜索引擎"
+              onKeyDown={onGridKeyDown}
+            >
               {Object.values(allEngines).map((v) => (
-                <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id===engineKey} aria-label={v.name} className={"engine-tile "+(v.id===engineKey?"active":"")} onClick={()=>{ updateTweaks({ searchEngine: v.id }); setPickerOpen(false);}}>
-                  <div className="wt-logo-tile lg"><EngineLogo engine={v} size={30}/></div>
+                <button
+                  key={v.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={v.id === engineKey}
+                  aria-label={v.name}
+                  className={
+                    "engine-tile " + (v.id === engineKey ? "active" : "")
+                  }
+                  onClick={() => {
+                    updateTweaks({ searchEngine: v.id });
+                    setPickerOpen(false);
+                  }}
+                >
+                  <div className="wt-logo-tile lg">
+                    <EngineLogo engine={v} size={30} />
+                  </div>
                   <div className="engine-name">{v.name}</div>
                 </button>
               ))}
@@ -133,10 +183,10 @@ export const SearchBar = () => {
       <input
         className="search-input"
         value={val}
-        onChange={e=>setVal(e.target.value)}
+        onChange={(e) => setVal(e.target.value)}
         onKeyDown={onKeyDown}
-        onFocus={()=>setFocused(true)}
-        onBlur={()=>setTimeout(()=>setFocused(false),150)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
         placeholder="输入搜索内容"
       />
     </div>

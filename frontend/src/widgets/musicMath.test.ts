@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { nextIndex, seekTime, fmtTime, cycleLoopMode, type LoopMode } from "./musicMath";
+import {
+  nextIndex,
+  seekTime,
+  fmtTime,
+  cycleLoopMode,
+  type LoopMode,
+} from "./musicMath";
 
 describe("nextIndex", () => {
   const len = 4; // 索引 0..3

@@ -7,7 +7,8 @@ import { AdminUserAvatar } from "../shared";
 import { confirmDialog } from "../../Dialogs";
 import { useWorkspace } from "../../../hooks/useWorkspace";
 
-const roleLabel = (id: string) => ROLES.find((r) => r.id === id)?.label.split(" ")[0] ?? id;
+const roleLabel = (id: string) =>
+  ROLES.find((r) => r.id === id)?.label.split(" ")[0] ?? id;
 
 export const AdminUsers = () => {
   const { me } = useWorkspace();
@@ -31,7 +32,10 @@ export const AdminUsers = () => {
         : isSelf
           ? "\n\n⚠️ 你正在修改自己的角色。"
           : "";
-    const ok = await confirmDialog(base + selfWarn, isSelf ? "修改自己的角色" : "修改用户角色");
+    const ok = await confirmDialog(
+      base + selfWarn,
+      isSelf ? "修改自己的角色" : "修改用户角色",
+    );
     if (!ok) {
       load(); // 取消时把下拉框恢复到原值
       return;
@@ -52,16 +56,22 @@ export const AdminUsers = () => {
     <>
       <div className="admin-head" style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: 24, margin: "0 0 6px 0" }}>用户管理</h2>
-        <div style={{ fontSize: 13, color: "var(--text-soft)" }}>所有接入的用户及角色分配</div>
+        <div style={{ fontSize: 13, color: "var(--text-soft)" }}>
+          所有接入的用户及角色分配
+        </div>
       </div>
       <div style={{ marginBottom: 16 }}>
-        {[{ id: "all", name: "全部" }, ...ROLES.map((r) => ({ id: r.id, name: r.label.split(" ")[0] }))].map((f) => (
+        {[
+          { id: "all", name: "全部" },
+          ...ROLES.map((r) => ({ id: r.id, name: r.label.split(" ")[0] })),
+        ].map((f) => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
             style={{
               padding: "6px 12px",
-              background: filter === f.id ? "var(--accent)" : "var(--admin-border-str)",
+              background:
+                filter === f.id ? "var(--accent)" : "var(--admin-border-str)",
               color: filter === f.id ? "var(--text-inv)" : "var(--text)",
               borderRadius: 8,
               marginRight: 8,
@@ -76,25 +86,76 @@ export const AdminUsers = () => {
       </div>
       <table
         className="admin-table"
-        style={{ width: "100%", background: "var(--admin-card-bg)", borderRadius: 12, overflow: "hidden" }}
+        style={{
+          width: "100%",
+          background: "var(--admin-card-bg)",
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
       >
         <thead style={{ background: "var(--admin-hover-soft)" }}>
           <tr>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>用户</th>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>角色</th>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>来源</th>
-            <th style={{ padding: 12, textAlign: "left", fontSize: 13, color: "var(--text-soft)" }}>注册时间</th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              用户
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              角色
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              来源
+            </th>
+            <th
+              style={{
+                padding: 12,
+                textAlign: "left",
+                fontSize: 13,
+                color: "var(--text-soft)",
+              }}
+            >
+              注册时间
+            </th>
           </tr>
         </thead>
         <tbody>
           {filtered.map((u) => (
-            <tr key={u.id} style={{ borderBottom: "1px solid var(--admin-border-slight)" }}>
+            <tr
+              key={u.id}
+              style={{ borderBottom: "1px solid var(--admin-border-slight)" }}
+            >
               <td style={{ padding: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <AdminUserAvatar avatarUrl={u.avatarUrl} name={u.displayName || u.username} />
+                  <AdminUserAvatar
+                    avatarUrl={u.avatarUrl}
+                    name={u.displayName || u.username}
+                  />
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.displayName || u.username}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-soft)" }}>{u.email || "—"}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {u.displayName || u.username}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-soft)" }}>
+                      {u.email || "—"}
+                    </div>
                   </div>
                 </div>
               </td>
@@ -111,18 +172,31 @@ export const AdminUsers = () => {
                   }}
                 >
                   {ROLES.map((r) => (
-                    <option key={r.id} value={r.id} style={{ color: "var(--text-inv)" }}>
+                    <option
+                      key={r.id}
+                      value={r.id}
+                      style={{ color: "var(--text-inv)" }}
+                    >
                       {r.label.split(" ")[0]}
                     </option>
                   ))}
                 </select>
               </td>
               <td style={{ padding: 12, fontSize: 13 }}>
-                <span className="badge" style={{ background: "var(--admin-border-str)", padding: "2px 6px", borderRadius: 4 }}>
+                <span
+                  className="badge"
+                  style={{
+                    background: "var(--admin-border-str)",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}
+                >
                   {u.casdoorBound ? "Casdoor" : "Local"}
                 </span>
               </td>
-              <td style={{ padding: 12, fontSize: 13, color: "var(--text-soft)" }}>
+              <td
+                style={{ padding: 12, fontSize: 13, color: "var(--text-soft)" }}
+              >
                 {new Date(u.createdAt).toLocaleDateString()}
               </td>
             </tr>

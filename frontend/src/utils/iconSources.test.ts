@@ -4,7 +4,9 @@ import { safeHttpUrl, resolveSiteLink } from "./iconSources";
 describe("safeHttpUrl", () => {
   it("接受 http/https 绝对地址", () => {
     expect(safeHttpUrl("https://example.com")).toBe("https://example.com/");
-    expect(safeHttpUrl("http://example.com/path")).toBe("http://example.com/path");
+    expect(safeHttpUrl("http://example.com/path")).toBe(
+      "http://example.com/path",
+    );
   });
 
   it("为缺省 scheme 的站点补 https", () => {
@@ -64,7 +66,11 @@ describe("resolveSiteLink (A11Y-1: 站点磁贴 → 真实 <a> 链接属性)", (
 
   it("SEC-9: javascript: / data: / 危险协议 → null(渲染为禁用态,绝不输出不安全 href)", () => {
     expect(resolveSiteLink("javascript:alert(1)", { newTab: true })).toBeNull();
-    expect(resolveSiteLink("data:text/html,<script>alert(1)</script>", { newTab: false })).toBeNull();
+    expect(
+      resolveSiteLink("data:text/html,<script>alert(1)</script>", {
+        newTab: false,
+      }),
+    ).toBeNull();
     expect(resolveSiteLink("vbscript:msgbox(1)")).toBeNull();
   });
 

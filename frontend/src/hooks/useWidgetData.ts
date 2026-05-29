@@ -101,7 +101,6 @@ export function useWidgetData<T>(
 
   const refresh = useCallback(() => {
     void run(true);
-     
   }, [run]);
 
   useEffect(() => {

@@ -5,11 +5,36 @@ import type { GroupView } from "../types";
 
 // 6 列 × 5 行 = 30 个，覆盖常见场景：办公 / 学习 / 娱乐 / 通讯 / 资源 / 角色
 const SIDE_ICONS = [
-  "home", "briefcase", "tool", "code", "grid", "settings",
-  "star", "heart", "book", "globe", "shield", "user",
-  "users", "music", "video", "camera", "image", "play",
-  "mail", "message", "phone", "bell", "cloud", "download",
-  "file", "folder", "cart", "wallet", "gamepad", "mascot",
+  "home",
+  "briefcase",
+  "tool",
+  "code",
+  "grid",
+  "settings",
+  "star",
+  "heart",
+  "book",
+  "globe",
+  "shield",
+  "user",
+  "users",
+  "music",
+  "video",
+  "camera",
+  "image",
+  "play",
+  "mail",
+  "message",
+  "phone",
+  "bell",
+  "cloud",
+  "download",
+  "file",
+  "folder",
+  "cart",
+  "wallet",
+  "gamepad",
+  "mascot",
 ];
 
 export function AddCategoryModal({
@@ -39,16 +64,18 @@ export function AddCategoryModal({
       className="modal"
       contentStyle={{ maxWidth: 460 }}
     >
-        <div className="modal-head">
-          <div>
-            <h2 id="add-category-title">{isEdit ? "编辑分组" : "新建分组"}</h2>
-            <div className="sub">{isEdit ? "修改名称或图标" : "选择名称与图标"}</div>
+      <div className="modal-head">
+        <div>
+          <h2 id="add-category-title">{isEdit ? "编辑分组" : "新建分组"}</h2>
+          <div className="sub">
+            {isEdit ? "修改名称或图标" : "选择名称与图标"}
           </div>
-          <button className="modal-close" onClick={onClose}>
-            <Icon name="close" size={18} />
-          </button>
         </div>
-        <form onSubmit={submit} style={{ display: "contents" }}>
+        <button className="modal-close" onClick={onClose}>
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+      <form onSubmit={submit} style={{ display: "contents" }}>
         <div className="modal-body">
           <div className="field">
             <label htmlFor="cat-name">分组名称</label>
@@ -81,15 +108,12 @@ export function AddCategoryModal({
           <button type="button" className="pill-btn" onClick={onClose}>
             取消
           </button>
-          <button
-            type="submit"
-            className="pill-btn primary"
-          >
+          <button type="submit" className="pill-btn primary">
             <Icon name="check" size={14} />
             {isEdit ? "保存" : "添加"}
           </button>
         </div>
-        </form>
+      </form>
     </Modal>
   );
 }

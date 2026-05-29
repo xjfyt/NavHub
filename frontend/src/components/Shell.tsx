@@ -42,7 +42,9 @@ const AddIconModal = lazy(() =>
   import("./AddIconModal").then((m) => ({ default: m.AddIconModal })),
 );
 const WidgetCatalogModal = lazy(() =>
-  import("./WidgetCatalogModal").then((m) => ({ default: m.WidgetCatalogModal })),
+  import("./WidgetCatalogModal").then((m) => ({
+    default: m.WidgetCatalogModal,
+  })),
 );
 const WidgetEditModal = lazy(() =>
   import("./WidgetEditModal").then((m) => ({ default: m.WidgetEditModal })),
@@ -57,7 +59,9 @@ const FolderOverlay = lazy(() =>
   import("./FolderOverlay").then((m) => ({ default: m.FolderOverlay })),
 );
 const IframePreviewModal = lazy(() =>
-  import("./IframePreviewModal").then((m) => ({ default: m.IframePreviewModal })),
+  import("./IframePreviewModal").then((m) => ({
+    default: m.IframePreviewModal,
+  })),
 );
 
 // Modals open over the existing UI; returning null while their chunk loads
@@ -109,14 +113,16 @@ export const Shell = ({
   const [addCatOpen, setAddCatOpen] = useState<boolean | GroupView>(false);
   const [addIconOpen, setAddIconOpen] = useState<boolean | IconView>(false);
   const [iconSearchOpen, setIconSearchOpen] = useState(false);
-  const [iframePreviewIcon, setIframePreviewIcon] = useState<IconView | null>(null);
+  const [iframePreviewIcon, setIframePreviewIcon] = useState<IconView | null>(
+    null,
+  );
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
   const editingWidget = editingWidgetId
-    ? workspace.widgets.find((w) => w.id === editingWidgetId) ?? null
+    ? (workspace.widgets.find((w) => w.id === editingWidgetId) ?? null)
     : null;
   const [detailWidgetId, setDetailWidgetId] = useState<string | null>(null);
   const detailWidget = detailWidgetId
-    ? workspace.widgets.find((w) => w.id === detailWidgetId) ?? null
+    ? (workspace.widgets.find((w) => w.id === detailWidgetId) ?? null)
     : null;
   const [isChangingWallpaper, setIsChangingWallpaper] = useState(false);
   // 窄屏(≤768px)下侧边栏收起为抽屉,由汉堡按钮开合。桌面端该状态不影响布局。
@@ -149,12 +155,16 @@ export const Shell = ({
       ? (tweaks.wallpaperMediaType as "image" | "video" | undefined)
       : undefined;
   const wallpaperPosterUrl = shuffleActive
-    ? (shufflePreset!.posterUrl || shufflePreset!.thumbUrl)
+    ? shufflePreset!.posterUrl || shufflePreset!.thumbUrl
     : tweaks.backgroundMode === "wallpaper"
       ? (tweaks.wallpaperPosterUrl as string | undefined)
       : undefined;
-  const sidebarMode = (tweaks.sidebar as "pinned" | "autohide" | "hidden") || "pinned";
-  const sidebarWidth = Math.max(48, Math.min(84, Number(tweaks.sidebarWidth) || 56));
+  const sidebarMode =
+    (tweaks.sidebar as "pinned" | "autohide" | "hidden") || "pinned";
+  const sidebarWidth = Math.max(
+    48,
+    Math.min(84, Number(tweaks.sidebarWidth) || 56),
+  );
   const sidebarGap = Math.max(2, Math.min(18, Number(tweaks.sidebarGap) || 6));
   const sidebarBgMode = wallpaperUrl ? "wallpaper" : "theme";
 
@@ -173,14 +183,39 @@ export const Shell = ({
     } else if (itemType === "widget") {
       await updateWidget(itemId, { groupId: targetGroupId });
     }
-    const tWidgets = workspace.widgets.filter((w) => w.groupId === targetGroupId && w.id !== itemId);
-    const tIcons = workspace.icons.filter((i) => i.groupId === targetGroupId && i.id !== itemId);
+    const tWidgets = workspace.widgets.filter(
+      (w) => w.groupId === targetGroupId && w.id !== itemId,
+    );
+    const tIcons = workspace.icons.filter(
+      (i) => i.groupId === targetGroupId && i.id !== itemId,
+    );
     const combined = [
-      ...tWidgets.map((w) => ({ type: "widget" as const, id: w.id, sortOrder: w.sortOrder, gridX: w.gridX, gridY: w.gridY })),
-      ...tIcons.map((i) => ({ type: "icon" as const, id: i.id, sortOrder: i.sortOrder, gridX: i.gridX, gridY: i.gridY })),
+      ...tWidgets.map((w) => ({
+        type: "widget" as const,
+        id: w.id,
+        sortOrder: w.sortOrder,
+        gridX: w.gridX,
+        gridY: w.gridY,
+      })),
+      ...tIcons.map((i) => ({
+        type: "icon" as const,
+        id: i.id,
+        sortOrder: i.sortOrder,
+        gridX: i.gridX,
+        gridY: i.gridY,
+      })),
     ].sort((a, b) => a.sortOrder - b.sortOrder);
-    combined.unshift({ type: itemType, id: itemId, sortOrder: 0, gridX: null, gridY: null });
-    reorderGroupItems(targetGroupId, combined.map((x) => ({ id: x.id, type: x.type, x: x.gridX, y: x.gridY })));
+    combined.unshift({
+      type: itemType,
+      id: itemId,
+      sortOrder: 0,
+      gridX: null,
+      gridY: null,
+    });
+    reorderGroupItems(
+      targetGroupId,
+      combined.map((x) => ({ id: x.id, type: x.type, x: x.gridX, y: x.gridY })),
+    );
   };
 
   // 统一的拖拽协调(分类内排序 / 文件夹合并 / 跨分类移动)——与侧边栏共处同一 <DndContext>。
@@ -237,7 +272,10 @@ export const Shell = ({
         nextPreset();
         toast.success("已切换到新壁纸", { id: "wallpaper-switch" });
       } else {
-        await updateTweaks({ wallpaperShuffle: true, backgroundMode: undefined });
+        await updateTweaks({
+          wallpaperShuffle: true,
+          backgroundMode: undefined,
+        });
         toast.success("已开启随机壁纸轮换", { id: "wallpaper-switch" });
       }
     } finally {
@@ -254,7 +292,10 @@ export const Shell = ({
       setIframePreviewIcon(ic);
       return;
     }
-    { const safe = safeHttpUrl(ic.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); }
+    {
+      const safe = safeHttpUrl(ic.url);
+      if (safe) window.open(safe, "_blank", "noopener,noreferrer");
+    }
   };
 
   // Context-menu builders live in Shell.menus.tsx; this bag is the only thing
@@ -308,11 +349,27 @@ export const Shell = ({
         onClick={() => setMobileNavOpen((v) => !v)}
       >
         {mobileNavOpen ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
             <path d="M6 6l12 12M6 18L18 6" />
           </svg>
         ) : (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         )}
@@ -377,9 +434,7 @@ export const Shell = ({
             {isGuest && (
               <div className="guest-banner" role="status">
                 <Icon name="key" size={16} />
-                <span className="guest-banner-text">
-                  {t("guest.banner")}
-                </span>
+                <span className="guest-banner-text">{t("guest.banner")}</span>
                 <button
                   type="button"
                   className="guest-banner-btn"
@@ -394,7 +449,11 @@ export const Shell = ({
               groups={workspace.groups}
               icons={workspace.icons}
               widgets={workspace.widgets}
-              tweaks={{ ...tweaks, hideAddIcon: tweaks.hideAddIcon || isGuest || !canEditGroup(activeGroup) }}
+              tweaks={{
+                ...tweaks,
+                hideAddIcon:
+                  tweaks.hideAddIcon || isGuest || !canEditGroup(activeGroup),
+              }}
               setActiveGroup={setActiveGroup}
               onOpenIcon={(_e, ic) => openIcon(ic)}
               onCtxTile={tileCtx}
@@ -448,23 +507,52 @@ export const Shell = ({
             onExtract={(itemId) => {
               extractFolderItem(openedFolder.id, itemId);
             }}
-            onRename={canEditGroup(openedFolder.groupId) ? (newName) => {
-              if (newName.trim() && newName.trim() !== openedFolder.name) {
-                updateIcon(openedFolder.id, { name: newName.trim() });
-                setOpenedFolder({ ...openedFolder, name: newName.trim() });
-              }
-            } : undefined}
-            onReorder={canEditGroup(openedFolder.groupId) ? (order) => {
-              void reorderFolderItems(openedFolder.id, order);
-            } : undefined}
+            onRename={
+              canEditGroup(openedFolder.groupId)
+                ? (newName) => {
+                    if (
+                      newName.trim() &&
+                      newName.trim() !== openedFolder.name
+                    ) {
+                      updateIcon(openedFolder.id, { name: newName.trim() });
+                      setOpenedFolder({
+                        ...openedFolder,
+                        name: newName.trim(),
+                      });
+                    }
+                  }
+                : undefined
+            }
+            onReorder={
+              canEditGroup(openedFolder.groupId)
+                ? (order) => {
+                    void reorderFolderItems(openedFolder.id, order);
+                  }
+                : undefined
+            }
             onItemContext={(e, item) => {
               const x = e.clientX;
               const y = e.clientY;
               const editable = canEditGroup(openedFolder.groupId);
               const items: CtxItem[] = [];
               if (item.url && item.url !== "#") {
-                items.push({ icon: "arrow-right", label: "当前页面打开", onClick: () => { const safe = safeHttpUrl(item.url); if (safe) window.location.href = safe; } });
-                items.push({ icon: "external", label: "新标签页打开", onClick: () => { const safe = safeHttpUrl(item.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); } });
+                items.push({
+                  icon: "arrow-right",
+                  label: "当前页面打开",
+                  onClick: () => {
+                    const safe = safeHttpUrl(item.url);
+                    if (safe) window.location.href = safe;
+                  },
+                });
+                items.push({
+                  icon: "external",
+                  label: "新标签页打开",
+                  onClick: () => {
+                    const safe = safeHttpUrl(item.url);
+                    if (safe)
+                      window.open(safe, "_blank", "noopener,noreferrer");
+                  },
+                });
               }
               if (editable) {
                 if (items.length > 0) items.push({ divider: true });
@@ -474,18 +562,29 @@ export const Shell = ({
                   onClick: () => {
                     setOpenedFolder(null); // Close the folder overlay when editing
                     setAddIconOpen(item as IconView);
-                  }
+                  },
                 });
                 items.push({
                   icon: "trash",
                   label: "删除图标",
                   danger: true,
                   onClick: async () => {
-                    if (await confirmDialog(`删除"${item.name}"?`, undefined, { danger: true })) void deleteIcon(item.id);
+                    if (
+                      await confirmDialog(`删除"${item.name}"?`, undefined, {
+                        danger: true,
+                      })
+                    )
+                      void deleteIcon(item.id);
                   },
                 });
                 items.push({ divider: true });
-                items.push({ icon: "move", label: "从文件夹取出", onClick: () => { extractFolderItem(openedFolder.id, item.id); } });
+                items.push({
+                  icon: "move",
+                  label: "从文件夹取出",
+                  onClick: () => {
+                    extractFolderItem(openedFolder.id, item.id);
+                  },
+                });
               }
               if (items.length > 0) openCtx(x, y, items);
             }}
@@ -560,8 +659,16 @@ export const Shell = ({
           user={me}
           onClose={() => setUserMenuOpen(false)}
           onContextMenu={blankCtx}
-          onOpenAdmin={() => { setUserMenuOpen(false); setAdminInitialTab(undefined); setAdminOpen(true); }}
-          onOpenSSO={() => { setUserMenuOpen(false); setAdminInitialTab("sso"); setAdminOpen(true); }}
+          onOpenAdmin={() => {
+            setUserMenuOpen(false);
+            setAdminInitialTab(undefined);
+            setAdminOpen(true);
+          }}
+          onOpenSSO={() => {
+            setUserMenuOpen(false);
+            setAdminInitialTab("sso");
+            setAdminOpen(true);
+          }}
           onOpenSettings={(isProfile) => {
             setUserMenuOpen(false);
             if (isProfile) setProfileOpen(true);
@@ -587,7 +694,8 @@ export const Shell = ({
             initial={typeof addCatOpen === "object" ? addCatOpen : undefined}
             onClose={() => setAddCatOpen(false)}
             onSave={async ({ name, icon }) => {
-              const editing = typeof addCatOpen === "object" ? addCatOpen : null;
+              const editing =
+                typeof addCatOpen === "object" ? addCatOpen : null;
               setAddCatOpen(false);
               if (editing) {
                 await updateGroup(editing.id, { name, icon });
@@ -605,7 +713,9 @@ export const Shell = ({
             groups={workspace.groups}
             defaultGroupId={activeGroup}
             onClose={() => setAddIconOpen(false)}
-            initialIcon={typeof addIconOpen === "object" ? addIconOpen : undefined}
+            initialIcon={
+              typeof addIconOpen === "object" ? addIconOpen : undefined
+            }
             onSave={async (body) => {
               setAddIconOpen(false);
               if (typeof addIconOpen === "object" && addIconOpen.id) {

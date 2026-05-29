@@ -26,23 +26,28 @@ const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
   },
   bing: {
     label: "Bing 每日壁纸",
-    defaultUrl: "https://www.bing.com/HPImageArchive.aspx?format=js&n=8&mkt=zh-CN",
+    defaultUrl:
+      "https://www.bing.com/HPImageArchive.aspx?format=js&n=8&mkt=zh-CN",
     defaultBatch: 15,
     maxBatch: 50,
-    batchHint: "Bing 公开接口单次最多返回 8 张，历史窗口较短；系统会翻页去重，超过公开窗口后会自动停止。",
+    batchHint:
+      "Bing 公开接口单次最多返回 8 张，历史窗口较短；系统会翻页去重，超过公开窗口后会自动停止。",
   },
   nasa: {
     label: "NASA 天文高清图库",
-    defaultUrl: "https://images-api.nasa.gov/search?q=aurora%20nebula%20galaxy%20earth&media_type=image&page_size=80",
+    defaultUrl:
+      "https://images-api.nasa.gov/search?q=aurora%20nebula%20galaxy%20earth&media_type=image&page_size=80",
     defaultBatch: 30,
-    batchHint: "NASA 会按关键词拆分查询，并过滤低分辨率、非横屏和人物/标识类素材。",
+    batchHint:
+      "NASA 会按关键词拆分查询，并过滤低分辨率、非横屏和人物/标识类素材。",
   },
   wikimedia: {
     label: "Wikimedia Commons 动态高清",
     defaultUrl:
       "https://commons.wikimedia.org/w/api.php?action=query&list=categorymembers&cmtitle=Category:Time-lapse_videos&cmtype=file&cmlimit=100&format=json",
     defaultBatch: 20,
-    batchHint: "使用可返回内容的 Time-lapse videos 分类，并按媒体尺寸过滤 1080p 以上横屏视频。",
+    batchHint:
+      "使用可返回内容的 Time-lapse videos 分类，并按媒体尺寸过滤 1080p 以上横屏视频。",
   },
   unsplash: {
     label: "Unsplash 高质量风景",
@@ -51,7 +56,8 @@ const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
     defaultBatch: 30,
     keyParam: "client_id",
     keyRequired: true,
-    keyHint: "前往 unsplash.com/developers 创建应用，复制 Access Key 填入此处（不是 Secret Key —— Secret Key 仅用于 OAuth 用户授权，抓取壁纸不需要）",
+    keyHint:
+      "前往 unsplash.com/developers 创建应用，复制 Access Key 填入此处（不是 Secret Key —— Secret Key 仅用于 OAuth 用户授权，抓取壁纸不需要）",
   },
   wallhaven: {
     label: "Wallhaven 高清通用",
@@ -69,8 +75,10 @@ const SCRAPER_CONFIGS: Record<string, ScraperConfig> = {
     defaultBatch: 30,
     keyParam: "api_key",
     keyRequired: true,
-    batchHint: "后端会额外过滤低分辨率、非横屏、低饱和黑白图和人物/人像类素材；Pexels API 每页最多 80 张候选。",
-    keyHint: "前往 pexels.com/api 注册，获取免费 API Key。默认查询偏自然风景，可在 API 地址里调整 query。",
+    batchHint:
+      "后端会额外过滤低分辨率、非横屏、低饱和黑白图和人物/人像类素材；Pexels API 每页最多 80 张候选。",
+    keyHint:
+      "前往 pexels.com/api 注册，获取免费 API Key。默认查询偏自然风景，可在 API 地址里调整 query。",
   },
   pixabay: {
     label: "Pixabay 高清自然",
@@ -140,7 +148,14 @@ const th: React.CSSProperties = {
 };
 
 const EmptyCell = ({ text }: { text?: string }) => (
-  <div style={{ color: "var(--text-soft)", fontSize: 13, padding: "24px 0", textAlign: "center" }}>
+  <div
+    style={{
+      color: "var(--text-soft)",
+      fontSize: 13,
+      padding: "24px 0",
+      textAlign: "center",
+    }}
+  >
     {text ?? "暂无数据"}
   </div>
 );
@@ -183,7 +198,8 @@ export const AdminWallpaperLibrary = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [wallpaperPage, setWallpaperPage] = useState(0);
-  const [detailWallpaper, setDetailWallpaper] = useState<AdminRemoteWallpaper | null>(null);
+  const [detailWallpaper, setDetailWallpaper] =
+    useState<AdminRemoteWallpaper | null>(null);
   const [uploadingTo, setUploadingTo] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{
     sourceId: string;
@@ -212,22 +228,25 @@ export const AdminWallpaperLibrary = () => {
     }
   }, []);
 
-  const loadWallpapers = useCallback(async (sourceId: string | null, page = 0) => {
-    setLoadingWallpapers(true);
-    try {
-      const data = await api.admin.remoteWallpapers({
-        sourceId: sourceId ?? undefined,
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
-      });
-      setWallpapers(data.items);
-      setWallpaperTotal(data.total);
-    } catch {
-      toast.error("加载壁纸列表失败");
-    } finally {
-      setLoadingWallpapers(false);
-    }
-  }, []);
+  const loadWallpapers = useCallback(
+    async (sourceId: string | null, page = 0) => {
+      setLoadingWallpapers(true);
+      try {
+        const data = await api.admin.remoteWallpapers({
+          sourceId: sourceId ?? undefined,
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+        });
+        setWallpapers(data.items);
+        setWallpaperTotal(data.total);
+      } catch {
+        toast.error("加载壁纸列表失败");
+      } finally {
+        setLoadingWallpapers(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     loadSources();
@@ -297,14 +316,23 @@ export const AdminWallpaperLibrary = () => {
       const updated = await api.admin.updateWallpaperSource(source.id, {
         enabled: !source.enabled,
       });
-      setSources((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setSources((prev) =>
+        prev.map((s) => (s.id === updated.id ? updated : s)),
+      );
     } catch {
       toast.error("更新失败");
     }
   };
 
   const handleDeleteSource = async (id: string) => {
-    if (!(await confirmDialog("确定删除该壁纸来源？关联的壁纸也会一并删除。", undefined, { danger: true }))) return;
+    if (
+      !(await confirmDialog(
+        "确定删除该壁纸来源？关联的壁纸也会一并删除。",
+        undefined,
+        { danger: true },
+      ))
+    )
+      return;
     try {
       await api.admin.deleteWallpaperSource(id);
       setSources((prev) => prev.filter((s) => s.id !== id));
@@ -316,7 +344,12 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleDeleteWallpaper = async (id: string) => {
-    if (!(await confirmDialog("确定删除该壁纸吗？操作不可撤销。", undefined, { danger: true }))) return;
+    if (
+      !(await confirmDialog("确定删除该壁纸吗？操作不可撤销。", undefined, {
+        danger: true,
+      }))
+    )
+      return;
     try {
       await api.admin.deleteRemoteWallpaper(id);
       setWallpapers((prev) => prev.filter((w) => w.id !== id));
@@ -329,7 +362,11 @@ export const AdminWallpaperLibrary = () => {
   };
 
   const handleRenameWallpaper = async (w: AdminRemoteWallpaper) => {
-    const next = await promptDialog("修改壁纸名称：", w.title ?? "", "重命名壁纸");
+    const next = await promptDialog(
+      "修改壁纸名称：",
+      w.title ?? "",
+      "重命名壁纸",
+    );
     if (next === null) return;
     const trimmed = next.trim();
     if (!trimmed) {
@@ -337,8 +374,12 @@ export const AdminWallpaperLibrary = () => {
       return;
     }
     try {
-      const updated = await api.admin.updateRemoteWallpaper(w.id, { title: trimmed });
-      setWallpapers((prev) => prev.map((it) => (it.id === w.id ? updated : it)));
+      const updated = await api.admin.updateRemoteWallpaper(w.id, {
+        title: trimmed,
+      });
+      setWallpapers((prev) =>
+        prev.map((it) => (it.id === w.id ? updated : it)),
+      );
       setDetailWallpaper(updated);
       toast.success("已更新");
     } catch {
@@ -362,7 +403,10 @@ export const AdminWallpaperLibrary = () => {
     try {
       let okCount = 0;
       let failCount = 0;
-      const totalBytes = files.reduce((sum, file) => sum + Math.max(file.size, 1), 0);
+      const totalBytes = files.reduce(
+        (sum, file) => sum + Math.max(file.size, 1),
+        0,
+      );
       let completedBytes = 0;
       for (let i = 0; i < files.length; i += 1) {
         const file = files[i];
@@ -386,7 +430,12 @@ export const AdminWallpaperLibrary = () => {
               index: i + 1,
               total: files.length,
               filePercent: Math.round((fileLoaded / fileTotal) * 100),
-              overallPercent: Math.round(((completedBytes + Math.min(fileLoaded, file.size || fileTotal)) / totalBytes) * 100),
+              overallPercent: Math.round(
+                ((completedBytes +
+                  Math.min(fileLoaded, file.size || fileTotal)) /
+                  totalBytes) *
+                  100,
+              ),
               okCount,
               failCount,
             });
@@ -412,10 +461,15 @@ export const AdminWallpaperLibrary = () => {
       }
       if (okCount > 0) {
         toast.success(`已上传 ${okCount} 张壁纸`);
-        await Promise.all([loadSources(), loadWallpapers(selectedSourceId, wallpaperPage)]);
+        await Promise.all([
+          loadSources(),
+          loadWallpapers(selectedSourceId, wallpaperPage),
+        ]);
       }
     } finally {
-      setUploadProgress((prev) => prev ? { ...prev, filePercent: 100, overallPercent: 100 } : prev);
+      setUploadProgress((prev) =>
+        prev ? { ...prev, filePercent: 100, overallPercent: 100 } : prev,
+      );
       window.setTimeout(() => setUploadProgress(null), 1200);
       setUploadingTo(null);
       uploadTargetSourceRef.current = null;
@@ -427,23 +481,32 @@ export const AdminWallpaperLibrary = () => {
     e.stopPropagation();
     const items: CtxItem[] = [
       { icon: "eye", label: "查看详情", onClick: () => setDetailWallpaper(w) },
-      { icon: "edit", label: "重命名", onClick: () => handleRenameWallpaper(w) },
+      {
+        icon: "edit",
+        label: "重命名",
+        onClick: () => handleRenameWallpaper(w),
+      },
     ];
     if (w.originalUrl && !w.originalUrl.startsWith("manual://")) {
       items.push({
         icon: "external",
         label: "打开原始链接",
-        onClick: () => window.open(w.originalUrl, "_blank", "noopener,noreferrer"),
+        onClick: () =>
+          window.open(w.originalUrl, "_blank", "noopener,noreferrer"),
       });
     }
-    const copyTarget = w.storageKey ? `/uploads/${w.storageKey}` : w.originalUrl;
+    const copyTarget = w.storageKey
+      ? `/uploads/${w.storageKey}`
+      : w.originalUrl;
     if (copyTarget) {
       items.push({
         icon: "link",
         label: "复制图片地址",
         onClick: async () => {
           try {
-            await navigator.clipboard.writeText(new URL(copyTarget, window.location.origin).href);
+            await navigator.clipboard.writeText(
+              new URL(copyTarget, window.location.origin).href,
+            );
             toast.success("已复制到剪贴板");
           } catch {
             toast.error("复制失败");
@@ -461,7 +524,8 @@ export const AdminWallpaperLibrary = () => {
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   };
 
-  const sourceNameOf = (sid: string) => sources.find((s) => s.id === sid)?.name ?? "未知来源";
+  const sourceNameOf = (sid: string) =>
+    sources.find((s) => s.id === sid)?.name ?? "未知来源";
 
   const formatBytes = (n: number | null | undefined) => {
     if (!n || n <= 0) return "—";
@@ -473,8 +537,12 @@ export const AdminWallpaperLibrary = () => {
   const openEditForm = (source: WallpaperSourceView) => {
     setEditingId(source.id);
     const config = SCRAPER_CONFIGS[source.scraperType];
-    const apiKey = config?.keyParam ? extractKeyFromUrl(source.siteUrl, config.keyParam) : "";
-    const siteUrl = config?.keyParam ? stripKeyFromUrl(source.siteUrl, config.keyParam) : source.siteUrl;
+    const apiKey = config?.keyParam
+      ? extractKeyFromUrl(source.siteUrl, config.keyParam)
+      : "";
+    const siteUrl = config?.keyParam
+      ? stripKeyFromUrl(source.siteUrl, config.keyParam)
+      : source.siteUrl;
     setForm({
       name: source.name,
       siteUrl,
@@ -514,8 +582,13 @@ export const AdminWallpaperLibrary = () => {
     setSubmitting(true);
     try {
       if (editingId) {
-        const updated = await api.admin.updateWallpaperSource(editingId, payload);
-        setSources((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+        const updated = await api.admin.updateWallpaperSource(
+          editingId,
+          payload,
+        );
+        setSources((prev) =>
+          prev.map((s) => (s.id === updated.id ? updated : s)),
+        );
         toast.success("已更新");
       } else {
         const created = await api.admin.createWallpaperSource(payload);
@@ -536,19 +609,28 @@ export const AdminWallpaperLibrary = () => {
     label: string,
     field: keyof SourceFormState,
     type: "text" | "number" | "checkbox" = "text",
-    extra?: React.InputHTMLAttributes<HTMLInputElement>
+    extra?: React.InputHTMLAttributes<HTMLInputElement>,
   ) => {
     const val = form[field];
     return (
       <div style={{ marginBottom: 14 }}>
-        <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: 12,
+            color: "var(--text-soft)",
+            marginBottom: 4,
+          }}
+        >
           {label}
         </label>
         {type === "checkbox" ? (
           <input
             type="checkbox"
             checked={!!val}
-            onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.checked }))}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, [field]: e.target.checked }))
+            }
           />
         ) : (
           <input
@@ -557,7 +639,8 @@ export const AdminWallpaperLibrary = () => {
             onChange={(e) =>
               setForm((f) => ({
                 ...f,
-                [field]: type === "number" ? Number(e.target.value) : e.target.value,
+                [field]:
+                  type === "number" ? Number(e.target.value) : e.target.value,
               }))
             }
             style={{
@@ -580,21 +663,44 @@ export const AdminWallpaperLibrary = () => {
   const formatDate = (iso: string | null) => {
     if (!iso) return "从未";
     const d = new Date(iso);
-    return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleString("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
-  const editingSource = editingId ? sources.find((s) => s.id === editingId) : null;
+  const editingSource = editingId
+    ? sources.find((s) => s.id === editingId)
+    : null;
 
   if (showAddForm) {
     return (
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
           <button
-            onClick={() => { setShowAddForm(false); setEditingId(null); }}
+            onClick={() => {
+              setShowAddForm(false);
+              setEditingId(null);
+            }}
             style={{
-              background: "var(--admin-border-str)", border: "none",
-              width: 28, height: 28, borderRadius: "50%", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "var(--admin-border-str)",
+              border: "none",
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               color: "var(--text)",
             }}
             title="返回列表"
@@ -606,14 +712,34 @@ export const AdminWallpaperLibrary = () => {
               {editingId ? "编辑壁纸来源" : "添加壁纸来源"}
             </h2>
             {editingSource ? (
-              <p style={{ fontSize: 13, color: "var(--text-soft)", display: "flex", alignItems: "center", gap: 8 }}>
-                正在编辑：<span style={{ color: "var(--text)", fontWeight: 500 }}>{editingSource.name}</span>
-                <span style={{ fontSize: 11, background: "var(--admin-border-str)", padding: "2px 6px", borderRadius: 4 }}>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-soft)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                正在编辑：
+                <span style={{ color: "var(--text)", fontWeight: 500 }}>
+                  {editingSource.name}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    background: "var(--admin-border-str)",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}
+                >
                   {editingSource.scraperType}
                 </span>
               </p>
             ) : (
-              <p style={{ fontSize: 13, color: "var(--text-soft)" }}>选择爬虫类型并填写参数，保存后立即生效。</p>
+              <p style={{ fontSize: 13, color: "var(--text-soft)" }}>
+                选择爬虫类型并填写参数，保存后立即生效。
+              </p>
             )}
           </div>
         </div>
@@ -628,9 +754,24 @@ export const AdminWallpaperLibrary = () => {
         >
           <form onSubmit={handleSubmitForm}>
             {/* Row 1: scraper type + name */}
-            <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "0 20px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "200px 1fr",
+                gap: "0 20px",
+              }}
+            >
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>壁纸来源</label>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: "var(--text-soft)",
+                    marginBottom: 4,
+                  }}
+                >
+                  壁纸来源
+                </label>
                 <select
                   value={form.scraperType}
                   onChange={(e) => {
@@ -646,122 +787,259 @@ export const AdminWallpaperLibrary = () => {
                     }));
                   }}
                   style={{
-                    width: "100%", padding: "6px 10px",
-                    background: "var(--admin-bg)", border: "1px solid var(--admin-border-str)",
-                    borderRadius: 6, color: "var(--text)", fontSize: 13,
+                    width: "100%",
+                    padding: "6px 10px",
+                    background: "var(--admin-bg)",
+                    border: "1px solid var(--admin-border-str)",
+                    borderRadius: 6,
+                    color: "var(--text)",
+                    fontSize: 13,
                   }}
                 >
                   {Object.entries(SCRAPER_CONFIGS).map(([id, cfg]) => (
-                    <option key={id} value={id}>{cfg.label}</option>
+                    <option key={id} value={id}>
+                      {cfg.label}
+                    </option>
                   ))}
                 </select>
               </div>
-              {formField("名称", "name", "text", { placeholder: "自定义来源名称" })}
+              {formField("名称", "name", "text", {
+                placeholder: "自定义来源名称",
+              })}
             </div>
 
             {/* API Key field — shown only for scrapers that support it */}
-            {SCRAPER_CONFIGS[form.scraperType]?.keyParam && (() => {
-              const cfg = SCRAPER_CONFIGS[form.scraperType];
-              return (
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>
-                    API Key{cfg.keyRequired ? <span style={{ color: "#ff6b6b" }}> *</span> : <span style={{ color: "var(--text-soft)" }}> (可选)</span>}
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type={showApiKey ? "text" : "password"}
-                      value={form.apiKey}
-                      onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-                      placeholder={cfg.keyRequired ? "请填写 API Key" : "留空则跳过认证"}
-                      autoComplete="off"
+            {SCRAPER_CONFIGS[form.scraperType]?.keyParam &&
+              (() => {
+                const cfg = SCRAPER_CONFIGS[form.scraperType];
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <label
                       style={{
-                        width: "100%", padding: "6px 36px 6px 10px",
-                        background: "var(--admin-bg)", border: `1px solid ${cfg.keyRequired && !form.apiKey ? "rgba(255,107,107,0.4)" : "var(--admin-border-str)"}`,
-                        borderRadius: 6, color: "var(--text)", fontSize: 13, boxSizing: "border-box",
-                        fontFamily: form.apiKey ? "monospace" : "inherit",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey((v) => !v)}
-                      title={showApiKey ? "隐藏密钥" : "显示密钥"}
-                      style={{
-                        position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                        background: "transparent", border: "none", cursor: "pointer",
-                        color: "var(--text-soft)", padding: 4, display: "flex", alignItems: "center",
+                        display: "block",
+                        fontSize: 12,
+                        color: "var(--text-soft)",
+                        marginBottom: 4,
                       }}
                     >
-                      <Icon name={showApiKey ? "eye-off" : "eye"} size={14} />
-                    </button>
-                  </div>
-                  {cfg.keyHint && (
-                    <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 4 }}>
-                      {cfg.keyHint}
+                      API Key
+                      {cfg.keyRequired ? (
+                        <span style={{ color: "#ff6b6b" }}> *</span>
+                      ) : (
+                        <span style={{ color: "var(--text-soft)" }}>
+                          {" "}
+                          (可选)
+                        </span>
+                      )}
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type={showApiKey ? "text" : "password"}
+                        value={form.apiKey}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, apiKey: e.target.value }))
+                        }
+                        placeholder={
+                          cfg.keyRequired ? "请填写 API Key" : "留空则跳过认证"
+                        }
+                        autoComplete="off"
+                        style={{
+                          width: "100%",
+                          padding: "6px 36px 6px 10px",
+                          background: "var(--admin-bg)",
+                          border: `1px solid ${cfg.keyRequired && !form.apiKey ? "rgba(255,107,107,0.4)" : "var(--admin-border-str)"}`,
+                          borderRadius: 6,
+                          color: "var(--text)",
+                          fontSize: 13,
+                          boxSizing: "border-box",
+                          fontFamily: form.apiKey ? "monospace" : "inherit",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey((v) => !v)}
+                        title={showApiKey ? "隐藏密钥" : "显示密钥"}
+                        style={{
+                          position: "absolute",
+                          right: 6,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--text-soft)",
+                          padding: 4,
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Icon name={showApiKey ? "eye-off" : "eye"} size={14} />
+                      </button>
                     </div>
-                  )}
-                </div>
-              );
-            })()}
+                    {cfg.keyHint && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "var(--text-soft)",
+                          marginTop: 4,
+                        }}
+                      >
+                        {cfg.keyHint}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
             {form.scraperType !== "manual" && (
               <>
                 {/* API URL */}
-                {formField("API 地址", "siteUrl", "text", { placeholder: "https://..." })}
+                {formField("API 地址", "siteUrl", "text", {
+                  placeholder: "https://...",
+                })}
 
                 {/* Numeric params */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
-                  {formField("单次抓取数量", "fetchBatchSize", "number", { min: 1, max: SCRAPER_CONFIGS[form.scraperType]?.maxBatch ?? 50 })}
-                  {formField("缓存时长 (小时)", "cacheTtlHours", "number", { min: 1 })}
-                  {formField("抓取间隔 (小时)", "fetchIntervalHours", "number", { min: 1 })}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: "0 20px",
+                  }}
+                >
+                  {formField("单次抓取数量", "fetchBatchSize", "number", {
+                    min: 1,
+                    max: SCRAPER_CONFIGS[form.scraperType]?.maxBatch ?? 50,
+                  })}
+                  {formField("缓存时长 (小时)", "cacheTtlHours", "number", {
+                    min: 1,
+                  })}
+                  {formField(
+                    "抓取间隔 (小时)",
+                    "fetchIntervalHours",
+                    "number",
+                    { min: 1 },
+                  )}
                 </div>
               </>
             )}
             {SCRAPER_CONFIGS[form.scraperType]?.batchHint && (
-              <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: form.scraperType === "manual" ? 0 : -8, marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--text-soft)",
+                  marginTop: form.scraperType === "manual" ? 0 : -8,
+                  marginBottom: 14,
+                }}
+              >
                 {SCRAPER_CONFIGS[form.scraperType].batchHint}
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 20px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "0 20px",
+              }}
+            >
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, color: "var(--text-soft)", marginBottom: 4 }}>媒体类型</label>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: "var(--text-soft)",
+                    marginBottom: 4,
+                  }}
+                >
+                  媒体类型
+                </label>
                 <select
                   value={form.sourceType}
-                  onChange={(e) => setForm((f) => ({ ...f, sourceType: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, sourceType: e.target.value }))
+                  }
                   style={{
-                    width: "100%", padding: "6px 10px",
-                    background: "var(--admin-bg)", border: "1px solid var(--admin-border-str)",
-                    borderRadius: 6, color: "var(--text)", fontSize: 13,
+                    width: "100%",
+                    padding: "6px 10px",
+                    background: "var(--admin-bg)",
+                    border: "1px solid var(--admin-border-str)",
+                    borderRadius: 6,
+                    color: "var(--text)",
+                    fontSize: 13,
                   }}
                 >
                   {SOURCE_TYPES.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
                   ))}
                 </select>
               </div>
-              <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}>
+              <div
+                style={{
+                  marginBottom: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingTop: 22,
+                }}
+              >
                 <input
                   type="checkbox"
                   id="enabled-chk"
                   checked={form.enabled}
-                  onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, enabled: e.target.checked }))
+                  }
                 />
-                <label htmlFor="enabled-chk" style={{ fontSize: 13, cursor: "pointer" }}>启用自动抓取</label>
+                <label
+                  htmlFor="enabled-chk"
+                  style={{ fontSize: 13, cursor: "pointer" }}
+                >
+                  启用自动抓取
+                </label>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                justifyContent: "flex-end",
+                marginTop: 8,
+              }}
+            >
               <button
                 type="button"
-                onClick={() => { setShowAddForm(false); setEditingId(null); }}
-                style={{ padding: "7px 16px", background: "transparent", border: "1px solid var(--admin-border-str)", borderRadius: 8, color: "var(--text)", fontSize: 13, cursor: "pointer" }}
+                onClick={() => {
+                  setShowAddForm(false);
+                  setEditingId(null);
+                }}
+                style={{
+                  padding: "7px 16px",
+                  background: "transparent",
+                  border: "1px solid var(--admin-border-str)",
+                  borderRadius: 8,
+                  color: "var(--text)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
               >
                 取消
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                style={{ padding: "7px 16px", background: "var(--accent)", color: "var(--text-inv)", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontWeight: 600 }}
+                style={{
+                  padding: "7px 16px",
+                  background: "var(--accent)",
+                  color: "var(--text-inv)",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
               >
                 {submitting ? "保存中..." : "保存"}
               </button>
@@ -774,15 +1052,28 @@ export const AdminWallpaperLibrary = () => {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 20,
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>壁纸库管理</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+            壁纸库管理
+          </h2>
           <p style={{ fontSize: 13, color: "var(--text-soft)" }}>
             配置壁纸抓取来源，系统会自动拉取并缓存到 MinIO，支持定时刷新。
           </p>
         </div>
         <button
-          onClick={() => { setShowAddForm(true); setEditingId(null); setForm(defaultForm()); }}
+          onClick={() => {
+            setShowAddForm(true);
+            setEditingId(null);
+            setForm(defaultForm());
+          }}
           style={{
             padding: "8px 16px",
             background: "var(--accent)",
@@ -799,118 +1090,225 @@ export const AdminWallpaperLibrary = () => {
       </div>
 
       {/* Sources table */}
-      <div style={{ background: "var(--admin-border-soft)", borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
+      <div
+        style={{
+          background: "var(--admin-border-soft)",
+          borderRadius: 12,
+          overflow: "hidden",
+          marginBottom: 32,
+        }}
+      >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {["名称", "类型", "批次", "缓存(h)", "间隔(h)", "已抓取", "最后抓取", "状态", "操作"].map((h) => (
-                <th key={h} style={th}>{h}</th>
+              {[
+                "名称",
+                "类型",
+                "批次",
+                "缓存(h)",
+                "间隔(h)",
+                "已抓取",
+                "最后抓取",
+                "状态",
+                "操作",
+              ].map((h) => (
+                <th key={h} style={th}>
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loadingSources ? (
-              <tr><td colSpan={9} style={cell}><EmptyCell text="加载中..." /></td></tr>
-            ) : sources.length === 0 ? (
-              <tr><td colSpan={9} style={cell}><EmptyCell text="暂无来源，点击「添加来源」开始" /></td></tr>
-            ) : sources.map((src) => (
-              <tr
-                key={src.id}
-                // UX-10: 行此前带「选中高亮」样式却无任何点击行为(误导)。
-                // 列表本就用 selectedSourceId 驱动来源筛选,这里把整行接成
-                // 点击即按该来源筛选下方壁纸(再次点击取消),并补上指针/提示。
-                onClick={() => {
-                  const next = selectedSourceId === src.id ? null : src.id;
-                  setSelectedSourceId(next);
-                  setWallpaperPage(0);
-                }}
-                title={selectedSourceId === src.id ? "再次点击取消按此来源筛选" : "点击按此来源筛选下方壁纸"}
-                style={{
-                  background: selectedSourceId === src.id ? "var(--admin-border-str)" : "transparent",
-                  cursor: "pointer",
-                }}
-              >
-                <td style={cell}>
-                  <a
-                    href={(() => { try { const u = new URL(src.siteUrl); return `${u.protocol}//${u.hostname}`; } catch { return src.siteUrl; } })()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontWeight: 500, color: "var(--text)", textDecoration: "none" }}
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                    onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-                  >
-                    {src.name}
-                  </a>
-                </td>
-                <td style={cell}><span style={{ fontSize: 11, background: "var(--admin-border-str)", padding: "2px 6px", borderRadius: 4 }}>{src.scraperType}</span></td>
-                <td style={{ ...cell, textAlign: "center" }}>{src.fetchBatchSize}</td>
-                <td style={{ ...cell, textAlign: "center" }}>{src.cacheTtlHours}</td>
-                <td style={{ ...cell, textAlign: "center" }}>{src.fetchIntervalHours}</td>
-                <td style={{ ...cell, textAlign: "center" }}>{src.totalFetched}</td>
-                <td style={cell}>{formatDate(src.lastFetchedAt)}</td>
-                <td style={cell}>
-                  <span
-                    onClick={(e) => { e.stopPropagation(); handleToggleEnabled(src); }}
-                    style={{
-                      display: "inline-block",
-                      padding: "2px 8px",
-                      borderRadius: 12,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      background: src.enabled ? "rgba(62,190,120,0.15)" : "rgba(150,150,150,0.1)",
-                      color: src.enabled ? "#3ebe78" : "var(--text-soft)",
-                    }}
-                  >
-                    {src.enabled ? "启用" : "停用"}
-                  </span>
-                </td>
-                <td style={{ ...cell, whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                  {src.scraperType === "manual" ? (
-                    <button
-                      onClick={() => triggerUpload(src.id)}
-                      disabled={uploadingTo === src.id}
-                      style={{
-                        marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer",
-                        background: "var(--accent)", color: "var(--text-inv)", border: "none", borderRadius: 6,
-                        opacity: uploadingTo === src.id ? 0.6 : 1,
-                      }}
-                    >
-                      {uploadingTo === src.id && uploadProgress
-                        ? `上传 ${uploadProgress.overallPercent}%`
-                        : uploadingTo === src.id
-                          ? "上传中..."
-                          : "上传壁纸"}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleTriggerFetch(src)}
-                      disabled={fetching === src.id}
-                      style={{
-                        marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer",
-                        background: "var(--accent)", color: "var(--text-inv)", border: "none", borderRadius: 6,
-                        opacity: fetching === src.id ? 0.6 : 1,
-                      }}
-                    >
-                      {fetching === src.id ? "抓取中..." : "立即抓取"}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => openEditForm(src)}
-                    style={{ marginRight: 6, padding: "4px 10px", fontSize: 12, cursor: "pointer", background: "transparent", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)" }}
-                  >
-                    编辑
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSource(src.id)}
-                    style={{ padding: "4px 10px", fontSize: 12, cursor: "pointer", background: "rgba(255,90,90,0.1)", border: "none", borderRadius: 6, color: "#ff6b6b" }}
-                  >
-                    删除
-                  </button>
+              <tr>
+                <td colSpan={9} style={cell}>
+                  <EmptyCell text="加载中..." />
                 </td>
               </tr>
-            ))}
+            ) : sources.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={cell}>
+                  <EmptyCell text="暂无来源，点击「添加来源」开始" />
+                </td>
+              </tr>
+            ) : (
+              sources.map((src) => (
+                <tr
+                  key={src.id}
+                  // UX-10: 行此前带「选中高亮」样式却无任何点击行为(误导)。
+                  // 列表本就用 selectedSourceId 驱动来源筛选,这里把整行接成
+                  // 点击即按该来源筛选下方壁纸(再次点击取消),并补上指针/提示。
+                  onClick={() => {
+                    const next = selectedSourceId === src.id ? null : src.id;
+                    setSelectedSourceId(next);
+                    setWallpaperPage(0);
+                  }}
+                  title={
+                    selectedSourceId === src.id
+                      ? "再次点击取消按此来源筛选"
+                      : "点击按此来源筛选下方壁纸"
+                  }
+                  style={{
+                    background:
+                      selectedSourceId === src.id
+                        ? "var(--admin-border-str)"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                >
+                  <td style={cell}>
+                    <a
+                      href={(() => {
+                        try {
+                          const u = new URL(src.siteUrl);
+                          return `${u.protocol}//${u.hostname}`;
+                        } catch {
+                          return src.siteUrl;
+                        }
+                      })()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontWeight: 500,
+                        color: "var(--text)",
+                        textDecoration: "none",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.textDecoration = "underline")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.textDecoration = "none")
+                      }
+                    >
+                      {src.name}
+                    </a>
+                  </td>
+                  <td style={cell}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        background: "var(--admin-border-str)",
+                        padding: "2px 6px",
+                        borderRadius: 4,
+                      }}
+                    >
+                      {src.scraperType}
+                    </span>
+                  </td>
+                  <td style={{ ...cell, textAlign: "center" }}>
+                    {src.fetchBatchSize}
+                  </td>
+                  <td style={{ ...cell, textAlign: "center" }}>
+                    {src.cacheTtlHours}
+                  </td>
+                  <td style={{ ...cell, textAlign: "center" }}>
+                    {src.fetchIntervalHours}
+                  </td>
+                  <td style={{ ...cell, textAlign: "center" }}>
+                    {src.totalFetched}
+                  </td>
+                  <td style={cell}>{formatDate(src.lastFetchedAt)}</td>
+                  <td style={cell}>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleEnabled(src);
+                      }}
+                      style={{
+                        display: "inline-block",
+                        padding: "2px 8px",
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        background: src.enabled
+                          ? "rgba(62,190,120,0.15)"
+                          : "rgba(150,150,150,0.1)",
+                        color: src.enabled ? "#3ebe78" : "var(--text-soft)",
+                      }}
+                    >
+                      {src.enabled ? "启用" : "停用"}
+                    </span>
+                  </td>
+                  <td
+                    style={{ ...cell, whiteSpace: "nowrap" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {src.scraperType === "manual" ? (
+                      <button
+                        onClick={() => triggerUpload(src.id)}
+                        disabled={uploadingTo === src.id}
+                        style={{
+                          marginRight: 6,
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          background: "var(--accent)",
+                          color: "var(--text-inv)",
+                          border: "none",
+                          borderRadius: 6,
+                          opacity: uploadingTo === src.id ? 0.6 : 1,
+                        }}
+                      >
+                        {uploadingTo === src.id && uploadProgress
+                          ? `上传 ${uploadProgress.overallPercent}%`
+                          : uploadingTo === src.id
+                            ? "上传中..."
+                            : "上传壁纸"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTriggerFetch(src)}
+                        disabled={fetching === src.id}
+                        style={{
+                          marginRight: 6,
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          background: "var(--accent)",
+                          color: "var(--text-inv)",
+                          border: "none",
+                          borderRadius: 6,
+                          opacity: fetching === src.id ? 0.6 : 1,
+                        }}
+                      >
+                        {fetching === src.id ? "抓取中..." : "立即抓取"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openEditForm(src)}
+                      style={{
+                        marginRight: 6,
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        background: "transparent",
+                        border: "1px solid var(--admin-border-str)",
+                        borderRadius: 6,
+                        color: "var(--text)",
+                      }}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSource(src.id)}
+                      style={{
+                        padding: "4px 10px",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        background: "rgba(255,90,90,0.1)",
+                        border: "none",
+                        borderRadius: 6,
+                        color: "#ff6b6b",
+                      }}
+                    >
+                      删除
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -925,19 +1323,52 @@ export const AdminWallpaperLibrary = () => {
             margin: "-18px 0 24px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <Icon name={uploadProgress.overallPercent >= 100 ? "check" : "activity"} size={16} />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 8,
+            }}
+          >
+            <Icon
+              name={uploadProgress.overallPercent >= 100 ? "check" : "activity"}
+              size={16}
+            />
             <div style={{ fontSize: 13, fontWeight: 600 }}>
               正在上传 {uploadProgress.index} / {uploadProgress.total}
             </div>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--text-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 12,
+                color: "var(--text-soft)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
               {uploadProgress.fileName}
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-soft)", fontVariantNumeric: "tabular-nums" }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--text-soft)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
               {uploadProgress.overallPercent}%
             </div>
           </div>
-          <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.10)" }}>
+          <div
+            style={{
+              height: 8,
+              borderRadius: 999,
+              overflow: "hidden",
+              background: "rgba(255,255,255,0.10)",
+            }}
+          >
             <div
               style={{
                 width: `${uploadProgress.overallPercent}%`,
@@ -948,26 +1379,56 @@ export const AdminWallpaperLibrary = () => {
               }}
             />
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 11, color: "var(--text-soft)" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginTop: 6,
+              fontSize: 11,
+              color: "var(--text-soft)",
+            }}
+          >
             <span>当前文件 {uploadProgress.filePercent}%</span>
-            <span>成功 {uploadProgress.okCount} · 失败 {uploadProgress.failCount}</span>
+            <span>
+              成功 {uploadProgress.okCount} · 失败 {uploadProgress.failCount}
+            </span>
           </div>
         </div>
       )}
 
       {/* Wallpapers grid */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 14,
+        }}
+      >
         <h3 style={{ fontSize: 15, fontWeight: 600 }}>已缓存壁纸</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <label htmlFor="admin-wp-source-filter" style={{ fontSize: 12, color: "var(--text-soft)" }}>来源筛选</label>
+          <label
+            htmlFor="admin-wp-source-filter"
+            style={{ fontSize: 12, color: "var(--text-soft)" }}
+          >
+            来源筛选
+          </label>
           <select
             id="admin-wp-source-filter"
             value={selectedSourceId ?? ""}
-            onChange={(e) => { setSelectedSourceId(e.target.value || null); setWallpaperPage(0); }}
+            onChange={(e) => {
+              setSelectedSourceId(e.target.value || null);
+              setWallpaperPage(0);
+            }}
             style={{
-              padding: "5px 10px", fontSize: 12, borderRadius: 6,
-              background: "var(--admin-bg)", border: "1px solid var(--admin-border-str)",
-              color: "var(--text)", cursor: "pointer", minWidth: 140,
+              padding: "5px 10px",
+              fontSize: 12,
+              borderRadius: 6,
+              background: "var(--admin-bg)",
+              border: "1px solid var(--admin-border-str)",
+              color: "var(--text)",
+              cursor: "pointer",
+              minWidth: 140,
             }}
           >
             <option value="">全部来源（{wallpaperTotal} 张）</option>
@@ -1018,17 +1479,32 @@ export const AdminWallpaperLibrary = () => {
                 cursor: "pointer",
                 transition: "transform 0.15s ease",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.transform = "translateY(-2px)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.transform = "translateY(0)")
+              }
             >
               {w.thumbnailUrl || w.thumbnailKey || w.storageKey ? (
                 <img
-                  src={w.thumbnailKey ? `/uploads/${w.thumbnailKey}` : w.mediaType === "image" && w.storageKey ? `/uploads/${w.storageKey}` : w.thumbnailUrl ?? undefined}
+                  src={
+                    w.thumbnailKey
+                      ? `/uploads/${w.thumbnailKey}`
+                      : w.mediaType === "image" && w.storageKey
+                        ? `/uploads/${w.storageKey}`
+                        : (w.thumbnailUrl ?? undefined)
+                  }
                   alt={w.title ?? "壁纸"}
                   // PERF-4: 缩略图网格按需懒加载、异步解码,屏外图片不阻塞首屏。
                   loading="lazy"
                   decoding="async"
-                  style={{ width: "100%", height: 112, objectFit: "cover", display: "block" }}
+                  style={{
+                    width: "100%",
+                    height: 112,
+                    objectFit: "cover",
+                    display: "block",
+                  }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
@@ -1036,10 +1512,15 @@ export const AdminWallpaperLibrary = () => {
               ) : (
                 <div
                   style={{
-                    width: "100%", height: 112,
-                    background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "var(--text-soft)", fontSize: 11,
+                    width: "100%",
+                    height: 112,
+                    background:
+                      "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--text-soft)",
+                    fontSize: 11,
                   }}
                 >
                   {w.mediaType === "video" ? "🎬 视频" : "🖼 图片"}
@@ -1048,33 +1529,67 @@ export const AdminWallpaperLibrary = () => {
 
               {/* Video indicator badge */}
               {w.mediaType === "video" && (
-                <div style={{
-                  position: "absolute", top: 6, left: 6,
-                  background: "rgba(0,0,0,0.65)", borderRadius: 4,
-                  padding: "2px 6px", fontSize: 10, color: "#fff",
-                }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    left: 6,
+                    background: "rgba(0,0,0,0.65)",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    fontSize: 10,
+                    color: "#fff",
+                  }}
+                >
                   VIDEO
                 </div>
               )}
 
               {/* Resolution badge */}
               {w.width && w.height && (
-                <div style={{
-                  position: "absolute", top: 6, right: 6,
-                  background: "rgba(0,0,0,0.65)", borderRadius: 4,
-                  padding: "2px 6px", fontSize: 10, color: "#fff",
-                  fontVariantNumeric: "tabular-nums",
-                }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    background: "rgba(0,0,0,0.65)",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    fontSize: 10,
+                    color: "#fff",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
                   {w.width}×{w.height}
                 </div>
               )}
 
               <div style={{ padding: "8px 10px 10px" }}>
-                <div style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={w.title ?? undefined}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={w.title ?? undefined}
+                >
                   {w.title ?? "未命名壁纸"}
                 </div>
                 {w.author && (
-                  <div style={{ fontSize: 11, color: "var(--text-soft)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.author}</div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--text-soft)",
+                      marginTop: 2,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {w.author}
+                  </div>
                 )}
               </div>
             </div>
@@ -1083,39 +1598,79 @@ export const AdminWallpaperLibrary = () => {
       )}
 
       {/* Pagination */}
-      {wallpaperTotal > 0 && (() => {
-        const totalPages = Math.max(1, Math.ceil(wallpaperTotal / PAGE_SIZE));
-        return (
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", alignItems: "center", marginTop: 20 }}>
-            <button
-              disabled={wallpaperPage === 0}
-              onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
-              style={{ padding: "6px 14px", fontSize: 13, cursor: "pointer", background: "var(--admin-border-soft)", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)", opacity: wallpaperPage === 0 ? 0.4 : 1 }}
+      {wallpaperTotal > 0 &&
+        (() => {
+          const totalPages = Math.max(1, Math.ceil(wallpaperTotal / PAGE_SIZE));
+          return (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                justifyContent: "center",
+                alignItems: "center",
+                marginTop: 20,
+              }}
             >
-              上一页
-            </button>
-            <span style={{ lineHeight: "30px", fontSize: 13, color: "var(--text-soft)" }}>
-              第 {wallpaperPage + 1} / {totalPages} 页 · 共 {wallpaperTotal} 张
-            </span>
-            <button
-              disabled={wallpaperPage + 1 >= totalPages}
-              onClick={() => setWallpaperPage((p) => p + 1)}
-              style={{ padding: "6px 14px", fontSize: 13, cursor: "pointer", background: "var(--admin-border-soft)", border: "1px solid var(--admin-border-str)", borderRadius: 6, color: "var(--text)", opacity: wallpaperPage + 1 >= totalPages ? 0.4 : 1 }}
-            >
-              下一页
-            </button>
-          </div>
-        );
-      })()}
+              <button
+                disabled={wallpaperPage === 0}
+                onClick={() => setWallpaperPage((p) => Math.max(0, p - 1))}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  background: "var(--admin-border-soft)",
+                  border: "1px solid var(--admin-border-str)",
+                  borderRadius: 6,
+                  color: "var(--text)",
+                  opacity: wallpaperPage === 0 ? 0.4 : 1,
+                }}
+              >
+                上一页
+              </button>
+              <span
+                style={{
+                  lineHeight: "30px",
+                  fontSize: 13,
+                  color: "var(--text-soft)",
+                }}
+              >
+                第 {wallpaperPage + 1} / {totalPages} 页 · 共 {wallpaperTotal}{" "}
+                张
+              </span>
+              <button
+                disabled={wallpaperPage + 1 >= totalPages}
+                onClick={() => setWallpaperPage((p) => p + 1)}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  background: "var(--admin-border-soft)",
+                  border: "1px solid var(--admin-border-str)",
+                  borderRadius: 6,
+                  color: "var(--text)",
+                  opacity: wallpaperPage + 1 >= totalPages ? 0.4 : 1,
+                }}
+              >
+                下一页
+              </button>
+            </div>
+          );
+        })()}
 
       {/* Detail modal */}
       {detailWallpaper && (
         <div
           onClick={() => setDetailWallpaper(null)}
           style={{
-            position: "fixed", inset: 0, zIndex: 9999,
-            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
-            display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
           }}
         >
           <div
@@ -1123,50 +1678,105 @@ export const AdminWallpaperLibrary = () => {
             style={{
               background: "var(--admin-card-bg, var(--admin-bg))",
               border: "1px solid var(--admin-border-str)",
-              borderRadius: 14, width: "min(560px, 100%)", maxHeight: "calc(100vh - 48px)",
-              overflow: "auto", display: "flex", flexDirection: "column",
+              borderRadius: 14,
+              width: "min(560px, 100%)",
+              maxHeight: "calc(100vh - 48px)",
+              overflow: "auto",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            {detailWallpaper.thumbnailUrl || detailWallpaper.thumbnailKey || detailWallpaper.storageKey ? (
+            {detailWallpaper.thumbnailUrl ||
+            detailWallpaper.thumbnailKey ||
+            detailWallpaper.storageKey ? (
               <img
-                src={detailWallpaper.thumbnailKey ? `/uploads/${detailWallpaper.thumbnailKey}` : detailWallpaper.mediaType === "image" && detailWallpaper.storageKey ? `/uploads/${detailWallpaper.storageKey}` : detailWallpaper.thumbnailUrl ?? undefined}
+                src={
+                  detailWallpaper.thumbnailKey
+                    ? `/uploads/${detailWallpaper.thumbnailKey}`
+                    : detailWallpaper.mediaType === "image" &&
+                        detailWallpaper.storageKey
+                      ? `/uploads/${detailWallpaper.storageKey}`
+                      : (detailWallpaper.thumbnailUrl ?? undefined)
+                }
                 alt={detailWallpaper.title ?? ""}
-                style={{ width: "100%", maxHeight: 280, objectFit: "cover", display: "block" }}
+                style={{
+                  width: "100%",
+                  maxHeight: 280,
+                  objectFit: "cover",
+                  display: "block",
+                }}
               />
             ) : (
-              <div style={{
-                width: "100%", height: 200,
-                background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: "var(--text-soft)",
-              }}>
+              <div
+                style={{
+                  width: "100%",
+                  height: 200,
+                  background:
+                    "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--text-soft)",
+                }}
+              >
                 {detailWallpaper.mediaType === "video" ? "🎬 视频" : "🖼 图片"}
               </div>
             )}
             <div style={{ padding: 20 }}>
-              <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, wordBreak: "break-word" }}>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  marginBottom: 4,
+                  wordBreak: "break-word",
+                }}
+              >
                 {detailWallpaper.title ?? "未命名壁纸"}
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 16 }}>
-                {sourceNameOf(detailWallpaper.sourceId)} · {detailWallpaper.mediaType === "video" ? "动态壁纸" : "静态壁纸"}
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-soft)",
+                  marginBottom: 16,
+                }}
+              >
+                {sourceNameOf(detailWallpaper.sourceId)} ·{" "}
+                {detailWallpaper.mediaType === "video"
+                  ? "动态壁纸"
+                  : "静态壁纸"}
                 {detailWallpaper.author ? ` · ${detailWallpaper.author}` : ""}
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 8, columnGap: 14, fontSize: 12 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr",
+                  rowGap: 8,
+                  columnGap: 14,
+                  fontSize: 12,
+                }}
+              >
                 <div style={{ color: "var(--text-soft)" }}>分辨率</div>
                 <div>
                   {detailWallpaper.width && detailWallpaper.height
                     ? `${detailWallpaper.width} × ${detailWallpaper.height}`
                     : detailWallpaper.mediaType === "video"
-                    ? "—（视频未探测）"
-                    : "—"}
+                      ? "—（视频未探测）"
+                      : "—"}
                 </div>
                 <div style={{ color: "var(--text-soft)" }}>文件大小</div>
                 <div>{formatBytes(detailWallpaper.fileSizeBytes)}</div>
                 <div style={{ color: "var(--text-soft)" }}>抓取时间</div>
-                <div>{new Date(detailWallpaper.fetchedAt).toLocaleString("zh-CN")}</div>
+                <div>
+                  {new Date(detailWallpaper.fetchedAt).toLocaleString("zh-CN")}
+                </div>
                 <div style={{ color: "var(--text-soft)" }}>原始链接</div>
                 <div style={{ wordBreak: "break-all" }}>
-                  <a href={detailWallpaper.originalUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                  <a
+                    href={detailWallpaper.originalUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: "var(--accent)" }}
+                  >
                     {detailWallpaper.originalUrl}
                   </a>
                 </div>
@@ -1174,29 +1784,66 @@ export const AdminWallpaperLibrary = () => {
                   <>
                     <div style={{ color: "var(--text-soft)" }}>来源页</div>
                     <div style={{ wordBreak: "break-all" }}>
-                      <a href={detailWallpaper.pageUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                      <a
+                        href={detailWallpaper.pageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "var(--accent)" }}
+                      >
                         {detailWallpaper.pageUrl}
                       </a>
                     </div>
                   </>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  justifyContent: "flex-end",
+                  marginTop: 20,
+                }}
+              >
                 <button
                   onClick={() => setDetailWallpaper(null)}
-                  style={{ padding: "7px 14px", fontSize: 13, background: "transparent", border: "1px solid var(--admin-border-str)", borderRadius: 8, color: "var(--text)", cursor: "pointer" }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 13,
+                    background: "transparent",
+                    border: "1px solid var(--admin-border-str)",
+                    borderRadius: 8,
+                    color: "var(--text)",
+                    cursor: "pointer",
+                  }}
                 >
                   关闭
                 </button>
                 <button
                   onClick={() => handleRenameWallpaper(detailWallpaper)}
-                  style={{ padding: "7px 14px", fontSize: 13, background: "var(--admin-border-str)", border: "none", borderRadius: 8, color: "var(--text)", cursor: "pointer" }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 13,
+                    background: "var(--admin-border-str)",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "var(--text)",
+                    cursor: "pointer",
+                  }}
                 >
                   重命名
                 </button>
                 <button
                   onClick={() => handleDeleteWallpaper(detailWallpaper.id)}
-                  style={{ padding: "7px 14px", fontSize: 13, background: "rgba(255,90,90,0.15)", border: "none", borderRadius: 8, color: "#ff6b6b", cursor: "pointer", fontWeight: 600 }}
+                  style={{
+                    padding: "7px 14px",
+                    fontSize: 13,
+                    background: "rgba(255,90,90,0.15)",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "#ff6b6b",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
                 >
                   删除
                 </button>

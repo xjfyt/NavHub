@@ -20,7 +20,10 @@ export function celsiusToFahrenheit(c: number): number {
  * - unit === "f":匹配 `-?数字°`,逐个换算为华氏并四舍五入。
  * 只匹配带 ° 的数字,因此湿度 "60%"、风向 "东南风"、AQI "75" 不受影响。
  */
-export function convertTempString(s: string | undefined | null, unit: TempUnit): string {
+export function convertTempString(
+  s: string | undefined | null,
+  unit: TempUnit,
+): string {
   if (!s) return "";
   if (unit === "c") return s;
   // 匹配可选负号 + 整数/小数,后跟度数符号 °。

@@ -42,8 +42,7 @@ function persistLang(lang: Lang) {
 
 /** 初始语言:用户偏好(localStorage) > navigator.language(zh* -> zh,否则 en)。 */
 function initialLang(): Lang {
-  const nav =
-    typeof navigator !== "undefined" ? navigator.language : undefined;
+  const nav = typeof navigator !== "undefined" ? navigator.language : undefined;
   return detectLang({ stored: readStoredLang(), navigator: nav });
 }
 

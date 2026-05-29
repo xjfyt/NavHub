@@ -44,12 +44,16 @@ export const RssWidget = ({ w }: WidgetProps<RssConfig> = {}) => {
       )}
       <div className="rss-list">
         {items.length === 0 && !loading && !error && (
-          <div className="muted" style={{ fontSize: 12 }}>（暂无数据）</div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            （暂无数据）
+          </div>
         )}
         {items.slice(0, 8).map((it, i) => {
           const row = (
             <>
-              <span className="rank" style={i < 3 ? { color: "#ff9b7b" } : {}}>{i + 1}</span>
+              <span className="rank" style={i < 3 ? { color: "#ff9b7b" } : {}}>
+                {i + 1}
+              </span>
               <span className="title">{it.title}</span>
               <span className="heat">{it.heat}</span>
             </>
@@ -68,7 +72,9 @@ export const RssWidget = ({ w }: WidgetProps<RssConfig> = {}) => {
               {row}
             </a>
           ) : (
-            <div key={i} className="rss-item">{row}</div>
+            <div key={i} className="rss-item">
+              {row}
+            </div>
           );
         })}
       </div>
@@ -94,26 +100,78 @@ export const RssDetail = ({ w }: WidgetProps<RssConfig> = {}) => {
             onClick={() => update({ source: s })}
             className={source === s ? "wcc-btn-add" : "wcc-btn-cancel"}
             style={{ padding: "6px 12px", fontSize: 12 }}
-          >{SOURCE_LABEL[s]}</button>
+          >
+            {SOURCE_LABEL[s]}
+          </button>
         ))}
-        {loading && <span className="muted" style={{ fontSize: 11, alignSelf: "center" }}>加载中…</span>}
+        {loading && (
+          <span className="muted" style={{ fontSize: 11, alignSelf: "center" }}>
+            加载中…
+          </span>
+        )}
       </div>
-      {error && <div className="muted" style={{ fontSize: 12 }}>{error.message || "加载失败"}</div>}
-      <div style={{ display: "grid", gap: 6, maxHeight: 440, overflowY: "auto" }}>
+      {error && (
+        <div className="muted" style={{ fontSize: 12 }}>
+          {error.message || "加载失败"}
+        </div>
+      )}
+      <div
+        style={{ display: "grid", gap: 6, maxHeight: 440, overflowY: "auto" }}
+      >
         {items.length === 0 && !loading && !error && (
-          <div className="muted" style={{ fontSize: 12 }}>（暂无数据）</div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            （暂无数据）
+          </div>
         )}
         {items.map((it, i) => {
           const content = (
-            <div style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
-              <span style={{ minWidth: 22, textAlign: "center", fontSize: 13, fontWeight: 700, color: i < 3 ? "#ff9b7b" : "var(--text-soft)" }}>{i + 1}</span>
-              <span style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>{it.title}</span>
-              {it.heat && <span className="muted" style={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}>{it.heat}</span>}
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "baseline",
+                padding: "10px 12px",
+                background: "rgba(255,255,255,0.04)",
+                borderRadius: 8,
+              }}
+            >
+              <span
+                style={{
+                  minWidth: 22,
+                  textAlign: "center",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: i < 3 ? "#ff9b7b" : "var(--text-soft)",
+                }}
+              >
+                {i + 1}
+              </span>
+              <span style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
+                {it.title}
+              </span>
+              {it.heat && (
+                <span
+                  className="muted"
+                  style={{ fontSize: 11, fontVariantNumeric: "tabular-nums" }}
+                >
+                  {it.heat}
+                </span>
+              )}
             </div>
           );
           return it.url ? (
-            <a key={i} href={it.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>{content}</a>
-          ) : <div key={i}>{content}</div>;
+            <a
+              key={i}
+              href={it.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              {content}
+            </a>
+          ) : (
+            <div key={i}>{content}</div>
+          );
         })}
       </div>
     </div>

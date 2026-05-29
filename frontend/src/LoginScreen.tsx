@@ -74,9 +74,13 @@ export function LoginScreen(props: {
   return (
     <div
       className="nh-login-overlay"
-      onClick={onClose ? (e) => {
-        if (e.target === e.currentTarget) onClose();
-      } : undefined}
+      onClick={
+        onClose
+          ? (e) => {
+              if (e.target === e.currentTarget) onClose();
+            }
+          : undefined
+      }
     >
       <div className="nh-login-card">
         {onClose ? (
@@ -86,7 +90,15 @@ export function LoginScreen(props: {
             aria-label={t("common.close")}
             onClick={onClose}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
               <path d="M6 6l12 12M6 18L18 6" />
             </svg>
           </button>
@@ -106,7 +118,16 @@ export function LoginScreen(props: {
               onClick={onSsoLogin}
               disabled={pending}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
                 <polyline points="10 17 15 12 10 7" />
                 <line x1="15" y1="12" x2="3" y2="12" />
@@ -117,7 +138,10 @@ export function LoginScreen(props: {
               <button
                 type="button"
                 className="nh-login-switch"
-                onClick={() => { setErr(null); setMode("password"); }}
+                onClick={() => {
+                  setErr(null);
+                  setMode("password");
+                }}
               >
                 {t("login.switchToPassword")}
               </button>
@@ -130,7 +154,9 @@ export function LoginScreen(props: {
                 <span
                   className="nh-login-firstrun-text"
                   // 静态模板,内含 <b> 强调;无任何用户输入拼接,故安全直渲。
-                  dangerouslySetInnerHTML={{ __html: t("login.firstRunHintHtml") }}
+                  dangerouslySetInnerHTML={{
+                    __html: t("login.firstRunHintHtml"),
+                  }}
                 />
                 <button
                   type="button"
@@ -138,14 +164,32 @@ export function LoginScreen(props: {
                   aria-label={t("login.dismissHint")}
                   onClick={onDismissHint}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  >
                     <path d="M6 6l12 12M6 18L18 6" />
                   </svg>
                 </button>
               </div>
             ) : null}
             <label className="nh-login-field">
-              <svg className="nh-login-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="nh-login-field-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
                 <circle cx="12" cy="7" r="4" />
               </svg>
@@ -158,7 +202,17 @@ export function LoginScreen(props: {
               />
             </label>
             <label className="nh-login-field">
-              <svg className="nh-login-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                className="nh-login-field-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0110 0v4" />
               </svg>
@@ -186,7 +240,10 @@ export function LoginScreen(props: {
               <button
                 type="button"
                 className="nh-login-switch"
-                onClick={() => { setErr(null); setMode("sso"); }}
+                onClick={() => {
+                  setErr(null);
+                  setMode("sso");
+                }}
               >
                 {t("login.switchToSso")}
               </button>

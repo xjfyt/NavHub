@@ -34,7 +34,11 @@ export function advancePhase(
   now: number,
 ): NextPhase {
   if (phase === "work") {
-    return { phase: "break", rounds: rounds + 1, endTs: now + dur.breakSec * 1000 };
+    return {
+      phase: "break",
+      rounds: rounds + 1,
+      endTs: now + dur.breakSec * 1000,
+    };
   }
   return { phase: "work", rounds, endTs: now + dur.workSec * 1000 };
 }

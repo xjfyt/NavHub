@@ -45,9 +45,17 @@ export const AdminSettings = () => {
   };
 
   const rows: SettingRow[] = [
-    { key: "auto_assign_user_role", t: "新用户自动分配普通用户", d: "首次通过 SSO 登录的用户默认普通用户权限" },
+    {
+      key: "auto_assign_user_role",
+      t: "新用户自动分配普通用户",
+      d: "首次通过 SSO 登录的用户默认普通用户权限",
+    },
     { key: "enable_drag_sort", t: "启用拖拽排序", d: "允许编辑者重新排列图标" },
-    { key: "enable_iframe_preview", t: "启用 iframe 预览", d: "点击图标在弹窗中预览页面" },
+    {
+      key: "enable_iframe_preview",
+      t: "启用 iframe 预览",
+      d: "点击图标在弹窗中预览页面",
+    },
     { key: "enable_audit_log", t: "启用审计日志", d: "保留操作记录" },
   ];
 
@@ -64,7 +72,8 @@ export const AdminSettings = () => {
       t: "开发者模式",
       d: "暴露调试 API 与 Webhook",
       danger: true,
-      dangerHint: "开启后将暴露调试 API 与 Webhook，可能带来安全风险，仅在排障时使用。",
+      dangerHint:
+        "开启后将暴露调试 API 与 Webhook，可能带来安全风险，仅在排障时使用。",
     },
   ];
 
@@ -104,9 +113,17 @@ export const AdminSettings = () => {
     <>
       <div className="admin-head" style={{ marginBottom: 30 }}>
         <h2 style={{ fontSize: 24, margin: "0 0 6px 0" }}>系统设置</h2>
-        <div style={{ fontSize: 13, color: "var(--text-soft)" }}>控制整个实例的全局行为</div>
+        <div style={{ fontSize: 13, color: "var(--text-soft)" }}>
+          控制整个实例的全局行为
+        </div>
       </div>
-      <div style={{ background: "var(--admin-card-bg)", borderRadius: 12, padding: "0 24px" }}>
+      <div
+        style={{
+          background: "var(--admin-card-bg)",
+          borderRadius: 12,
+          padding: "0 24px",
+        }}
+      >
         {rows.map((s, i) => (
           <div
             key={s.key}
@@ -115,12 +132,23 @@ export const AdminSettings = () => {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "16px 0",
-              borderBottom: i === rows.length - 1 ? "none" : "1px solid var(--admin-hover-soft)",
+              borderBottom:
+                i === rows.length - 1
+                  ? "none"
+                  : "1px solid var(--admin-hover-soft)",
             }}
           >
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{s.t}</div>
-              <div style={{ fontSize: 12, color: "var(--text-soft)", marginTop: 4 }}>{s.d}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-soft)",
+                  marginTop: 4,
+                }}
+              >
+                {s.d}
+              </div>
             </div>
             <Switch row={s} />
           </div>
@@ -149,7 +177,9 @@ export const AdminSettings = () => {
           }}
         >
           ⚠️ 危险设置
-          <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-soft)" }}>
+          <span
+            style={{ fontSize: 12, fontWeight: 400, color: "var(--text-soft)" }}
+          >
             以下开关影响安全/可见性，开启时需二次确认
           </span>
         </div>
@@ -167,7 +197,15 @@ export const AdminSettings = () => {
           >
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{s.t}</div>
-              <div style={{ fontSize: 12, color: "var(--text-soft)", marginTop: 4 }}>{s.d}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-soft)",
+                  marginTop: 4,
+                }}
+              >
+                {s.d}
+              </div>
             </div>
             <Switch row={s} />
           </div>
