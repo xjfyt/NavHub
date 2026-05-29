@@ -1,5 +1,13 @@
 name: Build and Push Docker Images
 
+# OPS-7 供应链加固:第三方 Action 建议固定到 commit SHA(防 tag 被重打)。
+# 首方 actions/* 维持 @v4 大版本即可。对安全敏感的第三方 Action(docker/*、
+# aquasecurity/trivy-action、anchore/sbom-action、github/codeql-action)推荐改为:
+#   uses: docker/build-push-action@<40 位 commit SHA>  # v6
+# 获取 SHA:在该 Action 仓库对应 release tag 上 `git rev-parse <tag>`,或用
+# pinact/ratchet 等工具批量固定。此处保留版本标签 + 注释,SHA 由维护者按需补全
+# (离线环境无法解析真实 SHA,不臆造)。
+
 on:
   release:
     types: [published]
