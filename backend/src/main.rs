@@ -88,6 +88,18 @@ async fn main() -> anyhow::Result<()> {
 
     // Drain workers (bounded so a stuck task can't keep the process alive).
     workers.shutdown(Duration::from_secs(10)).await;
+
+    // INFRA-4: 排空 admin 手动触发的后台抓取任务。close() 后不再接受新任务,
+    // wait() 等待进行中的任务完成;整体加超时,避免卡死任务阻止进程退出。
+    // 同时关闭限流 semaphore,让仍在排队等许可的任务立即放弃(acquire_owned 返回 Err)。
+    state.admin_fetch_sem.close();
+    state.bg_tasks.close();
+    if tokio::time::timeout(Duration::from_secs(10), state.bg_tasks.wait())
+        .await
+        .is_err()
+    {
+        tracing::warn!("admin background fetch tasks did not drain within 10s, abandoning");
+    }
     Ok(())
 }
 

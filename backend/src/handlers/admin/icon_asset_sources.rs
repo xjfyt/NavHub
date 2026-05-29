@@ -140,8 +140,18 @@ pub async fn trigger_fetch(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    tokio::spawn(async move {
-        if let Err(e) = run_fetch(&state, &source).await {
+    // INFRA-4: 不再裸 tokio::spawn 脱管。改为通过 bg_tasks(TaskTracker)跟踪,
+    // 优雅关停时可排空;并先拿 admin_fetch_sem 许可限流,避免反复点击堆出无界并发。
+    // tracker 与 state 都是 Arc 背书的廉价 clone,先取出再 spawn 以免闭包借用冲突。
+    let sem = state.admin_fetch_sem.clone();
+    let tracker = state.bg_tasks.clone();
+    let task_state = state.clone();
+    tracker.spawn(async move {
+        let _permit = match sem.acquire_owned().await {
+            Ok(p) => p,
+            Err(_) => return, // semaphore 已关闭(关停中),直接放弃。
+        };
+        if let Err(e) = run_fetch(&task_state, &source).await {
             tracing::error!("icon fetch failed for source {}: {e}", source.id);
         }
     });

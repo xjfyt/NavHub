@@ -177,6 +177,16 @@ pub struct GeneralConfig {
     /// 注意:link-local(169.254/16,含云元数据)始终被拒绝,不受此开关影响。
     #[serde(default)]
     pub favicon_allow_private_targets: bool,
+    /// INFRA-4: admin 手动触发的壁纸/图标后台抓取任务的最大并发数。这些任务此前是
+    /// 裸 tokio::spawn 脱管:既不限流(可被反复点击堆出无界并发),也不在优雅关停时
+    /// 被等待(进行中的工作丢失)。改为共享 Semaphore 限流 + TaskTracker 跟踪后,
+    /// 本值控制同时运行的抓取任务上限。默认 2。
+    #[serde(default = "default_admin_fetch_concurrency")]
+    pub admin_fetch_max_concurrency: usize,
+}
+
+fn default_admin_fetch_concurrency() -> usize {
+    2
 }
 
 fn default_retention() -> i64 {

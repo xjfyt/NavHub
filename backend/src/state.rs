@@ -3,7 +3,8 @@ use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, Notify, RwLock};
+use tokio::sync::{Mutex, Notify, RwLock, Semaphore};
+use tokio_util::task::TaskTracker;
 
 pub struct AppState {
     pub cfg: AppConfig,
@@ -36,12 +37,20 @@ pub struct AppState {
     /// 同一 host)只让第一个请求真正去抓上游,其余等待其完成后复用缓存结果,
     /// 避免缓存击穿风暴。Redis 不可用时整体失败开放(各自正常抓取),不会挂起。
     pub favicon_inflight: Mutex<HashMap<String, Arc<Notify>>>,
+    /// INFRA-4: 跟踪 admin 手动触发的后台抓取任务,优雅关停时排空进行中的工作。
+    pub bg_tasks: TaskTracker,
+    /// INFRA-4: 限制 admin 手动触发抓取的最大并发数(由 admin_fetch_max_concurrency
+    /// 配置),避免反复点击堆出无界并发。
+    pub admin_fetch_sem: Arc<Semaphore>,
 }
 
 impl AppState {
     pub async fn new(cfg: AppConfig, pg: PgPool, redis: RedisPool) -> anyhow::Result<Self> {
         let sso = SsoCache::load(&pg, &cfg.sso).await?;
         let storage = Storage::from_config(&cfg).await?;
+
+        // INFRA-4: 限流许可数取配置值,至少 1,避免配 0 导致任务永远拿不到许可。
+        let admin_fetch_sem = Arc::new(Semaphore::new(cfg.app.admin_fetch_max_concurrency.max(1)));
 
         let reqwest_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
@@ -84,6 +93,8 @@ impl AppState {
             oidc_client,
             jwks_cache: Arc::new(JwksCache::new()),
             favicon_inflight: Mutex::new(HashMap::new()),
+            bg_tasks: TaskTracker::new(),
+            admin_fetch_sem,
         })
     }
 }
