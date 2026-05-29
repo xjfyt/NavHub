@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { api } from "./api";
 
 export function ChangePasswordScreen(props: { onDone: () => void }) {
+  const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [pending, setPending] = useState(false);
@@ -13,14 +14,18 @@ export function ChangePasswordScreen(props: { onDone: () => void }) {
       setErr("两次输入的密码不一致");
       return;
     }
-    if (password.length < 6) {
-      setErr("密码至少 6 位");
+    if (password.length < 8) {
+      setErr("密码至少 8 位");
+      return;
+    }
+    if (!current) {
+      setErr("请输入当前密码");
       return;
     }
     setPending(true);
     setErr(null);
     try {
-      await api.changePassword(password);
+      await api.changePassword(current, password);
       toast.success("密码已修改，请使用新密码重新登录");
       props.onDone();
     } catch (e) {
@@ -55,7 +60,21 @@ export function ChangePasswordScreen(props: { onDone: () => void }) {
               <input
                 className="nh-login-input"
                 type="password"
-                placeholder="新密码（至少 6 位）"
+                placeholder="当前密码"
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+                autoComplete="current-password"
+              />
+            </label>
+            <label className="nh-login-field">
+              <svg className="nh-login-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+              <input
+                className="nh-login-input"
+                type="password"
+                placeholder="新密码（至少 8 位）"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
@@ -81,7 +100,7 @@ export function ChangePasswordScreen(props: { onDone: () => void }) {
               type="button"
               className="nh-login-btn"
               onClick={() => void onSubmit()}
-              disabled={pending || !password || !confirm}
+              disabled={pending || !current || !password || !confirm}
             >
               {pending ? "提交中…" : "确认修改"}
             </button>

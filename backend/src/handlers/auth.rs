@@ -358,6 +358,7 @@ async fn fetch_user(state: &Arc<AppState>, id: uuid::Uuid) -> AppResult<User> {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdatePasswordReq {
+    pub current_password: String,
     pub new_password: String,
 }
 
@@ -367,8 +368,20 @@ pub async fn change_password(
     headers: HeaderMap,
     Json(body): Json<UpdatePasswordReq>,
 ) -> AppResult<Response> {
-    if body.new_password.len() < 6 {
-        return Err(AppError::BadRequest("Password too short".into()));
+    if body.new_password.len() < 8 {
+        return Err(AppError::BadRequest("Password too short (min 8)".into()));
+    }
+    // AUTH-5: 必须校验当前密码,防止会话被劫持后无需旧密码即可改密、把合法用户锁死。
+    let stored: Option<Option<String>> =
+        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+            .bind(user.id)
+            .fetch_optional(&state.pg)
+            .await?;
+    let current_hash = stored
+        .flatten()
+        .ok_or_else(|| AppError::BadRequest("no password set for this account".into()))?;
+    if !password::verify_password(&body.current_password, &current_hash) {
+        return Err(AppError::BadRequest("current password incorrect".into()));
     }
     let hash = password::hash_password(&body.new_password)?;
     sqlx::query("UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2")
