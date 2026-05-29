@@ -51,6 +51,35 @@ export function shouldTrapTab(
   return currentIndex >= count - 1; // 在末个上 Tab 才环绕
 }
 
+/**
+ * A11Y-5 / UX-25:菜单(role="menu")的 roving focus 纯逻辑。
+ * 给定当前高亮项索引、方向、可聚焦项总数,返回下一个应高亮的索引(带环绕)。
+ *
+ * 约定:
+ * - count <= 0 时无可聚焦项,返回 -1。
+ * - "down":向下移动,末尾环绕回 0;currentIndex < 0 时落到第一个(0)。
+ * - "up":向上移动,开头环绕到末尾;currentIndex < 0 时落到最后一个(count - 1)。
+ * - "home":跳到第一个(0);"end":跳到最后一个(count - 1)。
+ */
+export function rovingIndex(
+  currentIndex: number,
+  dir: "up" | "down" | "home" | "end",
+  count: number,
+): number {
+  if (count <= 0) return -1;
+  if (dir === "home") return 0;
+  if (dir === "end") return count - 1;
+  if (count === 1) return 0;
+
+  if (currentIndex < 0) {
+    return dir === "up" ? count - 1 : 0;
+  }
+  if (dir === "up") {
+    return currentIndex <= 0 ? count - 1 : currentIndex - 1;
+  }
+  return currentIndex >= count - 1 ? 0 : currentIndex + 1;
+}
+
 // 收集容器内可聚焦元素时使用的选择器(供 DOM 层复用,保持单一来源)。
 export const FOCUSABLE_SELECTOR = [
   "a[href]",

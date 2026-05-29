@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nextFocusIndex, shouldTrapTab } from "./focusTrap";
+import { nextFocusIndex, shouldTrapTab, rovingIndex } from "./focusTrap";
 
 describe("nextFocusIndex - 正向 Tab", () => {
   it("从中间元素正向 Tab 走到下一个", () => {
@@ -78,6 +78,57 @@ describe("nextFocusIndex - 完整环绕一周保持封闭", () => {
     const count = 5;
     const fwd = nextFocusIndex(2, false, count); // 3
     expect(nextFocusIndex(fwd, true, count)).toBe(2);
+  });
+});
+
+describe("rovingIndex - 菜单 ArrowUp/ArrowDown 漫游(带环绕)", () => {
+  it("ArrowDown 从中间走到下一个", () => {
+    expect(rovingIndex(1, "down", 5)).toBe(2);
+  });
+
+  it("ArrowDown 在末尾环绕回第一个", () => {
+    expect(rovingIndex(4, "down", 5)).toBe(0);
+  });
+
+  it("ArrowUp 从中间走到上一个", () => {
+    expect(rovingIndex(2, "up", 5)).toBe(1);
+  });
+
+  it("ArrowUp 在开头环绕到最后一个", () => {
+    expect(rovingIndex(0, "up", 5)).toBe(4);
+  });
+
+  it("尚未选中(index = -1)按 ArrowDown 落到第一个", () => {
+    expect(rovingIndex(-1, "down", 5)).toBe(0);
+  });
+
+  it("尚未选中(index = -1)按 ArrowUp 落到最后一个", () => {
+    expect(rovingIndex(-1, "up", 5)).toBe(4);
+  });
+
+  it("home 跳到第一个", () => {
+    expect(rovingIndex(3, "home", 5)).toBe(0);
+  });
+
+  it("end 跳到最后一个", () => {
+    expect(rovingIndex(1, "end", 5)).toBe(4);
+  });
+
+  it("没有可聚焦项返回 -1", () => {
+    expect(rovingIndex(0, "down", 0)).toBe(-1);
+    expect(rovingIndex(0, "up", -2)).toBe(-1);
+  });
+
+  it("只有一个项时上下都停在它上面", () => {
+    expect(rovingIndex(0, "down", 1)).toBe(0);
+    expect(rovingIndex(0, "up", 1)).toBe(0);
+  });
+
+  it("连续 ArrowDown 环绕一周回到起点", () => {
+    const count = 4;
+    let idx = 0;
+    for (let i = 0; i < count; i++) idx = rovingIndex(idx, "down", count);
+    expect(idx).toBe(0);
   });
 });
 

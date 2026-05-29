@@ -585,6 +585,12 @@ html[data-mode="light"] .sidebar-bottom::before {
   cursor: pointer;
   position: relative;
   transition: background 160ms, transform 160ms;
+  /* A11Y-5: .engine-tile 现为 <button>,清除默认按钮样式以保持外观一致 */
+  background: transparent;
+  border: 0;
+  width: 100%;
+  font-family: inherit;
+  color: inherit;
 }
 .engine-tile:hover { background: rgba(255,255,255,0.08); transform: translateY(-1px); }
 .engine-tile.active { background: rgba(255,255,255,0.14); }
@@ -3085,6 +3091,12 @@ html[data-mode="dark"] .tw-custom-hint {
   cursor: pointer;
   transition: background 110ms;
   color: var(--text);
+  /* A11Y-5: .ctx-item 现为 <button>,清除浏览器默认按钮样式以保持外观一致 */
+  width: 100%;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-family: inherit;
 }
 .ctx-item:hover { background: rgba(255,255,255,0.10); }
 .ctx-item.danger { color: #ff8080; }
