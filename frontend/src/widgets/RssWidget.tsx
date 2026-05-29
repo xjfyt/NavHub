@@ -24,7 +24,7 @@ export const RssWidget = ({ w }: WidgetProps<RssConfig> = {}) => {
   const { data, loading, error } = useWidgetData(
     (signal) => api.hot(source, signal),
     [source],
-    { refreshMs: 5 * 60_000 },
+    { refreshMs: 5 * 60_000, cacheKey: `rss:${source}` },
   );
 
   const items = data ?? [];
@@ -82,7 +82,7 @@ export const RssDetail = ({ w }: WidgetProps<RssConfig> = {}) => {
   const { data, loading, error } = useWidgetData(
     (signal) => api.hot(source, signal),
     [source],
-    { refreshMs: 5 * 60_000 },
+    { refreshMs: 5 * 60_000, cacheKey: `rss:${source}` },
   );
   const items = data ?? [];
   return (

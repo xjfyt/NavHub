@@ -27,7 +27,7 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   const { data, loading, error } = useWidgetData(
     (signal) => api.weather(city || undefined, undefined, undefined, signal),
     [city],
-    { refreshMs: 30 * 60_000 },
+    { refreshMs: 30 * 60_000, cacheKey: `weather:${city || "auto"}` },
   );
 
   const toggleUnit = (e: React.MouseEvent) => {
@@ -149,7 +149,7 @@ export const WeatherDetail = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   const { data, loading, error } = useWidgetData(
     (signal) => api.weather(city || undefined, undefined, undefined, signal),
     [city],
-    { refreshMs: 30 * 60_000 },
+    { refreshMs: 30 * 60_000, cacheKey: `weather:${city || "auto"}` },
   );
   if (error) return <div className="muted" style={{ fontSize: 13 }}>{error.message || "加载失败"}</div>;
   if (!data) return <div className="muted" style={{ fontSize: 13 }}>{loading ? "加载中…" : "暂无数据"}</div>;
