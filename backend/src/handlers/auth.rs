@@ -144,6 +144,11 @@ pub async fn password(
     if !state.cfg.superadmin.password_login_enabled {
         return Err(AppError::Forbidden("password_login_disabled"));
     }
+    // AUTH-4: per-account cap so an attacker rotating source IPs (or coming via a
+    // trusted proxy that collapses many clients onto one XFF) still can't brute
+    // a single account. Keyed by the submitted identity, independent of the
+    // per-IP middleware limit.
+    crate::auth::rate_limit::check_account_limit(&state, &body.username).await?;
     let row: Option<User> = sqlx::query_as::<_, User>(
         "SELECT id, username, email, display_name, avatar_url, role, password_hash, casdoor_id, \
                 created_at, updated_at, last_seen_at, must_change_password FROM users WHERE username = $1 OR email = $1",

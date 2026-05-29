@@ -221,8 +221,18 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
         ),
     );
 
+    // AUTH-4: the SSO start endpoint is also rate-limited by source IP — it mints
+    // Redis oauth_state keys per hit, so an unthrottled flood is its own small DoS
+    // and brute-forces the same auth surface. Same per-IP limiter as password.
+    let sso_login = get(handlers::auth::login).layer(
+        axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::rate_limit::password_login_limit,
+        ),
+    );
+
     let public = Router::new()
-        .route("/auth/login", get(handlers::auth::login))
+        .route("/auth/login", sso_login)
         .route("/auth/callback", get(handlers::auth::callback))
         .route("/auth/password", password_login)
         .route("/auth/logout", post(handlers::auth::logout))

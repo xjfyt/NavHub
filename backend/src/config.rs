@@ -22,6 +22,12 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub public_url: String,
+    /// AUTH-4: 受信任的反向代理 IP / CIDR 列表。仅当请求的直连对端(socket peer)
+    /// 命中本列表时,才信任 X-Forwarded-For 头来确定真实客户端 IP;否则一律使用
+    /// socket peer 地址,避免攻击者伪造 XFF 绕过登录限流。默认空列表 = 不信任 XFF。
+    /// 支持单个 IP(如 "10.0.0.1")或 CIDR(如 "10.0.0.0/8"、"fd00::/8")。
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
