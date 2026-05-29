@@ -34,8 +34,10 @@ impl AppState {
         let mut lenient_builder = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .pool_max_idle_per_host(16)
-            // Cap redirects so a site can't bounce us through an internal URL.
-            .redirect(reqwest::redirect::Policy::limited(3));
+            // SEC-4: 不自动跟随重定向。reqwest 不会对重定向目标重跑我们的 SSRF 校验,
+            // 因此一个通过校验的公网域可 302 跳到内网/云元数据。改为不跟随重定向,
+            // 由调用方对每个显式 URL 的主机各自校验(favicon/OIDC 端点均不依赖重定向)。
+            .redirect(reqwest::redirect::Policy::none());
         if cfg.app.tls_accept_invalid_certs {
             tracing::warn!(
                 "app.tls_accept_invalid_certs=true: favicon + OIDC requests will skip TLS \

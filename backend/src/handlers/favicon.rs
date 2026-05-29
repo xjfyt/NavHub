@@ -71,7 +71,12 @@ fn check_ip(ip: IpAddr, allow_private: bool) -> AppResult<()> {
             if v4.is_broadcast() || v4.is_documentation() {
                 return Err(AppError::BadRequest("invalid host IP".into()));
             }
-            if !allow_private && (v4.is_private() || v4.is_link_local()) {
+            // link-local(169.254/16,含云元数据 169.254.169.254)始终拒绝,
+            // 不受 allow_private 影响——homelab 例外只针对 RFC1918 私网。
+            if v4.is_link_local() {
+                return Err(AppError::BadRequest("invalid host IP (link-local)".into()));
+            }
+            if !allow_private && v4.is_private() {
                 return Err(AppError::BadRequest("invalid host IP (private)".into()));
             }
         }
@@ -81,11 +86,14 @@ fn check_ip(ip: IpAddr, allow_private: bool) -> AppResult<()> {
                 return check_ip(IpAddr::V4(mapped), allow_private);
             }
             let segs = v6.segments();
-            // fe80::/10 link-local
+            // fe80::/10 link-local — 始终拒绝
             let link_local = (segs[0] & 0xffc0) == 0xfe80;
-            // fc00::/7 unique-local
+            // fc00::/7 unique-local — 视作私网,受 allow_private 控制
             let unique_local = (segs[0] & 0xfe00) == 0xfc00;
-            if !allow_private && (link_local || unique_local) {
+            if link_local {
+                return Err(AppError::BadRequest("invalid host IP (link-local)".into()));
+            }
+            if !allow_private && unique_local {
                 return Err(AppError::BadRequest("invalid host IP (private)".into()));
             }
         }
@@ -98,7 +106,7 @@ pub async fn search(
     Query(q): Query<FaviconSearchQuery>,
 ) -> AppResult<axum::Json<Vec<FaviconSearchCandidate>>> {
     let host = extract_host(&q.url).ok_or_else(|| AppError::BadRequest("invalid url".into()))?;
-    let allow_private = state.cfg.app.tls_accept_invalid_certs;
+    let allow_private = state.cfg.app.favicon_allow_private_targets;
     // Validate the user-supplied host BEFORE making any request, so a parse-only path
     // can't be used as an internal port scanner.
     ensure_safe_target(&host, allow_private).await?;
@@ -172,7 +180,7 @@ pub async fn search(
 
     // Probe candidates concurrently with a hard cap; each probe revalidates SSRF for
     // its own host so a redirect or HTML-extracted href can't smuggle in a private target.
-    let allow_private = state.cfg.app.tls_accept_invalid_certs;
+    let allow_private = state.cfg.app.favicon_allow_private_targets;
     let sem = Arc::new(tokio::sync::Semaphore::new(8));
     let mut tasks = Vec::new();
     for c in candidates {
@@ -225,7 +233,7 @@ pub async fn proxy(
     Query(q): Query<FaviconQuery>,
 ) -> AppResult<Response> {
     let host = extract_host(&q.url).ok_or_else(|| AppError::BadRequest("invalid url".into()))?;
-    let allow_private = state.cfg.app.tls_accept_invalid_certs;
+    let allow_private = state.cfg.app.favicon_allow_private_targets;
     ensure_safe_target(&host, allow_private).await?;
 
     let cache_key = format!("favicon:{}:{}", q.sz, host);
@@ -285,6 +293,29 @@ async fn try_remaining_strategies(
     Ok(placeholder_response(host))
 }
 
+/// 单个图标的体积上限。SEC-6: 无 Content-Length 或谎报长度的流式响应不能无限缓冲。
+const MAX_ICON_BYTES: usize = 3 * 1024 * 1024;
+
+/// 读取响应体,累计超过 `max` 立即放弃,避免内存被超大/无限流撑爆。
+async fn read_capped(resp: reqwest::Response, max: usize) -> Option<Vec<u8>> {
+    use futures::StreamExt;
+    if let Some(len) = resp.content_length() {
+        if len > max as u64 {
+            return None;
+        }
+    }
+    let mut stream = resp.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.ok()?;
+        if buf.len() + chunk.len() > max {
+            return None;
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Some(buf)
+}
+
 async fn try_fetch(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     let resp = client
         .get(url)
@@ -295,7 +326,7 @@ async fn try_fetch(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
     if !resp.status().is_success() {
         return None;
     }
-    resp.bytes().await.ok().map(|b| b.to_vec())
+    read_capped(resp, MAX_ICON_BYTES).await
 }
 
 async fn cache_and_return(
@@ -387,4 +418,47 @@ fn extract_host(input: &str) -> Option<String> {
     };
     let parsed = url::Url::parse(&with_scheme).ok()?;
     parsed.host_str().map(|h| h.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_loopback_even_when_private_allowed() {
+        assert!(check_ip("127.0.0.1".parse().unwrap(), true).is_err());
+        assert!(check_ip("::1".parse().unwrap(), true).is_err());
+    }
+
+    #[test]
+    fn rejects_private_and_link_local_by_default() {
+        assert!(check_ip("10.0.0.5".parse().unwrap(), false).is_err());
+        assert!(check_ip("192.168.1.1".parse().unwrap(), false).is_err());
+        assert!(check_ip("172.16.0.1".parse().unwrap(), false).is_err());
+    }
+
+    #[test]
+    fn allows_rfc1918_private_only_when_enabled() {
+        assert!(check_ip("10.0.0.5".parse().unwrap(), true).is_ok());
+        assert!(check_ip("192.168.1.1".parse().unwrap(), true).is_ok());
+    }
+
+    #[test]
+    fn cloud_metadata_link_local_blocked_even_when_private_allowed() {
+        // SEC-4/5: 169.254.169.254 等 link-local 始终拒绝,即便开启 allow_private。
+        assert!(check_ip("169.254.169.254".parse().unwrap(), true).is_err());
+        assert!(check_ip("169.254.0.1".parse().unwrap(), false).is_err());
+    }
+
+    #[test]
+    fn rejects_ipv4_mapped_private_in_ipv6() {
+        let ip: IpAddr = "::ffff:10.0.0.1".parse().unwrap();
+        assert!(check_ip(ip, false).is_err());
+    }
+
+    #[test]
+    fn allows_public_ip() {
+        assert!(check_ip("1.1.1.1".parse().unwrap(), false).is_ok());
+        assert!(check_ip("8.8.8.8".parse().unwrap(), false).is_ok());
+    }
 }

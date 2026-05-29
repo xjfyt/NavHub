@@ -151,6 +151,11 @@ pub struct GeneralConfig {
     /// 默认 false。仅在受控内网调试自签 CA 时手动开启,生产环境切勿开启。
     #[serde(default)]
     pub tls_accept_invalid_certs: bool,
+    /// 是否允许 favicon 代理/搜索访问私有/内网 IP(RFC1918 等)。默认 false。
+    /// SEC-5: 与 tls_accept_invalid_certs 解耦——TLS 校验开关不应再兼任 SSRF 白名单。
+    /// 注意:link-local(169.254/16,含云元数据)始终被拒绝,不受此开关影响。
+    #[serde(default)]
+    pub favicon_allow_private_targets: bool,
 }
 
 fn default_retention() -> i64 {
