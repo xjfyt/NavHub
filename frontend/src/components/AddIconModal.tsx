@@ -405,8 +405,8 @@ export function AddIconModal({
             </div>
 
             <div className="field">
-              <label>回退字符 Letter</label>
-              <input maxLength={3} value={letter} onChange={(e) => setLetter(e.target.value)} placeholder="未获取图标时展示" />
+              <label htmlFor="ai-letter">回退字符 Letter</label>
+              <input id="ai-letter" maxLength={3} value={letter} onChange={(e) => setLetter(e.target.value)} placeholder="未获取图标时展示" />
             </div>
           </div>
 
@@ -414,19 +414,19 @@ export function AddIconModal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div className="field-row" style={{ marginBottom: 0 }}>
               <div className="field" style={{ width: "100%" }}>
-                <label>名称 Name</label>
-                <input autoFocus value={name} onChange={(e) => {setNameTouched(true); setName(e.target.value)}} placeholder="如 GitHub" />
+                <label htmlFor="ai-name">名称 Name</label>
+                <input id="ai-name" autoFocus value={name} onChange={(e) => {setNameTouched(true); setName(e.target.value)}} placeholder="如 GitHub" />
               </div>
             </div>
 
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>链接 URL</label>
-              <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+              <label htmlFor="ai-url">链接 URL</label>
+              <input id="ai-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
             </div>
 
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>副标题 Sub</label>
-              <input value={sub} onChange={(e) => setSub(e.target.value)} placeholder="显示在大图模式下方 (选填)" />
+              <label htmlFor="ai-sub">副标题 Sub</label>
+              <input id="ai-sub" value={sub} onChange={(e) => setSub(e.target.value)} placeholder="显示在大图模式下方 (选填)" />
             </div>
 
             <div className="field" style={{ 
@@ -524,6 +524,7 @@ export function AddIconModal({
                     <input
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      aria-label="搜索图标"
                       placeholder="搜索图标..."
                       style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, padding: "6px 8px", width: "100%", color: "var(--text)" }}
                     />

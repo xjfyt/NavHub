@@ -385,7 +385,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
           <div className="tw-section-card">
             <Row label="明暗模式"><Dropdown value={(s.mode as string) || "auto"} options={modeOpts} onChange={(v) => set("mode", v)} /></Row>
             <Row label="毛玻璃强度">
-              <input type="range" className="tw-inline-range" min={0} max={40} step={2} value={(s.glass as number) || 2} onChange={(e) => set("glass", +e.target.value)} />
+              <input type="range" aria-label="毛玻璃强度" className="tw-inline-range" min={0} max={40} step={2} value={(s.glass as number) || 2} onChange={(e) => set("glass", +e.target.value)} />
             </Row>
           </div>
         </div>
@@ -506,6 +506,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
               <Icon name="search" size={13} />
               <input
                 type="search"
+                aria-label="搜索壁纸"
                 placeholder="搜索壁纸..."
                 value={wallpaperSearch}
                 onChange={(e) => { setWallpaperSearch(e.target.value); setWallpaperPage(0); }}
@@ -707,12 +708,12 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
             <div className="tw-section-card">
               <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>名称</div>
-                  <input name="name" className="nh-input" required defaultValue={editingEngine?.name ?? ""} placeholder="如：GitHub" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
+                  <label htmlFor="tw-engine-name" style={{ display: 'block', fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>名称</label>
+                  <input id="tw-engine-name" name="name" className="nh-input" required defaultValue={editingEngine?.name ?? ""} placeholder="如：GitHub" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>搜索 URL</div>
-                  <input name="url" className="nh-input" required defaultValue={editingEngine?.url ?? ""} placeholder="包含 {q}，如：https://github.com/search?q={q}" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
+                  <label htmlFor="tw-engine-url" style={{ display: 'block', fontSize: 13, color: 'var(--text-soft)', marginBottom: 6 }}>搜索 URL</label>
+                  <input id="tw-engine-url" name="url" className="nh-input" required defaultValue={editingEngine?.url ?? ""} placeholder="包含 {q}，如：https://github.com/search?q={q}" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.1)', border: '1px solid var(--glass-border-soft)' }} />
                 </div>
                 <button type="submit" className="pill-btn primary" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }}>{isEdit ? "保存修改" : "保存并添加"}</button>
               </div>

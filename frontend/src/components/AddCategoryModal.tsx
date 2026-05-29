@@ -51,8 +51,9 @@ export function AddCategoryModal({
         <form onSubmit={submit} style={{ display: "contents" }}>
         <div className="modal-body">
           <div className="field">
-            <label>分组名称</label>
+            <label htmlFor="cat-name">分组名称</label>
             <input
+              id="cat-name"
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}

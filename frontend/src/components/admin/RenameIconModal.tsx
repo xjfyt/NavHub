@@ -51,8 +51,8 @@ export function RenameIconModal({
         </div>
         <form className="wcc-body" onSubmit={handleSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="field" style={{ marginBottom: 0 }}>
-            <label>新名称</label>
-            <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="输入图标名称" />
+            <label htmlFor="rename-icon-name">新名称</label>
+            <input id="rename-icon-name" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="输入图标名称" />
           </div>
           <button type="submit" className="wcc-btn-add" disabled={saving} style={{ alignSelf: 'flex-end', marginTop: 8 }}>
             {saving ? "保存中..." : "保存修改"}

@@ -125,6 +125,7 @@ export const AdminSSO = () => {
               <span style={{ color: "var(--text-soft)" }}>Issuer</span>
               {editMode ? (
                 <input
+                  aria-label="Issuer"
                   style={inputStyle}
                   value={formData.issuer}
                   onChange={(e) => setFormData({ ...formData, issuer: e.target.value })}
@@ -140,6 +141,7 @@ export const AdminSSO = () => {
               <span style={{ color: "var(--text-soft)" }}>Client ID</span>
               {editMode ? (
                 <input
+                  aria-label="Client ID"
                   style={inputStyle}
                   value={formData.clientId}
                   onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
@@ -167,6 +169,7 @@ export const AdminSSO = () => {
                 <input
                   type="password"
                   autoComplete="new-password"
+                  aria-label="Client Secret"
                   style={inputStyle}
                   value={formData.clientSecret ?? ""}
                   placeholder={config.clientSecret ? "已配置 · 留空则不修改" : "输入 Client Secret"}
@@ -193,6 +196,7 @@ export const AdminSSO = () => {
               <span style={{ color: "var(--text-soft)" }}>Redirect URI</span>
               {editMode ? (
                 <input
+                  aria-label="Redirect URI"
                   style={inputStyle}
                   value={formData.redirectUri}
                   onChange={(e) => setFormData({ ...formData, redirectUri: e.target.value })}
@@ -208,6 +212,7 @@ export const AdminSSO = () => {
               <span style={{ color: "var(--text-soft)" }}>Scope</span>
               {editMode ? (
                 <input
+                  aria-label="Scope"
                   style={inputStyle}
                   value={formData.scopes}
                   onChange={(e) => setFormData({ ...formData, scopes: e.target.value })}
