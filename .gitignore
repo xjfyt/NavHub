@@ -10,3 +10,4 @@ uploads/
 backend/clippy.txt
 backend/clippy.json
 frontend/ts-prune.txt
+.codegraph/
