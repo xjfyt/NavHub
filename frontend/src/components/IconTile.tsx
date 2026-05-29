@@ -1,8 +1,8 @@
 import React from "react";
 import { IconView, FolderItemView } from "../types";
-import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
 import { parseBuiltinIconUrl, safeHttpUrl } from "../utils/iconSources";
+import { safeIconColor } from "../utils/iconColor";
 
 type TileRenderable = Pick<
   IconView | FolderItemView,
@@ -20,7 +20,7 @@ export const IconTile = ({
   onContext?: (e: React.MouseEvent, icon: IconView) => void;
   dragProps?: any;
 }) => {
-  const color = DEFAULT_ICON_COLORS[icon.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
+  const color = safeIconColor(icon.color);
   const ctx = (e: React.MouseEvent) => { 
     e.preventDefault(); 
     e.stopPropagation(); 
@@ -93,7 +93,7 @@ export const IconTile = ({
                   <div key="expand" className="fg-item expander" onClick={e => { e.stopPropagation(); onClick?.(e, icon); }} onContextMenu={ctx}>
                     <div className="folder-overflow-grid" style={{ width: '100%', height: '100%', borderRadius: isLg9 ? '12px' : '20px' }}>
                       {overflowItems.map((ov, idx) => {
-                        const c = DEFAULT_ICON_COLORS[ov.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
+                        const c = safeIconColor(ov.color);
                         const plain = !!ov.imageUrl && (ov.imageStyle || "plain") === "plain";
                         const shapeClass = ov.imageRadius === "square" ? "radius-square " : "radius-rounded ";
                         return (
@@ -118,7 +118,7 @@ export const IconTile = ({
                 return <div key={"e"+i} className="fg-item empty" onClick={e => { e.stopPropagation(); onClick?.(e, icon); }} onContextMenu={ctx} />;
               }
 
-              const c = DEFAULT_ICON_COLORS[it.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
+              const c = safeIconColor(it.color);
               const plain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
               const shapeClass = it.imageRadius === "square" ? "radius-square" : "radius-rounded";
               
@@ -150,7 +150,7 @@ export const IconTile = ({
       <div className={"tile folder sq"} {...(dragProps || {})} onClick={e => onClick?.(e, icon)} onContextMenu={ctx}>
         <div className="tile-icon">
           {items.slice(0, 4).map((it, i) => {
-            const c = DEFAULT_ICON_COLORS[it.color % DEFAULT_ICON_COLORS.length] || DEFAULT_ICON_COLORS[0];
+            const c = safeIconColor(it.color);
             const folderPlain = !!it.imageUrl && (it.imageStyle || "plain") === "plain";
             return (
               <div
