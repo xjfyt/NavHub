@@ -14,6 +14,7 @@ import { GroupView, IconView, WidgetView } from "../types";
 import { WIDGET_REGISTRY } from "../widgets";
 import { safeHttpUrl } from "../utils/iconSources";
 import { confirmDialog } from "./Dialogs";
+import { useI18n } from "../i18n";
 import { toast } from "sonner";
 import {
   buildBlankCtx,
@@ -72,6 +73,7 @@ export const Shell = ({
   onLogout: () => void | Promise<void>;
   onRequestLogin: () => void;
 }) => {
+  const { t } = useI18n();
   const {
     me,
     isGuest,
@@ -376,14 +378,14 @@ export const Shell = ({
               <div className="guest-banner" role="status">
                 <Icon name="key" size={16} />
                 <span className="guest-banner-text">
-                  你正在以访客身份浏览，登录后可保存图标、组件与个性化设置。
+                  {t("guest.banner")}
                 </span>
                 <button
                   type="button"
                   className="guest-banner-btn"
                   onClick={onRequestLogin}
                 >
-                  登录
+                  {t("common.login")}
                 </button>
               </div>
             )}

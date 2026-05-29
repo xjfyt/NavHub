@@ -6,6 +6,7 @@ import {
   readDefaultCredsHintDismissed,
   persistDefaultCredsHintDismissed,
 } from "./utils/firstRun";
+import { useI18n } from "./i18n";
 
 export function LoginScreen(props: {
   status: AuthStatus;
@@ -13,6 +14,7 @@ export function LoginScreen(props: {
   onClose?: () => void;
 }) {
   const { status, onAuthed, onClose } = props;
+  const { t } = useI18n();
   const initialMode: "sso" | "password" = status.ssoEnabled
     ? "sso"
     : "password";
@@ -42,11 +44,11 @@ export function LoginScreen(props: {
       const msg =
         e instanceof ApiError
           ? e.code === "sso_required"
-            ? "该账号仅支持 SSO 登录"
+            ? t("login.err.ssoRequired")
             : e.code === "password_login_disabled"
-              ? "管理员已关闭密码登录"
-              : "账号或密码错误"
-          : "登录失败";
+              ? t("login.err.passwordDisabled")
+              : t("login.err.badCredentials")
+          : t("login.err.generic");
       setErr(msg);
     } finally {
       setPending(false);
@@ -81,7 +83,7 @@ export function LoginScreen(props: {
           <button
             type="button"
             className="nh-login-close"
-            aria-label="关闭"
+            aria-label={t("common.close")}
             onClick={onClose}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -96,7 +98,7 @@ export function LoginScreen(props: {
         </div>
 
         {bothDisabled ? (
-          <p className="nh-login-hint">当前未启用任何登录方式，请联系管理员。</p>
+          <p className="nh-login-hint">{t("login.bothDisabled")}</p>
         ) : mode === "sso" && status.ssoEnabled ? (
           <div className="nh-login-pane">
             <button
@@ -109,7 +111,7 @@ export function LoginScreen(props: {
                 <polyline points="10 17 15 12 10 7" />
                 <line x1="15" y1="12" x2="3" y2="12" />
               </svg>
-              使用 Casdoor 登录
+              {t("login.sso")}
             </button>
             {bothEnabled ? (
               <button
@@ -117,7 +119,7 @@ export function LoginScreen(props: {
                 className="nh-login-switch"
                 onClick={() => { setErr(null); setMode("password"); }}
               >
-                使用账号密码登录
+                {t("login.switchToPassword")}
               </button>
             ) : null}
           </div>
@@ -125,13 +127,15 @@ export function LoginScreen(props: {
           <div className="nh-login-pane">
             {showDefaultCredsHint ? (
               <div className="nh-login-firstrun" role="note">
-                <span className="nh-login-firstrun-text">
-                  首次使用？默认账号 <b>superadmin</b> / 密码 <b>superadmin</b>，登录后请立即修改。
-                </span>
+                <span
+                  className="nh-login-firstrun-text"
+                  // 静态模板,内含 <b> 强调;无任何用户输入拼接,故安全直渲。
+                  dangerouslySetInnerHTML={{ __html: t("login.firstRunHintHtml") }}
+                />
                 <button
                   type="button"
                   className="nh-login-firstrun-close"
-                  aria-label="不再提示"
+                  aria-label={t("login.dismissHint")}
                   onClick={onDismissHint}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -147,7 +151,7 @@ export function LoginScreen(props: {
               </svg>
               <input
                 className="nh-login-input"
-                placeholder="用户名或邮箱"
+                placeholder={t("login.usernamePlaceholder")}
                 value={username}
                 onChange={(e) => setUsername(e.currentTarget.value)}
                 autoComplete="username"
@@ -160,7 +164,7 @@ export function LoginScreen(props: {
               </svg>
               <input
                 className="nh-login-input"
-                placeholder="密码"
+                placeholder={t("login.passwordPlaceholder")}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.currentTarget.value)}
@@ -175,7 +179,7 @@ export function LoginScreen(props: {
               onClick={() => void onPasswordLogin()}
               disabled={pending || !username || !password}
             >
-              {pending ? "登录中…" : "登录"}
+              {pending ? t("login.submitting") : t("login.submit")}
             </button>
             {err ? <div className="nh-login-err">{err}</div> : null}
             {bothEnabled ? (
@@ -184,7 +188,7 @@ export function LoginScreen(props: {
                 className="nh-login-switch"
                 onClick={() => { setErr(null); setMode("sso"); }}
               >
-                返回 SSO 登录
+                {t("login.switchToSso")}
               </button>
             ) : null}
           </div>

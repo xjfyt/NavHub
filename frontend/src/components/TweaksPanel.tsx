@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { UserMessage, CustomEngine, RemoteWallpaperItem, PublicWallpaperSource } from "../types";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
 import { validateEngineInput } from "../utils/engineHelpers";
+import { useI18n, LANG_OPTIONS } from "../i18n";
 import {
   composeShuffleInterval,
   decomposeShuffleInterval,
@@ -114,6 +115,9 @@ const WallpaperDetailPreview = ({ wallpaper }: { wallpaper: RemoteWallpaperItem 
 
 export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const { me, workspace, updateTweaks, addCustomEngine, updateCustomEngine, deleteCustomEngine } = useWorkspace();
+  // I18N-1: 界面语言切换。语言偏好独立持久化在 localStorage(navhub_lang),与后端偏好解耦。
+  const { t, lang, setLang } = useI18n();
+  const langOpts = LANG_OPTIONS.map((o) => ({ id: o.id, name: t(o.nameKey) }));
   const s = workspace.preferences.tweaks || {};
   const [activeNav, setActiveNav] = useState("general");
   const [sub, setSub] = useState<string | null>(null);
@@ -276,6 +280,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         <div className="tw-section">
           <div className="tw-section-title">其他设置</div>
           <div className="tw-section-card">
+            <Row label={t("settings.language")}><Dropdown value={lang} options={langOpts} onChange={(v) => setLang(v as typeof lang)} /></Row>
             <Row label="翻页灵敏度" onClick={() => setSub("wheelSens")}><Chevron value={s.wheelSensitivity as React.ReactNode || 40} /></Row>
             <Row label="使用系统默认字体"><Toggle on={s.useSystemFont !== false} onChange={(v) => set("useSystemFont", v)} /></Row>
             <Row label="显示备案号"><Toggle on={s.showBeian !== false} onChange={(v) => set("showBeian", v)} /></Row>

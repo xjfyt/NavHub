@@ -17,6 +17,7 @@ import {
   persistDragHintDismissed,
 } from "../utils/dragHint";
 import { WIDGET_REGISTRY } from "../widgets";
+import { useI18n } from "../i18n";
 import type { NavGridItem, UseNavDndResult } from "../hooks/useNavDnd";
 
 // =================================================================
@@ -69,6 +70,7 @@ export const NavView = ({
   /** 拖拽协调结果，来自 Shell 层的 useNavDnd(与侧边栏共处同一 DndContext)。 */
   dnd: UseNavDndResult;
 }) => {
+  const { t } = useI18n();
   const { gridItems, activeItem } = dnd;
   const [slideDir, setSlideDir] = useState(0);
   const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
@@ -326,11 +328,11 @@ export const NavView = ({
               </div>
               {emptyState === "no-groups" ? (
                 <>
-                  <div className="nav-empty-title">还没有任何分类</div>
+                  <div className="nav-empty-title">{t("nav.empty.noGroupsTitle")}</div>
                   <div className="nav-empty-desc">
                     {editable
-                      ? "创建第一个分类来归置你的网站和小组件。"
-                      : "当前还没有可浏览的内容。"}
+                      ? t("nav.empty.noGroupsDescEditable")
+                      : t("nav.empty.noGroupsDescReadonly")}
                   </div>
                   {editable && onAddCategory ? (
                     <div className="nav-empty-actions">
@@ -340,18 +342,18 @@ export const NavView = ({
                         onClick={onAddCategory}
                       >
                         <Icon name="plus" size={16} />
-                        添加第一个分类
+                        {t("nav.empty.addFirstGroup")}
                       </button>
                     </div>
                   ) : null}
                 </>
               ) : (
                 <>
-                  <div className="nav-empty-title">这个分类还没有网站</div>
+                  <div className="nav-empty-title">{t("nav.empty.noItemsTitle")}</div>
                   <div className="nav-empty-desc">
                     {editable
-                      ? "添加第一个网站,或从右键菜单加入小组件。"
-                      : "当前分类暂时没有内容。"}
+                      ? t("nav.empty.noItemsDescEditable")
+                      : t("nav.empty.noItemsDescReadonly")}
                   </div>
                   {editable && onAddIcon ? (
                     <div className="nav-empty-actions">
@@ -361,7 +363,7 @@ export const NavView = ({
                         onClick={onAddIcon}
                       >
                         <Icon name="plus" size={16} />
-                        添加第一个网站
+                        {t("nav.empty.addFirstIcon")}
                       </button>
                     </div>
                   ) : null}
@@ -391,7 +393,7 @@ export const NavView = ({
                 <span className="nav-add-square">
                   <Icon name="plus" size={28} />
                 </span>
-                <span className="nav-add-label">添加</span>
+                <span className="nav-add-label">{t("nav.add")}</span>
               </button>
             )}
           </div>
