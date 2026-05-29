@@ -530,39 +530,10 @@ async fn download_to_storage(
     prefix: &str,
     max_bytes: u64,
 ) -> anyhow::Result<(String, u64, Option<i32>, Option<i32>)> {
-    // SEC-10: 抓取来的 URL 其内容站点可控,下载前做 SSRF 校验(禁私网/内网/云元数据);
-    // 下载客户端已禁用自动重定向,避免 302 跳转绕过校验。
-    let host = crate::handlers::favicon::extract_host(url)
-        .ok_or_else(|| anyhow::anyhow!("invalid download url: {url}"))?;
-    crate::handlers::favicon::ensure_safe_target(&host, false)
-        .await
-        .map_err(|e| anyhow::anyhow!("blocked download target {host}: {e:?}"))?;
-
-    let resp = client.get(url).send().await?;
-    if !resp.status().is_success() {
-        anyhow::bail!("http {} downloading {url}", resp.status());
-    }
-
-    // Check content-length if available
-    if let Some(cl) = resp.content_length() {
-        if cl > max_bytes {
-            anyhow::bail!("file too large: {cl} bytes > {max_bytes}");
-        }
-    }
-
-    let content_type = resp
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream")
-        .split(';')
-        .next()
-        .unwrap_or("application/octet-stream")
-        .trim()
-        .to_string();
-
-    // SEC-6: 流式读取并限额,避免无/谎报 Content-Length 的响应撑爆内存。
-    let bytes: Bytes = crate::handlers::util::read_body_capped(resp, max_bytes).await?;
+    // QUAL-8: SEC-10 SSRF 校验 + 状态/Content-Length 预检 + SEC-6 限额流式读取,统一走
+    // 共享 helper(与图标抓取共用);客户端的禁重定向由调用方保证(见 SEC-10)。
+    let (bytes, content_type): (Bytes, String) =
+        crate::handlers::util::fetch_remote_capped(client, url, max_bytes).await?;
 
     let ext = ext_from_content_type(&content_type, url);
     let file_size = bytes.len() as u64;
@@ -572,10 +543,7 @@ async fn download_to_storage(
     // clone 仅是计数 +1,不复制底层数据。行为与原先完全一致。
     let bytes_for_cpu = bytes.clone();
     let (hash, width, height) = tokio::task::spawn_blocking(move || {
-        use sha2::{Digest, Sha256};
-        let mut h = Sha256::new();
-        h.update(&bytes_for_cpu);
-        let hash = hex::encode(h.finalize());
+        let hash = crate::handlers::util::sha256_hex(&bytes_for_cpu);
         let (width, height) = measure_image_dimensions(&bytes_for_cpu);
         (hash, width, height)
     })

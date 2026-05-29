@@ -205,6 +205,71 @@ pub async fn read_body_capped(resp: reqwest::Response, max: u64) -> anyhow::Resu
     Ok(bytes::Bytes::from(buf))
 }
 
+/// QUAL-8: 抓取入库下载的「共享前半段」——壁纸与图标两条 download_to_storage 此前
+/// 各自重复了同一段逻辑:SEC-10 SSRF 校验(禁私网/内网/云元数据)、HTTP 状态校验、
+/// Content-Length 预检、SEC-6 流式限额读取。这里收敛为单一 helper,返回响应体字节与
+/// 解析后的 content-type(分号前主类型,空则 application/octet-stream)。
+///
+/// 调用方各自接续其类型特化的尾段(壁纸:imagesize 测量 + 按内容类型定扩展名;
+/// 图标:SVG 活动内容扫描 + 固定 svg 扩展名)。下载客户端须已禁用自动重定向
+/// (调用方传入,见 SEC-10),否则 302 可绕过此处的 SSRF 校验。
+pub async fn fetch_remote_capped(
+    client: &reqwest::Client,
+    url: &str,
+    max_bytes: u64,
+) -> anyhow::Result<(bytes::Bytes, String)> {
+    // SEC-10: 抓取来的 URL 其内容站点可控,下载前做 SSRF 校验。
+    let host = crate::handlers::favicon::extract_host(url)
+        .ok_or_else(|| anyhow::anyhow!("invalid download url: {url}"))?;
+    crate::handlers::favicon::ensure_safe_target(&host, false)
+        .await
+        .map_err(|e| anyhow::anyhow!("blocked download target {host}: {e:?}"))?;
+
+    let resp = client.get(url).send().await?;
+    if !resp.status().is_success() {
+        anyhow::bail!("http {} downloading {url}", resp.status());
+    }
+
+    // Content-Length 若存在则预检,避免明显超限的下载白跑流式阶段。
+    if let Some(cl) = resp.content_length() {
+        if cl > max_bytes {
+            anyhow::bail!("file too large: {cl} bytes > {max_bytes}");
+        }
+    }
+
+    let content_type = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .split(';')
+        .next()
+        .unwrap_or("application/octet-stream")
+        .trim()
+        .to_string();
+
+    // SEC-6: 流式读取并限额。
+    let bytes = read_body_capped(resp, max_bytes).await?;
+    Ok((bytes, content_type))
+}
+
+/// QUAL-8 / INFRA-2: SHA-256 十六进制摘要,纯函数(便于单测)。哈希是 CPU 密集型,
+/// 大文件场景请用 `sha256_hex_blocking` 包到 spawn_blocking,避免阻塞 tokio 运行时。
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(bytes);
+    hex::encode(h.finalize())
+}
+
+/// QUAL-8 / INFRA-2: 在 spawn_blocking 上计算 SHA-256,避免阻塞异步运行时。Bytes 是
+/// Arc 背书,clone 仅计数 +1、不复制底层数据。两条 download_to_storage 共用。
+pub async fn sha256_hex_blocking(bytes: bytes::Bytes) -> anyhow::Result<String> {
+    tokio::task::spawn_blocking(move || sha256_hex(&bytes))
+        .await
+        .map_err(|e| anyhow::anyhow!("hash task failed: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -456,5 +521,26 @@ mod tests {
     fn scan_svg_with_css_import_flagged() {
         let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><style>@import url(evil.css)</style></svg>"#;
         assert!(scan_svg_for_active_content(svg).is_err());
+    }
+
+    // QUAL-8: SHA-256 十六进制摘要(已知向量)。
+    #[test]
+    fn sha256_hex_known_vectors() {
+        // 空输入与 "abc" 的 SHA-256 标准向量。
+        assert_eq!(
+            sha256_hex(b""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    #[test]
+    fn sha256_hex_is_lowercase_64_hex() {
+        let h = sha256_hex(b"navhub");
+        assert_eq!(h.len(), 64);
+        assert!(h.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
     }
 }
