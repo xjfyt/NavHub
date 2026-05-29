@@ -134,6 +134,31 @@ pub async fn delete(
         .bind(id)
         .execute(&state.pg)
         .await?;
+
+    // DATA-6: 删除分组后,user_preferences 里残留对该分组 UUID 的引用会变成幽灵引用
+    // (sidebar_order 数组里的死 UUID、pushed_group_wallpapers JSONB 对象里的死键)。
+    // 这些不随 groups 行 CASCADE 清理(它们是 JSONB/数组里的值,不是外键)。这里用单条
+    // 原子 SQL 跨所有受影响行剔除:数组用 array_remove,JSONB 对象用 `- text` 删键。
+    // 纯 SQL 完成、无读改写竞态,故无 Rust 单测;仅更新确有该引用的行(WHERE 收窄)。
+    let gid_text = id.to_string();
+    if let Err(e) = sqlx::query(
+        "UPDATE user_preferences \
+            SET sidebar_order = array_remove(sidebar_order, $1), \
+                pushed_group_wallpapers = pushed_group_wallpapers - $2, \
+                updated_at = now() \
+          WHERE $1 = ANY(sidebar_order) \
+             OR jsonb_exists(pushed_group_wallpapers, $2)",
+    )
+    .bind(id)
+    .bind(&gid_text)
+    .execute(&state.pg)
+    .await
+    {
+        // 偏好清理失败不应回滚分组删除(分组已删是更重要的结果);仅告警,残留的死
+        // UUID 在前端渲染时本就会被忽略(找不到对应分组),不影响功能正确性。
+        tracing::warn!("failed to scrub deleted group {id} from user_preferences: {e}");
+    }
+
     util::audit(
         &state,
         Some(&user),
