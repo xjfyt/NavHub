@@ -1,0 +1,32 @@
+# 统一行尾,保证 rustfmt/prettier 的换行检查在所有平台一致(CI 为 Linux/LF)。
+# 仓库内文本以 LF 存储;此设置避免 Windows 的 autocrlf 把已提交的 LF 文件
+# 在检出时改成 CRLF,进而导致本地 `cargo fmt --check` / `prettier --check` 失败。
+
+# 默认:文本文件自动识别并按 LF 规范化存储。
+* text=auto eol=lf
+
+# 源码与配置:强制 LF。
+*.rs    text eol=lf
+*.toml  text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sh    text eol=lf
+*.sql   text eol=lf
+
+# 二进制文件:不做行尾转换。
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
