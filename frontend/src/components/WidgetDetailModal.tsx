@@ -6,9 +6,12 @@ import { Modal } from "./Modal";
 export const WidgetDetailModal = ({
   widget,
   onClose,
+  onEdit,
 }: {
   widget: WidgetView;
   onClose: () => void;
+  /** UX-22:在详情头部提供直达编辑入口;为空时不显示齿轮按钮(如组件不可编辑或无权限)。 */
+  onEdit?: () => void;
 }) => {
   const info = WIDGET_REGISTRY[widget.widget];
 
@@ -38,11 +41,23 @@ export const WidgetDetailModal = ({
             {info.icon && <Icon name={info.icon} size={16} />}
             <span>{title}</span>
           </h3>
+          {onEdit && (
+            <button
+              className="wcc-btn-cancel"
+              onClick={onEdit}
+              style={{ padding: 4, marginRight: 4 }}
+              title="编辑组件"
+              aria-label="编辑组件"
+            >
+              <Icon name="settings" size={16} />
+            </button>
+          )}
           <button
             className="wcc-btn-cancel"
             onClick={onClose}
             style={{ padding: 4 }}
             title="关闭 (Esc)"
+            aria-label="关闭 (Esc)"
           >
             <Icon name="close" size={16} />
           </button>

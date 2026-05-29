@@ -8,6 +8,7 @@ import { NavView } from "./NavView";
 import { UserMenu } from "./UserMenu";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
 import { GroupView, IconView, WidgetView } from "../types";
+import { WIDGET_REGISTRY } from "../widgets";
 import { safeHttpUrl } from "../utils/iconSources";
 import { confirmDialog } from "./Dialogs";
 import { toast } from "sonner";
@@ -459,6 +460,17 @@ export const Shell = ({
           <WidgetDetailModal
             widget={detailWidget}
             onClose={() => setDetailWidgetId(null)}
+            onEdit={
+              !isGuest &&
+              canEditGroup(detailWidget.groupId) &&
+              WIDGET_REGISTRY[detailWidget.widget]?.editable
+                ? () => {
+                    // UX-22:从详情直达编辑 —— 关闭详情、打开该组件的编辑弹窗。
+                    setDetailWidgetId(null);
+                    setEditingWidgetId(detailWidget.id);
+                  }
+                : undefined
+            }
           />
         </ModalSuspense>
       )}
