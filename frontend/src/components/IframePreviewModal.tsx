@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { IconView } from "../types";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 import { safeHttpUrl } from "../utils/iconSources";
 
 export const IframePreviewModal = ({
@@ -14,33 +15,27 @@ export const IframePreviewModal = ({
   const [loadError, setLoadError] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   // SEC-8/SEC-9: 仅允许 http/https;非安全 URL 不嵌入(防 javascript:/data: 与沙箱逃逸)。
   const url = safeHttpUrl(icon.url) ?? "";
 
   return (
-    <div className="wcc-backdrop" onClick={onClose} style={{ zIndex: 9000 }}>
-      <div
-        className="iframe-preview-modal glass-strong"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(92vw, 1200px)",
-          height: "min(88vh, 900px)",
-          borderRadius: "20px",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08)",
-          animation: "iframe-modal-in 0.32s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
-      >
+    <Modal
+      onClose={onClose}
+      title={icon.name}
+      overlayClassName="wcc-backdrop"
+      overlayStyle={{ zIndex: 9000 }}
+      className="iframe-preview-modal glass-strong"
+      contentStyle={{
+        width: "min(92vw, 1200px)",
+        height: "min(88vh, 900px)",
+        borderRadius: "20px",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08)",
+        animation: "iframe-modal-in 0.32s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
         {/* Header bar */}
         <div
           style={{
@@ -277,7 +272,6 @@ export const IframePreviewModal = ({
             sandbox="allow-scripts allow-popups allow-forms allow-modals"
           />
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

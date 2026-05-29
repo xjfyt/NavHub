@@ -1,4 +1,5 @@
 import React from "react";
+import { Modal } from "./Modal";
 
 export const DocumentModal = ({
   title,
@@ -10,18 +11,16 @@ export const DocumentModal = ({
   onClose: () => void;
 }) => {
   return (
-    <div
-      className="tw-overlay"
-      style={{ zIndex: 99999 }}
-      onClick={onClose}
+    <Modal
+      onClose={onClose}
+      labelledById="document-modal-title"
+      overlayClassName="tw-overlay"
+      overlayStyle={{ zIndex: 99999 }}
+      className="tw-modal"
+      contentStyle={{ width: 600, maxWidth: "90vw", height: "auto", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
     >
-      <div
-        className="tw-modal"
-        style={{ width: 600, maxWidth: "90vw", height: "auto", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
-        onClick={(e) => e.stopPropagation()}
-      >
         <div style={{ padding: "20px 30px", borderBottom: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>{title}</h2>
+          <h2 id="document-modal-title" style={{ margin: 0, fontSize: 20 }}>{title}</h2>
           <button
             onClick={onClose}
             style={{ background: "transparent", border: "none", color: "var(--text-soft)", cursor: "pointer" }}
@@ -34,8 +33,7 @@ export const DocumentModal = ({
         <div style={{ padding: "30px", overflowY: "auto", flex: 1, fontSize: 14, lineHeight: 1.6, color: "var(--text-normal)" }}>
           {content}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

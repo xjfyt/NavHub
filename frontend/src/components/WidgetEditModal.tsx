@@ -3,6 +3,7 @@ import type { WidgetView } from "../types";
 import { api } from "../api";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 type SourceId = "weibo" | "zhihu" | "bilibili" | "juejin";
 
@@ -90,14 +91,15 @@ export const WidgetEditModal = ({
   }, [widget.widget]);
 
   return (
-    <div className="wcc-backdrop" onClick={onClose}>
-      <div
-        className="glass-strong"
-        style={{ width: 480, maxWidth: "90vw", padding: 20, borderRadius: 14 }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal
+      onClose={onClose}
+      labelledById="widget-edit-title"
+      overlayClassName="wcc-backdrop"
+      className="glass-strong"
+      contentStyle={{ width: 480, maxWidth: "90vw", padding: 20, borderRadius: 14 }}
+    >
         <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, flex: 1, fontSize: 16 }}>{title}</h3>
+          <h3 id="widget-edit-title" style={{ margin: 0, flex: 1, fontSize: 16 }}>{title}</h3>
           <button className="wcc-btn-cancel" onClick={onClose} style={{ padding: 4 }}>
             <Icon name="close" size={16} />
           </button>
@@ -109,8 +111,7 @@ export const WidgetEditModal = ({
             {saving ? "保存中…" : "保存"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
 

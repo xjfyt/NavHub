@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 import { useWorkspace } from "../hooks/useWorkspace";
 
 import { api } from "../api";
@@ -35,7 +36,13 @@ export const ProfileModal = ({ onClose }: { onClose: () => void }) => {
   return (
     <>
       <div className="tweaks-backdrop" onClick={onClose} style={{ zIndex: 10000 }} />
-      <div className="modal glass-strong" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10001, padding: '36px 30px', width: 340, borderRadius: 24, color: 'var(--text)', boxShadow: '0 24px 48px rgba(0,0,0,0.2), inset 0 1px 0 var(--glass-border-soft)' }}>
+      <Modal
+        onClose={onClose}
+        title="个人资料"
+        renderOverlay={false}
+        className="modal glass-strong"
+        contentStyle={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10001, padding: '36px 30px', width: 340, borderRadius: 24, color: 'var(--text)', boxShadow: '0 24px 48px rgba(0,0,0,0.2), inset 0 1px 0 var(--glass-border-soft)' }}
+      >
         <button onClick={onClose} style={{ position: 'absolute', right: 20, top: 20, opacity: 0.5, background: 'var(--glass-bg)', border: '1px solid var(--glass-border-soft)', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
           <Icon name="close" size={14} />
         </button>
@@ -88,7 +95,7 @@ export const ProfileModal = ({ onClose }: { onClose: () => void }) => {
             <span className="mono" style={{ color: 'var(--text)', fontWeight: 600 }}>今天</span>
           </div>
         </div>
-      </div>
+      </Modal>
     </>
   );
 };

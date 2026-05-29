@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 import type { GroupView } from "../types";
 
 // 6 列 × 5 行 = 30 个，覆盖常见场景：办公 / 学习 / 娱乐 / 通讯 / 资源 / 角色
@@ -25,15 +26,16 @@ export function AddCategoryModal({
   const [icon, setIcon] = useState(initial?.icon ?? "grid");
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal"
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 460 }}
-      >
+    <Modal
+      onClose={onClose}
+      labelledById="add-category-title"
+      overlayClassName="modal-backdrop"
+      className="modal"
+      contentStyle={{ maxWidth: 460 }}
+    >
         <div className="modal-head">
           <div>
-            <h2>{isEdit ? "编辑分组" : "新建分组"}</h2>
+            <h2 id="add-category-title">{isEdit ? "编辑分组" : "新建分组"}</h2>
             <div className="sub">{isEdit ? "修改名称或图标" : "选择名称与图标"}</div>
           </div>
           <button className="modal-close" onClick={onClose}>
@@ -80,7 +82,6 @@ export function AddCategoryModal({
             {isEdit ? "保存" : "添加"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

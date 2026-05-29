@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../api";
+import { Modal } from "../Modal";
 
 export function RenameIconModal({
   id,
@@ -35,8 +36,13 @@ export function RenameIconModal({
   };
 
   return (
-    <div className="wcc-backdrop" onClick={onClose}>
-      <div className="wcc-modal glass" onClick={e => e.stopPropagation()} style={{ width: 400, height: 'auto' }}>
+    <Modal
+      onClose={onClose}
+      title="重命名图标"
+      overlayClassName="wcc-backdrop"
+      className="wcc-modal glass"
+      contentStyle={{ width: 400, height: 'auto' }}
+    >
         <div className="wcc-head">
           <div className="wcc-tabs">
             <span className="active">重命名图标</span>
@@ -52,7 +58,6 @@ export function RenameIconModal({
             {saving ? "保存中..." : "保存修改"}
           </button>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

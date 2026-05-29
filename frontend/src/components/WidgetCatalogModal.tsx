@@ -10,6 +10,7 @@ import {
 } from "../widgets";
 import { PREVIEW_WIDGET_ID } from "../widgets/types";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 import { GroupView, WidgetView } from "../types";
 
 const PREVIEW_PX: Record<WidgetSizeId, { w: number; h: number }> = {
@@ -77,8 +78,13 @@ export const WidgetCatalogModal = ({
   };
 
   return (
-    <div className="wcc-backdrop">
-      <div className="wcc-modal glass-strong">
+    <Modal
+      onClose={onClose}
+      title="小组件库"
+      closeOnBackdrop={false}
+      overlayClassName="wcc-backdrop"
+      className="wcc-modal glass-strong"
+    >
         <div className="wcc-head">
           <div className="wcc-tabs">
             <span className="active">全部</span>
@@ -163,14 +169,13 @@ export const WidgetCatalogModal = ({
           </div>
           
           <button className="wcc-btn-cancel" onClick={onClose}>返回</button>
-          <button 
-            className="wcc-btn-add" 
+          <button
+            className="wcc-btn-add"
             onClick={() => onAdd(targetGroup, selectedId, size)}
           >
             添加小组件
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

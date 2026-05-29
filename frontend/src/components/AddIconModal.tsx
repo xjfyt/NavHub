@@ -12,6 +12,7 @@ import {
 import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
 import { IconTile } from "./IconTile";
+import { Modal } from "./Modal";
 import { api } from "../api";
 import { toast } from "sonner";
 import {
@@ -307,9 +308,13 @@ export function AddIconModal({
   };
 
   return (
-    <div className="wcc-backdrop" onClick={onClose}>
-      <div className="wcc-modal glass-strong" onClick={(e) => e.stopPropagation()} style={{ width: 840, height: 'auto', maxHeight: '90vh' }}>
-        
+    <Modal
+      onClose={onClose}
+      title={initialIcon ? "编辑图标" : "添加图标"}
+      overlayClassName="wcc-backdrop"
+      className="wcc-modal glass-strong"
+      contentStyle={{ width: 840, height: 'auto', maxHeight: '90vh' }}
+    >
         <div className="wcc-head">
           <div className="wcc-tabs">
             <span className="active">{initialIcon ? "编辑图标" : "添加图标"}</span>
@@ -613,7 +618,6 @@ export function AddIconModal({
              保存图标
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
