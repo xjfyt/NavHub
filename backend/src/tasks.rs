@@ -32,6 +32,7 @@ impl BackgroundHandles {
             tokio::spawn(wallpaper_loop(state.clone(), shutdown.clone())),
             tokio::spawn(icon_loop(state.clone(), shutdown.clone())),
             tokio::spawn(system_message_cleanup_loop(state.clone(), shutdown.clone())),
+            tokio::spawn(library_icon_gc_loop(state.clone(), shutdown.clone())),
         ];
         Self { handles, shutdown }
     }
@@ -161,6 +162,147 @@ async fn system_message_cleanup_loop(state: Arc<AppState>, shutdown: Arc<AtomicB
             tracing::info!("system message cleanup: removed {total} expired messages");
         }
     }
+}
+
+/// DATA-4: 上传图标(library_icons,library_id 为 NULL 的临时上传)在不再被任何
+/// icons.image_url / folder_items.image_url 引用后,行与 S3 blob 都不会被回收 →
+/// 孤儿无界增长。新增周期性 GC:找出零引用的临时上传行,删行 + 删对象。
+///
+/// 注意:
+///  - 只 GC library_id IS NULL 的行。library_id 非空的是已归档进命名图标库的目录
+///    资产,即便当前无 icon 引用也应保留(它是图标库的素材,不是孤儿)。
+///  - 设 1 天宽限期(created_at < now() - interval '1 day'),避免误删「刚上传、
+///    用户还没来得及挂到 icon 上」的新行(上传与建 icon 之间有时间窗)。
+///  - 同一 sha256 可能被多行复用,但 url 唯一对应一个 S3 对象,只有当某 url 不再被
+///    任何 library_icons 行引用时才真正删对象;这里按 id 删行,删完再判对象是否仍被
+///    其它行引用,避免误删共享 blob。
+const LIBRARY_ICON_GC_BATCH: i64 = 1_000;
+
+async fn library_icon_gc_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
+    let day = Duration::from_secs(86_400);
+    while sleep_or_shutdown(day, &shutdown).await {
+        tracing::info!("library icon GC: scanning for orphaned uploads");
+        let mut removed: u64 = 0;
+        loop {
+            if shutdown.load(Ordering::Relaxed) {
+                break;
+            }
+            // 一批候选:library_id 为空、过宽限期的临时上传行。引用判定放到 Rust 侧用
+            // 已单测的 filter_orphan_icons 完成(权威的零引用 NOT EXISTS 同义实现),
+            // 便于回归且把判定逻辑收敛到一处。
+            let candidates: Result<Vec<(uuid::Uuid, String)>, _> = sqlx::query_as(
+                "SELECT id, url FROM library_icons \
+                 WHERE library_id IS NULL \
+                   AND created_at < now() - interval '1 day' \
+                 LIMIT $1",
+            )
+            .bind(LIBRARY_ICON_GC_BATCH)
+            .fetch_all(&state.pg)
+            .await;
+            let candidates = match candidates {
+                Ok(c) if c.is_empty() => break,
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!("library icon GC query failed: {e}");
+                    break;
+                }
+            };
+
+            // 当前仍被 icons / folder_items 引用的 url 集合(只取候选涉及的 url,避免全表扫)。
+            let candidate_urls: Vec<String> =
+                candidates.iter().map(|(_, u)| u.clone()).collect();
+            let referenced: std::collections::HashSet<String> = match sqlx::query_scalar::<_, String>(
+                "SELECT image_url FROM icons \
+                   WHERE image_url = ANY($1) \
+                 UNION \
+                 SELECT image_url FROM folder_items \
+                   WHERE image_url = ANY($1)",
+            )
+            .bind(&candidate_urls)
+            .fetch_all(&state.pg)
+            .await
+            {
+                Ok(rows) => rows.into_iter().collect(),
+                Err(e) => {
+                    // 查询引用失败时保守跳过本批(宁可不删,绝不误删)。
+                    tracing::warn!("library icon GC reference query failed: {e}");
+                    break;
+                }
+            };
+
+            let orphan_ids = filter_orphan_icons(candidates.clone(), &referenced);
+            if orphan_ids.is_empty() {
+                // 本批候选全部仍被引用;继续下一批可能仍是同样这批(无 OFFSET),为避免
+                // 空转,这里直接结束本轮扫描,等下个 24h 周期再扫。
+                break;
+            }
+            // 候选行里仍被引用的留下;只对孤儿 id 删行 + 删对象。
+            let orphan_id_set: std::collections::HashSet<uuid::Uuid> =
+                orphan_ids.iter().copied().collect();
+            let orphans: Vec<(uuid::Uuid, String)> = candidates
+                .into_iter()
+                .filter(|(id, _)| orphan_id_set.contains(id))
+                .collect();
+
+            let ids: Vec<uuid::Uuid> = orphans.iter().map(|(id, _)| *id).collect();
+            // 先删行。
+            let del = sqlx::query("DELETE FROM library_icons WHERE id = ANY($1)")
+                .bind(&ids)
+                .execute(&state.pg)
+                .await;
+            if let Err(e) = del {
+                tracing::warn!("library icon GC delete failed: {e}");
+                break;
+            }
+            removed += ids.len() as u64;
+
+            // 删行后,逐个判断该 url 是否仍被其它 library_icons 行引用(同 sha 不同行复用同
+            // 一 url 的极端情况);仅当彻底无引用时才删 S3 对象,避免误删共享 blob。
+            let mut keys: Vec<String> = Vec::new();
+            for (_, url) in &orphans {
+                let still_used: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM library_icons WHERE url = $1)",
+                )
+                .bind(url)
+                .fetch_one(&state.pg)
+                .await
+                .unwrap_or(true); // 查询失败时保守认为仍在用,不删对象。
+                if !still_used {
+                    if let Some(k) = crate::storage::key_from_stored_value(url) {
+                        keys.push(k);
+                    }
+                }
+            }
+            if !keys.is_empty() {
+                keys.sort();
+                keys.dedup();
+                if let Err(e) = state.storage.delete_objects(&keys).await {
+                    tracing::warn!("library icon GC S3 cleanup failed: {e}");
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        if removed > 0 {
+            tracing::info!("library icon GC: removed {removed} orphaned upload rows");
+        }
+    }
+}
+
+/// DATA-4: 纯逻辑 —— 给定候选 (id, url) 与「当前被引用的 url 集合」,筛出可删的孤儿
+/// 候选(其 url 不在引用集合内)。GC 的 SQL NOT EXISTS 是权威判定,此函数提供同义的
+/// 可单测内存版,用于回归与防御性二次过滤。
+pub fn filter_orphan_icons<I>(
+    candidates: I,
+    referenced_urls: &std::collections::HashSet<String>,
+) -> Vec<uuid::Uuid>
+where
+    I: IntoIterator<Item = (uuid::Uuid, String)>,
+{
+    candidates
+        .into_iter()
+        .filter(|(_, url)| !referenced_urls.contains(url))
+        .map(|(id, _)| id)
+        .collect()
 }
 
 async fn wallpaper_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
@@ -302,5 +444,58 @@ mod tests {
         assert_eq!(clamp_cleanup_batch(1), 1);
         assert_eq!(clamp_cleanup_batch(2_500), 2_500);
         assert_eq!(clamp_cleanup_batch(MESSAGE_CLEANUP_BATCH), MESSAGE_CLEANUP_BATCH);
+    }
+
+    // DATA-4: 孤儿筛选纯逻辑。
+    use std::collections::HashSet;
+    use uuid::Uuid;
+
+    fn uuid_n(n: u8) -> Uuid {
+        Uuid::from_bytes([n; 16])
+    }
+
+    #[test]
+    fn filters_unreferenced_candidates() {
+        let a = uuid_n(1);
+        let b = uuid_n(2);
+        let c = uuid_n(3);
+        let candidates = vec![
+            (a, "/uploads/icons/a.png".to_string()),
+            (b, "/uploads/icons/b.png".to_string()),
+            (c, "/uploads/icons/c.png".to_string()),
+        ];
+        let mut referenced = HashSet::new();
+        referenced.insert("/uploads/icons/b.png".to_string());
+        let orphans = filter_orphan_icons(candidates, &referenced);
+        // a and c are unreferenced → orphans; b is referenced → kept.
+        assert_eq!(orphans, vec![a, c]);
+    }
+
+    #[test]
+    fn keeps_all_when_all_referenced() {
+        let a = uuid_n(1);
+        let candidates = vec![(a, "/uploads/icons/a.png".to_string())];
+        let mut referenced = HashSet::new();
+        referenced.insert("/uploads/icons/a.png".to_string());
+        assert!(filter_orphan_icons(candidates, &referenced).is_empty());
+    }
+
+    #[test]
+    fn all_orphans_when_none_referenced() {
+        let a = uuid_n(1);
+        let b = uuid_n(2);
+        let candidates = vec![
+            (a, "/uploads/icons/a.png".to_string()),
+            (b, "/uploads/icons/b.png".to_string()),
+        ];
+        let referenced = HashSet::new();
+        assert_eq!(filter_orphan_icons(candidates, &referenced), vec![a, b]);
+    }
+
+    #[test]
+    fn empty_candidates_yield_empty() {
+        let referenced = HashSet::new();
+        let candidates: Vec<(Uuid, String)> = Vec::new();
+        assert!(filter_orphan_icons(candidates, &referenced).is_empty());
     }
 }
