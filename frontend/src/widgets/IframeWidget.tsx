@@ -1,36 +1,67 @@
+import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import type { WidgetProps } from "./types";
+import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { safeHttpUrl } from "../utils/iconSources";
+import { isUrlAllowed } from "./iframeWhitelist";
 
 interface IframeConfig {
   url?: string;
   title?: string;
 }
 
+const DEFAULTS: IframeConfig = {};
+
 export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
   const { workspace } = useWorkspace();
-  const cfg = (w?.config ?? {}) as IframeConfig;
-  const rawUrl = cfg.url?.trim();
+  // WIDGET-10: 与其它组件一致,统一经 useWidgetConfig 读取配置(原先直接读 w?.config)。
+  const { config } = useWidgetConfig<IframeConfig>(w, DEFAULTS);
+  const rawUrl = config.url?.trim();
   // SEC-9: 仅允许 http/https,挡掉 javascript:/data: 等伪协议。
   const url = rawUrl ? safeHttpUrl(rawUrl) ?? undefined : undefined;
-  const title = cfg.title || rawUrl;
+  const title = config.title || rawUrl;
 
-  // SEC-7: 白名单为空时默认拒绝(而非放行任意站点);匹配用精确域名或其子域,
-  // 不再用 endsWith(allowed) 这种会被 evil-example.com 绕过的后缀判断。
+  // SEC-7: 默认拒绝白名单,精确域名或子域匹配(逻辑已抽到 iframeWhitelist 并单测)。
   const whitelist = workspace?.iframeWhitelist ?? [];
-  let isAllowed = false;
-  if (url && whitelist.length > 0) {
-    try {
-      const host = new URL(url).hostname.toLowerCase();
-      isAllowed = whitelist.some((entry) => {
-        const allowed = entry.trim().toLowerCase().replace(/^\.+/, "");
-        return !!allowed && (host === allowed || host.endsWith("." + allowed));
-      });
-    } catch {
-      isAllowed = false;
-    }
-  }
+  const isAllowed = isUrlAllowed(url, whitelist);
+
+  // WIDGET-10: iframe 加载失败回退(被远端 X-Frame-Options/CSP 拒绝、网络错误等)。
+  const [loadFailed, setLoadFailed] = useState(false);
+  // 切换 url / 白名单状态后复位失败态,允许重新尝试加载。
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [url, isAllowed]);
+
+  const renderFallback = (icon: string, message: string) => (
+    <div
+      style={{
+        textAlign: "center", padding: 20, color: "var(--text-soft)", fontSize: 13,
+        display: "flex", flexDirection: "column", gap: 12, alignItems: "center",
+        justifyContent: "center", height: "100%",
+      }}
+    >
+      <Icon name={icon} size={32} />
+      <div>{message}</div>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            fontSize: 12, color: "var(--accent, #8ee6b8)",
+            textDecoration: "none", wordBreak: "break-all",
+          }}
+        >
+          <Icon name="external" size={12} />
+          在新标签页打开
+        </a>
+      )}
+    </div>
+  );
 
   return (
     <div className="widget w-iframe">
@@ -50,20 +81,22 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
       <div className="iframe-placeholder">
         {url ? (
           isAllowed ? (
-            <iframe
-              src={url}
-              title={title || "iframe"}
-              sandbox="allow-scripts allow-forms allow-popups"
-              allow=""
-              referrerPolicy="no-referrer"
-              loading="lazy"
-              style={{ width: "100%", height: "100%", border: 0 }}
-            />
+            loadFailed ? (
+              renderFallback("info", "该网页无法被嵌入(可能被站点的 X-Frame-Options / CSP 拒绝)。")
+            ) : (
+              <iframe
+                src={url}
+                title={title || "iframe"}
+                sandbox="allow-scripts allow-forms allow-popups"
+                allow=""
+                referrerPolicy="no-referrer"
+                loading="lazy"
+                onError={() => setLoadFailed(true)}
+                style={{ width: "100%", height: "100%", border: 0 }}
+              />
+            )
           ) : (
-            <div style={{ textAlign: "center", padding: 20, color: "var(--text-soft)", fontSize: 13, display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100%" }}>
-              <Icon name="shield" size={32} />
-              <div>该域名未在 Iframe 白名单中，已拦截。</div>
-            </div>
+            renderFallback("shield", "该域名未在 Iframe 白名单中，已拦截。")
           )
         ) : (
           <span>点击齿轮按钮设置网址</span>
@@ -72,4 +105,3 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
     </div>
   );
 };
-
