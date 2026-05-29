@@ -99,10 +99,19 @@ pub struct SuperadminConfig {
     /// 允许超管用账号密码登录;关闭后 /auth/password 返回 403,前端隐藏密码 Tab
     #[serde(default = "default_true")]
     pub password_login_enabled: bool,
-    /// 首位完成 SSO 登录的用户自动升级为 superadmin
-    /// 仅当数据库中尚无 casdoor_id 绑定的用户时生效
+    /// 首位完成 SSO 登录的用户自动升级为 superadmin。
+    /// 仅当数据库中尚无 superadmin 时生效。
+    ///
+    /// 安全风险(AUTH-3):若开启且 allowlist 为空,则任意第一个完成 SSO 登录的人
+    /// (包括攻击者抢先登录)都会被授予 superadmin。默认关闭(false)。
+    /// 即便开启,也强烈建议同时配置 first_sso_bind_allowlist 限定可被提权的身份。
     #[serde(default)]
     pub first_sso_bind: bool,
+    /// AUTH-3: 仅当新建 SSO 用户的 email 或 subject 命中本列表时,才允许 first_sso_bind
+    /// 提权。空列表(默认)表示不额外限制——此时 first_sso_bind 必须显式开启且“首位即提权”
+    /// 的风险由运维自行承担;非空时即使 first_sso_bind 为 true 也只放行白名单内的身份。
+    #[serde(default)]
+    pub first_sso_bind_allowlist: Vec<String>,
     /// 是否要求 superadmin 在首次登录时强制修改密码
     #[serde(default = "default_true")]
     pub force_change_password: bool,

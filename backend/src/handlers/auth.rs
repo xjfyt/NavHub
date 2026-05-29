@@ -260,6 +260,37 @@ fn sso_email_bind_allowed(email_verified: Option<bool>) -> bool {
     matches!(email_verified, Some(true))
 }
 
+/// AUTH-3: decide whether a freshly-created SSO user may be auto-promoted to
+/// superadmin via the "first SSO login binds the privileged account" convenience.
+///
+/// SECURITY: this convenience is dangerous — without gating, the very first
+/// person to complete SSO (potentially an attacker who races to log in before
+/// the legitimate operator) seizes superadmin. We therefore gate it behind:
+///   1. `enabled` (config `superadmin.first_sso_bind`, defaults OFF), AND
+///   2. `no_superadmin_yet` (only ever fires while the install has no superadmin), AND
+///   3. an optional allowlist: when non-empty, the new user's email OR subject
+///      MUST appear in it (case-insensitive on email). An empty allowlist keeps
+///      the legacy "first one wins" behavior but only when the operator has
+///      explicitly flipped `first_sso_bind` on.
+fn first_sso_bind_allowed(
+    enabled: bool,
+    no_superadmin_yet: bool,
+    allowlist: &[String],
+    email: &str,
+    sub: &str,
+) -> bool {
+    if !enabled || !no_superadmin_yet {
+        return false;
+    }
+    if allowlist.is_empty() {
+        return true;
+    }
+    allowlist.iter().any(|entry| {
+        let e = entry.trim();
+        e.eq_ignore_ascii_case(email) || e == sub
+    })
+}
+
 async fn upsert_sso_user(
     state: &Arc<AppState>,
     sub: &str,
@@ -325,13 +356,19 @@ async fn upsert_sso_user(
         .await?;
         return fetch_user(state, u.id).await;
     }
-    // 3. create new user as 'user'
-    let initial_role: &str =
-        if state.cfg.superadmin.first_sso_bind && !any_superadmin(&state.pg).await? {
-            "superadmin"
-        } else {
-            "user"
-        };
+    // 3. create new user as 'user' (or superadmin if the gated first-SSO-bind
+    // convenience applies — see `first_sso_bind_allowed` for the risk gating).
+    let initial_role: &str = if first_sso_bind_allowed(
+        state.cfg.superadmin.first_sso_bind,
+        !any_superadmin(&state.pg).await?,
+        &state.cfg.superadmin.first_sso_bind_allowlist,
+        email,
+        sub,
+    ) {
+        "superadmin"
+    } else {
+        "user"
+    };
     let id: (uuid::Uuid,) = sqlx::query_as(
         "INSERT INTO users (id, username, email, display_name, avatar_url, role, casdoor_id, last_seen_at) \
          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, now()) \
@@ -443,5 +480,40 @@ mod tests {
     fn bind_refused_when_email_unverified_or_missing() {
         assert!(!sso_email_bind_allowed(Some(false)));
         assert!(!sso_email_bind_allowed(None));
+    }
+
+    // AUTH-3: first-SSO-bind promotion gating.
+    #[test]
+    fn first_bind_off_by_default_never_promotes() {
+        // disabled => never, even with no superadmin and matching allowlist.
+        assert!(!first_sso_bind_allowed(false, true, &[], "a@x.com", "sub1"));
+        assert!(!first_sso_bind_allowed(
+            false,
+            true,
+            &["a@x.com".into()],
+            "a@x.com",
+            "sub1"
+        ));
+    }
+
+    #[test]
+    fn first_bind_blocked_when_superadmin_exists() {
+        assert!(!first_sso_bind_allowed(true, false, &[], "a@x.com", "sub1"));
+    }
+
+    #[test]
+    fn first_bind_enabled_empty_allowlist_allows_first() {
+        assert!(first_sso_bind_allowed(true, true, &[], "a@x.com", "sub1"));
+    }
+
+    #[test]
+    fn first_bind_allowlist_gates_identity() {
+        let allow = vec!["admin@example.com".to_string(), "sub-trusted".to_string()];
+        // email match (case-insensitive)
+        assert!(first_sso_bind_allowed(true, true, &allow, "Admin@Example.com", "sub-x"));
+        // subject match
+        assert!(first_sso_bind_allowed(true, true, &allow, "other@x.com", "sub-trusted"));
+        // neither matches => refused even though enabled and no superadmin
+        assert!(!first_sso_bind_allowed(true, true, &allow, "evil@x.com", "sub-evil"));
     }
 }
