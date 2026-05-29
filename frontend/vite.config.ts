@@ -21,9 +21,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ["react", "react-dom"],
           // Markdown editor: heavy and only needed when the markdown widget
-          // mounts. Travels with dompurify because dompurify is only ever
-          // used alongside it — bundling them together avoids a 15KB chunk
-          // we'd otherwise need to load just to render one widget.
+          // mounts.
           milkdown: [
             "@milkdown/core",
             "@milkdown/ctx",
@@ -34,7 +32,6 @@ export default defineConfig({
             "@milkdown/transformer",
             "@milkdown/plugin-history",
             "@milkdown/plugin-listener",
-            "dompurify",
           ],
           // sonner is needed at first paint (App.tsx mounts <Toaster />),
           // so it stays in its own small always-loaded chunk.

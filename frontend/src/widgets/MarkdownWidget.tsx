@@ -1,11 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import DOMPurify from "dompurify";
-import { Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx } from "@milkdown/core";
+import { Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx, prosePluginsCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { history } from "@milkdown/plugin-history";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
+import { linkSanitizerPlugin } from "./markdownSanitize";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { Icon } from "../components/Icon";
 import { confirmDialog } from "../components/Dialogs";
@@ -143,6 +143,8 @@ const MilkdownEditor = ({ initial, onChange }: MilkdownEditorProps) => {
           ...prev,
           attributes: { class: "milkdown-root", spellcheck: "false" },
         }));
+        // FE-2: 注册链接/图片清洗插件,过滤渲染输出中的危险 href/src(XSS)。
+        ctx.update(prosePluginsCtx, (plugins) => [...plugins, linkSanitizerPlugin()]);
         ctx
           .get(listenerCtx)
           .markdownUpdated((_, md) => onChangeRef.current(md));
@@ -310,7 +312,7 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
       <section className="md-notes-main">
         {active ? (
           <MilkdownProvider key={active.id}>
-            <MilkdownEditor initial={DOMPurify.sanitize(active.content)} onChange={updateContent} />
+            <MilkdownEditor initial={active.content} onChange={updateContent} />
           </MilkdownProvider>
         ) : (
           <div className="md-notes-placeholder muted">
