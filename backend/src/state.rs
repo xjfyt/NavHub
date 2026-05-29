@@ -1,8 +1,9 @@
 use crate::{auth::oidc::JwksCache, auth::sso_cache::SsoCache, config::AppConfig, storage::Storage};
 use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, Notify, RwLock};
 
 pub struct AppState {
     pub cfg: AppConfig,
@@ -30,6 +31,11 @@ pub struct AppState {
     /// AUTH-1: short-TTL in-memory cache of the provider JWKS, keyed implicitly
     /// by the configured jwks_uri. Refetched on miss / expiry / unknown-kid.
     pub jwks_cache: Arc<JwksCache>,
+    /// INFRA-6: 进程内 favicon 单飞(single-flight)注册表。键为 favicon 缓存键,
+    /// 值为该键当前正在进行的上游抓取所对应的 Notify。缓存击穿时(大量并发请求
+    /// 同一 host)只让第一个请求真正去抓上游,其余等待其完成后复用缓存结果,
+    /// 避免缓存击穿风暴。Redis 不可用时整体失败开放(各自正常抓取),不会挂起。
+    pub favicon_inflight: Mutex<HashMap<String, Arc<Notify>>>,
 }
 
 impl AppState {
@@ -77,6 +83,7 @@ impl AppState {
             lenient_client,
             oidc_client,
             jwks_cache: Arc::new(JwksCache::new()),
+            favicon_inflight: Mutex::new(HashMap::new()),
         })
     }
 }

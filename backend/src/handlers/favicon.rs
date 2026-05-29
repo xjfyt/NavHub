@@ -274,25 +274,97 @@ pub async fn proxy(
     let sz = snap_icon_size(q.sz);
     let cache_key = format!("favicon:{}:{}", sz, host);
 
-    {
-        let mut conn = state.redis.get().await?;
-        let cached: Option<Vec<u8>> = conn.get(&cache_key).await.ok().flatten();
-        if let Some(bytes) = cached {
-            let mime = detect_mime(&bytes);
-            return Ok(image_response(bytes, mime));
-        }
+    if let Some(resp) = read_cache(&state, &cache_key).await {
+        return Ok(resp);
     }
 
+    // INFRA-6: 缓存击穿单飞。注册到进程内 in-flight 表:第一个到达的请求成为
+    // leader 真正去抓上游,后到的同键请求成为 follower 等待 leader 完成后复用
+    // 缓存结果,避免大量并发请求同一 host 都打到上游(缓存击穿/穿透风暴)。
+    let role = {
+        let mut map = state.favicon_inflight.lock().await;
+        if let Some(existing) = map.get(&cache_key) {
+            Follower(existing.clone()) // 已有 leader 在抓 —— 成为 follower。
+        } else {
+            let notify = Arc::new(tokio::sync::Notify::new());
+            map.insert(cache_key.clone(), notify.clone());
+            Leader(notify) // 成为 leader。
+        }
+    };
+
+    match role {
+        Follower(notify) => {
+            // 等 leader 完成后复用其写入的缓存。用 notified() 唤醒,但同时对整体加
+            // 超时兜底:leader 万一卡死/崩溃也不能让 follower 永久挂起。
+            //
+            // tokio 的 notify_waiters() 只唤醒“调用时已在等待列表里”的任务、不存
+            // permit,存在 follower 尚未 poll notified() 就被 notify 的丢通知窗口。
+            // 为此用短周期轮询缓存 + notified() 二者竞速:任一就绪都重读缓存,既
+            // 消除丢通知导致的长时挂起,结果也始终正确(leader 先写缓存再通知)。
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+            loop {
+                if let Some(resp) = read_cache(&state, &cache_key).await {
+                    return Ok(resp);
+                }
+                if tokio::time::Instant::now() >= deadline {
+                    break;
+                }
+                tokio::select! {
+                    _ = notify.notified() => {}
+                    _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                }
+            }
+            // 失败开放:leader 没产出可缓存结果(或 Redis 不可用),自己走一遍抓取。
+            fetch_favicon_chain(&state, &cache_key, &host, sz).await
+        }
+        Leader(notify) => {
+            // leader 负责抓取;无论成败,结束时都要清理 in-flight 槽并唤醒 follower。
+            let result = fetch_favicon_chain(&state, &cache_key, &host, sz).await;
+            {
+                let mut map = state.favicon_inflight.lock().await;
+                map.remove(&cache_key);
+            }
+            notify.notify_waiters();
+            result
+        }
+    }
+}
+
+/// INFRA-6: single-flight 角色。Leader 持有 Notify 抓上游并在结束时唤醒;
+/// Follower 持有同一 Notify,等待 leader 完成后复用其写入的缓存。
+enum InflightRole {
+    Leader(Arc<tokio::sync::Notify>),
+    Follower(Arc<tokio::sync::Notify>),
+}
+use InflightRole::{Follower, Leader};
+
+/// 读取 favicon 缓存命中则构造响应。Redis 不可用时返回 None(失败开放,继续抓取)。
+async fn read_cache(state: &Arc<AppState>, cache_key: &str) -> Option<Response> {
+    let mut conn = state.redis.get().await.ok()?;
+    let cached: Option<Vec<u8>> = conn.get(cache_key).await.ok().flatten();
+    let bytes = cached?;
+    let mime = detect_mime(&bytes);
+    Some(image_response(bytes, mime))
+}
+
+/// INFRA-6: 实际的多策略抓取链。命中即写缓存(cache_and_return)并返回;全部
+/// 失败返回占位图。从 proxy 拆出,以便单飞 leader/follower 共用同一抓取逻辑。
+async fn fetch_favicon_chain(
+    state: &Arc<AppState>,
+    cache_key: &str,
+    host: &str,
+    sz: u16,
+) -> AppResult<Response> {
     let client = &state.lenient_client;
 
     let direct_url = format!("https://{host}/favicon.ico");
     if let Some(bytes) = try_fetch(client, &direct_url).await {
         if is_valid_icon(&bytes) {
-            return cache_and_return(&state, &cache_key, bytes).await;
+            return cache_and_return(state, cache_key, bytes).await;
         }
     }
 
-    try_remaining_strategies(client, &state, &cache_key, &host, sz).await
+    try_remaining_strategies(client, state, cache_key, host, sz).await
 }
 
 async fn try_remaining_strategies(
