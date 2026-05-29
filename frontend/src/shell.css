@@ -240,6 +240,46 @@
   line-height: 1.4;
 }
 
+/* 首次使用提示：克制、可关闭、不抢主按钮焦点。 */
+.nh-login-firstrun {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.nh-login-firstrun-text {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+}
+.nh-login-firstrun-text b {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+}
+.nh-login-firstrun-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: -1px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.nh-login-firstrun-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .nh-btn-ghost {
   padding: 6px 10px;
   border-radius: 8px;

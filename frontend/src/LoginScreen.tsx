@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { api, ApiError } from "./api";
 import type { AuthStatus } from "./types";
+import {
+  shouldShowDefaultCredsHint,
+  readDefaultCredsHintDismissed,
+  persistDefaultCredsHintDismissed,
+} from "./utils/firstRun";
 
 export function LoginScreen(props: {
   status: AuthStatus;
@@ -16,6 +21,11 @@ export function LoginScreen(props: {
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 本次会话内的登录尝试次数 + 用户是否关闭过首次使用提示。
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [hintDismissed, setHintDismissed] = useState(() =>
+    readDefaultCredsHintDismissed(),
+  );
 
   const onSsoLogin = () => {
     window.location.href = api.loginUrl();
@@ -24,6 +34,7 @@ export function LoginScreen(props: {
   const onPasswordLogin = async () => {
     setPending(true);
     setErr(null);
+    setAttemptCount((n) => n + 1);
     try {
       await api.passwordLogin(username, password);
       onAuthed();
@@ -45,6 +56,18 @@ export function LoginScreen(props: {
   const bothDisabled = !status.ssoEnabled && !status.passwordEnabled;
   const bothEnabled = status.ssoEnabled && status.passwordEnabled;
   const appName = status.appName || "NavHub";
+
+  const showDefaultCredsHint =
+    mode === "password" &&
+    shouldShowDefaultCredsHint({
+      passwordEnabled: status.passwordEnabled,
+      attemptCount,
+      dismissed: hintDismissed,
+    });
+  const onDismissHint = () => {
+    persistDefaultCredsHintDismissed();
+    setHintDismissed(true);
+  };
 
   return (
     <div
@@ -100,6 +123,23 @@ export function LoginScreen(props: {
           </div>
         ) : mode === "password" && status.passwordEnabled ? (
           <div className="nh-login-pane">
+            {showDefaultCredsHint ? (
+              <div className="nh-login-firstrun" role="note">
+                <span className="nh-login-firstrun-text">
+                  首次使用？默认账号 <b>superadmin</b> / 密码 <b>superadmin</b>，登录后请立即修改。
+                </span>
+                <button
+                  type="button"
+                  className="nh-login-firstrun-close"
+                  aria-label="不再提示"
+                  onClick={onDismissHint}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M6 6l12 12M6 18L18 6" />
+                  </svg>
+                </button>
+              </div>
+            ) : null}
             <label className="nh-login-field">
               <svg className="nh-login-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
