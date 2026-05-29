@@ -711,6 +711,9 @@ export const AdminIconAssetLibrary = () => {
               <img
                 src={w.url}
                 alt={w.name ?? "图标"}
+                // PERF-4: 图标网格按需懒加载、异步解码,屏外图标不阻塞首屏。
+                loading="lazy"
+                decoding="async"
                 style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
               />
               <div style={{ fontSize: 12, fontWeight: 500, marginTop: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }} title={w.name ?? undefined}>
@@ -747,6 +750,9 @@ export const AdminIconAssetLibrary = () => {
               <img
                 src={w.storageKey ? `/uploads/${w.storageKey}` : w.originalUrl}
                 alt={w.title ?? "图标"}
+                // PERF-4: 图标网格按需懒加载、异步解码,屏外图标不阻塞首屏。
+                loading="lazy"
+                decoding="async"
                 style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
               />
               <div style={{ fontSize: 12, fontWeight: 500, marginTop: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center" }} title={w.title ?? undefined}>

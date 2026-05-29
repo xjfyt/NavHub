@@ -1025,6 +1025,9 @@ export const AdminWallpaperLibrary = () => {
                 <img
                   src={w.thumbnailKey ? `/uploads/${w.thumbnailKey}` : w.mediaType === "image" && w.storageKey ? `/uploads/${w.storageKey}` : w.thumbnailUrl ?? undefined}
                   alt={w.title ?? "壁纸"}
+                  // PERF-4: 缩略图网格按需懒加载、异步解码,屏外图片不阻塞首屏。
+                  loading="lazy"
+                  decoding="async"
                   style={{ width: "100%", height: 112, objectFit: "cover", display: "block" }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
