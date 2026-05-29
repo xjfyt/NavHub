@@ -2,7 +2,7 @@ import React from "react";
 import { IconView, FolderItemView } from "../types";
 import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
-import { parseBuiltinIconUrl } from "../utils/iconSources";
+import { parseBuiltinIconUrl, safeHttpUrl } from "../utils/iconSources";
 
 type TileRenderable = Pick<
   IconView | FolderItemView,
@@ -132,7 +132,7 @@ export const IconTile = ({
               return (
                 <div key={it.id} className="fg-item direct-link" style={{ WebkitUserDrag: 'none' } as any} onClick={e => {
                   e.stopPropagation();
-                  if (isLink) window.open(it.url!, "_blank");
+                  if (isLink) { const safe = safeHttpUrl(it.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); }
                   else onClick?.(e, icon);
                 }} onContextMenu={ctx}>
                   {Inner}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IconView } from "../types";
 import { Icon } from "./Icon";
+import { safeHttpUrl } from "../utils/iconSources";
 
 export const IframePreviewModal = ({
   icon,
@@ -21,7 +22,8 @@ export const IframePreviewModal = ({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const url = icon.url || "";
+  // SEC-8/SEC-9: 仅允许 http/https;非安全 URL 不嵌入(防 javascript:/data: 与沙箱逃逸)。
+  const url = safeHttpUrl(icon.url) ?? "";
 
   return (
     <div className="wcc-backdrop" onClick={onClose} style={{ zIndex: 9000 }}>
@@ -272,8 +274,7 @@ export const IframePreviewModal = ({
               border: "none",
               display: "block",
             }}
-            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
-            allow="clipboard-read; clipboard-write"
+            sandbox="allow-scripts allow-popups allow-forms allow-modals"
           />
         </div>
       </div>

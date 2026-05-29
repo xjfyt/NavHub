@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { IconView } from "../types";
 import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
-import { parseBuiltinIconUrl } from "../utils/iconSources";
+import { parseBuiltinIconUrl, safeHttpUrl } from "../utils/iconSources";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 
 export const FolderOverlay = ({
@@ -259,7 +259,7 @@ export const FolderOverlay = ({
                         initialOrderRef.current = nextOrder;
                       }
                     }}
-                    onClick={() => { if (it.url && it.url !== "#") window.open(it.url, "_blank"); }}
+                    onClick={() => { const safe = safeHttpUrl(it.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); }}
                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onItemContext?.(e, it); }}>
                  <div className={"fi-icon " + shapeClass + (plain ? " has-plain-image" : "") + (dragId === it.id ? " dragging" : "")} 
                       style={{ 

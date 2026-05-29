@@ -1,6 +1,7 @@
 import type { CtxItem } from "./ContextMenu";
 import { confirmDialog } from "./Dialogs";
 import type { GroupView, IconView, WidgetView } from "../types";
+import { safeHttpUrl } from "../utils/iconSources";
 import {
   WIDGET_REGISTRY,
   WIDGET_SIZE_DIMENSIONS,
@@ -138,7 +139,8 @@ export function buildTileCtx(ctx: ShellMenuCtx, e: React.MouseEvent, item: IconV
       icon: "arrow-right",
       label: "当前页面打开",
       onClick: () => {
-        if (ic.url && ic.url !== "#") window.location.href = ic.url;
+        const safe = safeHttpUrl(ic.url);
+        if (safe) window.location.href = safe;
       },
     },
     { icon: "external", label: "新标签页打开", onClick: () => ctx.openIcon(ic) },

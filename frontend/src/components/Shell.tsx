@@ -8,6 +8,7 @@ import { NavView } from "./NavView";
 import { UserMenu } from "./UserMenu";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
 import { GroupView, IconView, WidgetView } from "../types";
+import { safeHttpUrl } from "../utils/iconSources";
 import { confirmDialog } from "./Dialogs";
 import { toast } from "sonner";
 import {
@@ -208,7 +209,7 @@ export const Shell = ({
       setIframePreviewIcon(ic);
       return;
     }
-    if (ic.url && ic.url !== "#") window.open(ic.url, "_blank");
+    { const safe = safeHttpUrl(ic.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); }
   };
 
   // Context-menu builders live in Shell.menus.tsx; this bag is the only thing
@@ -382,8 +383,8 @@ export const Shell = ({
               const editable = canEditGroup(openedFolder.groupId);
               const items: CtxItem[] = [];
               if (item.url && item.url !== "#") {
-                items.push({ icon: "arrow-right", label: "当前页面打开", onClick: () => { window.location.href = item.url!; } });
-                items.push({ icon: "external", label: "新标签页打开", onClick: () => { window.open(item.url!, "_blank"); } });
+                items.push({ icon: "arrow-right", label: "当前页面打开", onClick: () => { const safe = safeHttpUrl(item.url); if (safe) window.location.href = safe; } });
+                items.push({ icon: "external", label: "新标签页打开", onClick: () => { const safe = safeHttpUrl(item.url); if (safe) window.open(safe, "_blank", "noopener,noreferrer"); } });
               }
               if (editable) {
                 if (items.length > 0) items.push({ divider: true });

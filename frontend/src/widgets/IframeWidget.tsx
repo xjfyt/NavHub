@@ -1,6 +1,7 @@
 import { Icon } from "../components/Icon";
 import type { WidgetProps } from "./types";
 import { useWorkspace } from "../hooks/useWorkspace";
+import { safeHttpUrl } from "../utils/iconSources";
 
 interface IframeConfig {
   url?: string;
@@ -11,15 +12,21 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
   const { workspace } = useWorkspace();
   const cfg = (w?.config ?? {}) as IframeConfig;
   const rawUrl = cfg.url?.trim();
-  const url = rawUrl ? (/^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`) : undefined;
+  // SEC-9: 仅允许 http/https,挡掉 javascript:/data: 等伪协议。
+  const url = rawUrl ? safeHttpUrl(rawUrl) ?? undefined : undefined;
   const title = cfg.title || rawUrl;
 
-  const whitelist = workspace?.iframeWhitelist || [];
-  let isAllowed = true;
+  // SEC-7: 白名单为空时默认拒绝(而非放行任意站点);匹配用精确域名或其子域,
+  // 不再用 endsWith(allowed) 这种会被 evil-example.com 绕过的后缀判断。
+  const whitelist = workspace?.iframeWhitelist ?? [];
+  let isAllowed = false;
   if (url && whitelist.length > 0) {
     try {
-      const u = new URL(url);
-      isAllowed = whitelist.some((allowed) => u.hostname.endsWith(allowed));
+      const host = new URL(url).hostname.toLowerCase();
+      isAllowed = whitelist.some((entry) => {
+        const allowed = entry.trim().toLowerCase().replace(/^\.+/, "");
+        return !!allowed && (host === allowed || host.endsWith("." + allowed));
+      });
     } catch {
       isAllowed = false;
     }
@@ -46,7 +53,7 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
             <iframe
               src={url}
               title={title || "iframe"}
-              sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+              sandbox="allow-scripts allow-forms allow-popups"
               allow=""
               referrerPolicy="no-referrer"
               loading="lazy"
