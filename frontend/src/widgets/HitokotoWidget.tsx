@@ -34,8 +34,11 @@ export const HitokotoWidget = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData((await res.json()) as HitokotoResp);
     } catch (e) {
+      // UX-18: 不再把失败伪装成成功。仍给一句兜底文案保证有内容,
+      // 但同时标记 error,让 UI 明确显示「加载失败」而非假装拉取成功。
+      console.error("Hitokoto load failed", e);
       setData({ hitokoto: "生活明朗，万物可爱。", from: "NavHub" });
-      setError(null);
+      setError("一言加载失败，已显示离线文案");
     } finally {
       setLoading(false);
     }
@@ -67,10 +70,13 @@ export const HitokotoWidget = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
           <span style={{ fontSize: 14, display: "inline-block", transform: loading ? "rotate(180deg)" : undefined, transition: "transform 300ms" }}>↻</span>
         </button>
       </div>
-      {error ? (
-        <div className="muted" style={{ fontSize: 12 }}>{error}</div>
-      ) : data ? (
+      {data ? (
         <>
+          {error && (
+            <div className="muted" style={{ fontSize: 11, color: "var(--warn, #d98a00)", marginBottom: 6 }}>
+              {error}
+            </div>
+          )}
           <div
             style={{
               fontSize: 14,
@@ -111,17 +117,22 @@ export const HitokotoDetail = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData((await res.json()) as HitokotoResp);
     } catch (e) {
+      // UX-18: 同上,失败不伪装成功——保留兜底文案但标记 error。
+      console.error("Hitokoto load failed", e);
       setData({ hitokoto: "生活明朗，万物可爱。", from: "NavHub" });
-      setError(null);
+      setError("一言加载失败，已显示离线文案");
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [config.type]);
   return (
     <div style={{ display: "grid", gap: 20, padding: "20px 0" }}>
-      {error ? (
-        <div className="muted" style={{ fontSize: 13 }}>{error}</div>
-      ) : data ? (
+      {data ? (
         <>
+          {error && (
+            <div className="muted" style={{ fontSize: 12, color: "var(--warn, #d98a00)", textAlign: "center" }}>
+              {error}
+            </div>
+          )}
           <div style={{ fontSize: 22, lineHeight: 1.7, textAlign: "center", letterSpacing: "0.02em" }}>
             「{data.hitokoto}」
           </div>

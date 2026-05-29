@@ -3,6 +3,7 @@ import { api } from "../../api";
 import { toast } from "sonner";
 import { confirmDialog } from "../Dialogs";
 import { Icon } from "../Icon";
+import { summarizeBatch, formatBatchSummary, type BatchItemResult } from "../../utils/batchResult";
 import type { IconAssetSourceView, AdminRemoteIconAsset, LibraryIconView } from "../../types";
 
 const SCRAPER_CONFIGS: Record<string, { label: string; defaultUrl: string; defaultBatch: number }> = {
@@ -189,43 +190,70 @@ export const AdminIconAssetLibrary = () => {
   const batchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !selectedSourceId) return;
-    
+
     setLoadingIcons(true);
-    let userUploadItems = [];
-    let remoteUploadItems = [];
+    // UX-18: 逐文件统计成功/失败,不再吞错也不再无脑「上传成功」。
+    const perFile: BatchItemResult[] = [];
+    const userUploadItems: Awaited<ReturnType<typeof api.upload>>[] = [];
+    const remoteUploadItems: {
+      title: string;
+      originalUrl: string;
+      storageKey: string;
+      fileSizeBytes: number;
+    }[] = [];
 
     for (let i = 0; i < files.length; i++) {
-        try {
-           const purpose = selectedSourceId === "user_uploads" ? "icon" : "upload";
-           const res = await api.upload(files[i], purpose);
-           if (selectedSourceId === "user_uploads") {
-               userUploadItems.push(res);
-           } else {
-               remoteUploadItems.push({
-                   title: files[i].name.replace(/\.[^/.]+$/, ""),
-                   originalUrl: res.url,
-                   storageKey: res.filename ?? res.url.split('?')[0].split('/uploads/').pop() ?? "",
-                   fileSizeBytes: res.size
-               });
-           }
-        } catch(err:any) {
-           console.error("Upload failed for " + files[i].name, err);
+      try {
+        const purpose = selectedSourceId === "user_uploads" ? "icon" : "upload";
+        const res = await api.upload(files[i], purpose);
+        if (selectedSourceId === "user_uploads") {
+          userUploadItems.push(res);
+        } else {
+          remoteUploadItems.push({
+            title: files[i].name.replace(/\.[^/.]+$/, ""),
+            originalUrl: res.url,
+            storageKey: res.filename ?? res.url.split("?")[0].split("/uploads/").pop() ?? "",
+            fileSizeBytes: res.size,
+          });
         }
+        perFile.push({ ok: true });
+      } catch (err: any) {
+        console.error("Upload failed for " + files[i].name, err);
+        perFile.push({ ok: false, error: err?.message || "上传失败" });
+      }
     }
-    
+
     try {
-        if (selectedSourceId === "user_uploads" && userUploadItems.length > 0) {
-            toast.success("上传成功");
-            loadIcons("user_uploads", 0);
-        } else if (remoteUploadItems.length > 0) {
-            await api.admin.addManualIconsToSource(selectedSourceId, remoteUploadItems);
-            toast.success("上传成功");
-            loadIcons(selectedSourceId, 0);
+      if (selectedSourceId === "user_uploads") {
+        if (userUploadItems.length > 0) loadIcons("user_uploads", 0);
+        const summary = summarizeBatch(perFile);
+        if (summary.fail === 0) {
+          toast.success(formatBatchSummary(summary, "个"));
+        } else {
+          toast.error(formatBatchSummary(summary, "个"));
         }
-    } catch(err:any) {
-        toast.error(err.message);
+      } else if (remoteUploadItems.length > 0) {
+        // 后端按内容去重后返回真实新增数 added;失败的文件来自上传阶段。
+        const { added } = await api.admin.addManualIconsToSource(selectedSourceId, remoteUploadItems);
+        loadIcons(selectedSourceId, 0);
+        const failCount = perFile.filter((r) => !r.ok).length;
+        const duplicates = remoteUploadItems.length - added;
+        const dupHint = duplicates > 0 ? `(去重跳过 ${duplicates} 个)` : "";
+        const summary = formatBatchSummary({ ok: added, fail: failCount, total: files.length, errors: [] }, "个");
+        if (failCount === 0) {
+          toast.success(`${summary}${dupHint}`);
+        } else {
+          toast.error(`${summary}${dupHint}`);
+        }
+      } else {
+        // 全部在上传阶段失败,没有任何条目可入库。
+        const summary = summarizeBatch(perFile);
+        toast.error(formatBatchSummary(summary, "个"));
+      }
+    } catch (err: any) {
+      toast.error("入库失败：" + (err?.message || "未知错误"));
     }
-    
+
     setLoadingIcons(false);
     e.target.value = "";
   };

@@ -714,8 +714,9 @@ export const api = {
     async triggerIconAssetFetch(id: string): Promise<{ status: string }> {
       return request(`/api/admin/icon-asset-sources/${id}/fetch`, { method: "POST" });
     },
-    async addManualIconsToSource(sourceId: string, items: { title?: string, originalUrl: string, storageKey: string, fileSizeBytes: number }[]): Promise<void> {
-      await request(`/api/admin/icon-asset-sources/${sourceId}/icons`, {
+    async addManualIconsToSource(sourceId: string, items: { title?: string, originalUrl: string, storageKey: string, fileSizeBytes: number }[]): Promise<{ added: number }> {
+      // UX-18: 后端返回真实新增数 { added: n }(去重后实际入库的条数)。
+      return request(`/api/admin/icon-asset-sources/${sourceId}/icons`, {
         method: "POST",
         body: JSON.stringify(items),
       });
