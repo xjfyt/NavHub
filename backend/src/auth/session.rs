@@ -105,3 +105,138 @@ pub fn extract_sid(headers: &axum::http::HeaderMap) -> Option<String> {
 pub fn is_https_public(state: &Arc<AppState>) -> bool {
     state.cfg.server.public_url.starts_with("https://")
 }
+
+/// AUTH-6: classify a configured `public_url` for the startup cookie-Secure
+/// warning. We deliberately do NOT force `Secure` unconditionally (that would
+/// break pure-http homelab/LAN deployments that have no TLS terminator), so
+/// instead we fail loud at boot when the origin is a *public* http URL — there
+/// the session cookie travels without `Secure` and SSO/auth is interceptable.
+///
+/// Returns `true` when the operator should be warned: scheme is http(s missing)
+/// AND the host is not loopback / not a private-LAN address. https origins and
+/// localhost / RFC1918 / CGNAT / link-local / unique-local hosts are considered
+/// safe enough (LAN or properly-TLS'd) and produce no warning.
+pub fn public_url_is_insecure_public(public_url: &str) -> bool {
+    let trimmed = public_url.trim();
+    // https → cookie carries Secure, nothing to warn about.
+    if trimmed.starts_with("https://") {
+        return false;
+    }
+    // Only http:// origins are candidates; anything else (empty, malformed,
+    // unix socket, etc.) we don't second-guess here.
+    let rest = match trimmed.strip_prefix("http://") {
+        Some(r) => r,
+        None => return false,
+    };
+    // Strip path/query/fragment, then userinfo, then port to isolate the host.
+    let authority = rest
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or("");
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    let host = strip_port(host_port);
+    if host.is_empty() {
+        return false;
+    }
+    // A bare hostname (e.g. an intranet name like "navhub" or a public FQDN):
+    // if it parses as an IP we can classify precisely; otherwise treat known
+    // local names as safe and everything else (a real domain) as public.
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return !ip_is_local(&ip);
+    }
+    let lower = host.to_ascii_lowercase();
+    let is_local_name = lower == "localhost"
+        || lower.ends_with(".localhost")
+        || lower.ends_with(".local")
+        || lower.ends_with(".internal")
+        || lower.ends_with(".lan");
+    !is_local_name
+}
+
+/// Strip a trailing `:port` from a host, leaving bracketed IPv6 literals intact.
+fn strip_port(host_port: &str) -> &str {
+    let s = host_port.trim();
+    if let Some(rest) = s.strip_prefix('[') {
+        // [::1]:8080 → ::1   ;   [::1] → ::1
+        if let Some(end) = rest.find(']') {
+            return &rest[..end];
+        }
+        return rest;
+    }
+    // IPv4 / hostname: only one colon means host:port; multiple colons would be
+    // a bare (unbracketed) IPv6 which we leave alone.
+    match s.rsplit_once(':') {
+        Some((h, p)) if !h.contains(':') && p.chars().all(|c| c.is_ascii_digit()) => h,
+        _ => s,
+    }
+}
+
+/// True when an IP belongs to loopback / private-LAN / link-local / CGNAT /
+/// unique-local space — i.e. not a public address that needs TLS.
+fn ip_is_local(ip: &std::net::IpAddr) -> bool {
+    use std::net::IpAddr;
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                // RFC 6598 carrier-grade NAT: 100.64.0.0/10
+                || (v4.octets()[0] == 100 && (v4.octets()[1] & 0xC0) == 0x40)
+        }
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                // unique-local fc00::/7
+                || (v6.segments()[0] & 0xFE00) == 0xFC00
+                // link-local fe80::/10
+                || (v6.segments()[0] & 0xFFC0) == 0xFE80
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn https_origin_never_warns() {
+        assert!(!public_url_is_insecure_public("https://nav.example.com"));
+        assert!(!public_url_is_insecure_public("https://192.0.2.1"));
+        assert!(!public_url_is_insecure_public("https://localhost:8080"));
+    }
+
+    #[test]
+    fn localhost_http_does_not_warn() {
+        assert!(!public_url_is_insecure_public("http://localhost"));
+        assert!(!public_url_is_insecure_public("http://localhost:3000"));
+        assert!(!public_url_is_insecure_public("http://127.0.0.1:8080"));
+        assert!(!public_url_is_insecure_public("http://[::1]:8080"));
+        assert!(!public_url_is_insecure_public("http://box.local"));
+    }
+
+    #[test]
+    fn private_lan_http_does_not_warn() {
+        assert!(!public_url_is_insecure_public("http://192.168.1.10"));
+        assert!(!public_url_is_insecure_public("http://10.0.0.5:8080"));
+        assert!(!public_url_is_insecure_public("http://172.16.3.4"));
+        // CGNAT and IPv6 ULA / link-local are LAN too.
+        assert!(!public_url_is_insecure_public("http://100.64.1.1"));
+        assert!(!public_url_is_insecure_public("http://[fd00::1]:8080"));
+    }
+
+    #[test]
+    fn public_http_origin_warns() {
+        assert!(public_url_is_insecure_public("http://nav.example.com"));
+        assert!(public_url_is_insecure_public("http://nav.example.com:8080/path"));
+        assert!(public_url_is_insecure_public("http://203.0.113.7"));
+        assert!(public_url_is_insecure_public("http://8.8.8.8:80"));
+    }
+
+    #[test]
+    fn malformed_or_empty_does_not_warn() {
+        assert!(!public_url_is_insecure_public(""));
+        assert!(!public_url_is_insecure_public("ftp://whatever"));
+        assert!(!public_url_is_insecure_public("http://"));
+    }
+}

@@ -41,6 +41,20 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("starting navhub on {}:{}", cfg.server.host, cfg.server.port);
 
+    // AUTH-6: fail loud when the public origin is plain http on a *public* host.
+    // We intentionally keep cookie `Secure` tied to https (so pure-http LAN/homelab
+    // deployments keep working) — but a public http origin means the session
+    // cookie is sent without `Secure` and can be intercepted, defeating SSO/auth.
+    if auth::session::public_url_is_insecure_public(&cfg.server.public_url) {
+        tracing::warn!(
+            public_url = %cfg.server.public_url,
+            "INSECURE: public_url is a public http:// origin — session cookies will be \
+             sent WITHOUT the Secure flag and can be intercepted in transit, making SSO \
+             and password auth insecure. Set an https:// public_url (terminate TLS at a \
+             reverse proxy) before exposing this instance to the internet."
+        );
+    }
+
     let pg = db::connect(&cfg.database).await?;
     let redis = cache::connect(&cfg.redis)?;
 
