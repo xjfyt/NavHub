@@ -2,6 +2,23 @@ use super::{is_blocked_wallpaper_subject, truncate_title, ScrapedWallpaper, Scra
 use anyhow::{Context, Result};
 use scraper::{Html, Selector};
 
+/// INFRA-7: DesktopHut 列表页提取链接用的 CSS 选择器集中在此,便于站点改版时
+/// 单点维护,而不是散落在函数体内的硬编码字面量。按从最具体到最宽松排列,
+/// 命中即停止尝试后续选择器。
+const LISTING_LINK_SELECTORS: [&str; 8] = [
+    "article a[href]",
+    ".entry-title a[href]",
+    ".post-title a[href]",
+    "h2 a[href]",
+    "h3 a[href]",
+    ".thumbnail a[href]",
+    ".item a[href]",
+    "a.more-link[href]",
+];
+
+/// INFRA-7: 兜底选择器——当所有结构化选择器都没命中时,扫描全部 <a href>。
+const LISTING_LINK_FALLBACK_SELECTOR: &str = "a[href]";
+
 pub struct DesktopHutScraper {
     client: reqwest::Client,
 }
@@ -32,21 +49,10 @@ impl DesktopHutScraper {
         let doc = Html::parse_document(html);
         let mut links = Vec::new();
 
-        // Try common selectors for wallpaper listing pages
-        let link_selectors = [
-            "article a[href]",
-            ".entry-title a[href]",
-            ".post-title a[href]",
-            "h2 a[href]",
-            "h3 a[href]",
-            ".thumbnail a[href]",
-            ".item a[href]",
-            "a.more-link[href]",
-        ];
-
+        // INFRA-7: 选择器集中到模块级常量 LISTING_LINK_SELECTORS。
         let base = url::Url::parse(base_url).ok();
 
-        for sel_str in &link_selectors {
+        for sel_str in &LISTING_LINK_SELECTORS {
             if let Ok(sel) = Selector::parse(sel_str) {
                 for el in doc.select(&sel) {
                     if let Some(href) = el.value().attr("href") {
@@ -75,7 +81,7 @@ impl DesktopHutScraper {
 
         // Fallback: all <a href> that look like wallpaper pages
         if links.is_empty() {
-            if let Ok(sel) = Selector::parse("a[href]") {
+            if let Ok(sel) = Selector::parse(LISTING_LINK_FALLBACK_SELECTOR) {
                 for el in doc.select(&sel) {
                     if let Some(href) = el.value().attr("href") {
                         let url = if href.starts_with("http") {
@@ -177,6 +183,15 @@ impl Scraper for DesktopHutScraper {
         let mut page_links = self.extract_listing_links(&listing_html, site_url);
         tracing::info!("found {} wallpaper page links", page_links.len());
 
+        // INFRA-7: 非空页面却 0 链接 => 选择器极可能因站点改版失效,告警以便运维察觉。
+        if should_warn_breakage(!listing_html.trim().is_empty(), page_links.len()) {
+            tracing::warn!(
+                "desktophut listing page returned a non-empty body but 0 links were extracted \
+                 from {site_url} — the site markup likely changed; review \
+                 LISTING_LINK_SELECTORS in scraper/desktophut.rs"
+            );
+        }
+
         page_links.truncate(batch_size);
 
         let mut results = Vec::new();
@@ -200,6 +215,14 @@ impl Scraper for DesktopHutScraper {
 
         Ok(results)
     }
+}
+
+/// INFRA-7: 判定一次列表页抓取是否疑似站点改版导致选择器失效。
+/// 页面有 HTML 正文(非空)却一个链接都没提取出来,几乎一定意味着 DesktopHut
+/// 改了页面结构,应当 warn 让运维注意;空页面(可能是网络/上游问题)或确实
+/// 提取到 N>0 个链接都属正常,不告警。纯函数,便于单测。
+fn should_warn_breakage(body_non_empty: bool, extracted_links: usize) -> bool {
+    body_non_empty && extracted_links == 0
 }
 
 fn is_wallpaper_page_url(url: &str) -> bool {
@@ -294,4 +317,43 @@ fn clean_title(title: &str) -> String {
         }
     }
     t.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // INFRA-7: 站点改版告警判定。
+    #[test]
+    fn warns_on_non_empty_body_with_zero_links() {
+        // 有正文却 0 链接 => 极可能选择器失效,应告警。
+        assert!(should_warn_breakage(true, 0));
+    }
+
+    #[test]
+    fn no_warn_on_empty_body() {
+        // 空页面(上游/网络问题)不告警,避免噪声。
+        assert!(!should_warn_breakage(false, 0));
+    }
+
+    #[test]
+    fn no_warn_when_links_extracted() {
+        // 正常提取到 N>0 个链接,不告警。
+        assert!(!should_warn_breakage(true, 1));
+        assert!(!should_warn_breakage(true, 25));
+        // 即便 body 标记为空但拿到了链接(理论边界),也不应告警。
+        assert!(!should_warn_breakage(false, 5));
+    }
+
+    #[test]
+    fn listing_selectors_are_parseable() {
+        // 集中后的选择器必须都能被 scraper 解析,避免常量里写错字面量。
+        for sel in LISTING_LINK_SELECTORS.iter() {
+            assert!(
+                Selector::parse(sel).is_ok(),
+                "selector failed to parse: {sel}"
+            );
+        }
+        assert!(Selector::parse(LISTING_LINK_FALLBACK_SELECTOR).is_ok());
+    }
 }
