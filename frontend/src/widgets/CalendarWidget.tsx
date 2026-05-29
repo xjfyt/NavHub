@@ -1,6 +1,6 @@
 import { Icon } from "../components/Icon";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
-import { addMonths, buildMonthGrid, MONTH_NAMES_CN, type TodayRef } from "./calendarMath";
+import { addMonths, buildMonthGrid, MONTH_NAMES_CN, WEEKDAY_NAMES_CN, type TodayRef } from "./calendarMath";
 import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
 
@@ -63,7 +63,7 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
         </div>
       </div>
       <div className="cal-grid">
-        {"日一二三四五六".split("").map(d => <div key={d} className="cal-dow">{d}</div>)}
+        {WEEKDAY_NAMES_CN.map(d => <div key={d} className="cal-dow">{d}</div>)}
         {cells.map((c, i) => (
           <div
             key={i}
@@ -109,7 +109,7 @@ export const CalendarDetail = ({ w }: WidgetProps<CalendarConfig> = {}) => {
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
-        {"日一二三四五六".split("").map((d) => (
+        {WEEKDAY_NAMES_CN.map((d) => (
           <div key={d} className="muted" style={{ textAlign: "center", fontSize: 11, padding: 6 }}>{d}</div>
         ))}
         {cells.map((c, i) => (

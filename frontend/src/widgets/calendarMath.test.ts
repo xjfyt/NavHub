@@ -6,6 +6,7 @@ import {
   holidayName,
   buildMonthGrid,
   HOLIDAYS,
+  WEEKDAY_NAMES_CN,
 } from "./calendarMath";
 
 describe("daysInMonth", () => {
@@ -120,5 +121,12 @@ describe("buildMonthGrid", () => {
     const cells = buildMonthGrid(2026, 0);
     const dec25 = cells.find((c) => c.out && c.d === 25);
     expect(dec25 ? dec25.holiday : null).toBeNull();
+  });
+});
+
+describe("WEEKDAY_NAMES_CN", () => {
+  it("从周日起的单字星期表头(与原 split 写法等价)", () => {
+    // PERF-10:常量从渲染体提升到模块作用域,需与原 "日一二三四五六".split("") 一致。
+    expect(WEEKDAY_NAMES_CN).toEqual("日一二三四五六".split(""));
   });
 });
