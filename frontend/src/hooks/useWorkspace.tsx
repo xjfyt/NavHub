@@ -24,11 +24,19 @@ import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, type WidgetSizeId } from "../w
 // UX-11: 危险删除延迟落库的时长。期间用户可点「撤销」恢复。
 const UNDO_DELAY_MS = 5000;
 
-interface WorkspaceContextProps {
+// PERF-1: 拆成「数据」与「动作」两块。
+//  • WorkspaceDataContextProps —— 会随状态变化而变的数据(workspace / me / activeGroup …)。
+//  • WorkspaceActionsContextProps —— 一组身份恒稳的回调,创建一次后跨渲染永不换引用。
+// 只用动作的消费者订阅 actions context,工作区数据变化时不再被牵连重渲染。
+// 对外仍保留 useWorkspace() 返回二者合并的旧形状,调用点零改动。
+interface WorkspaceDataContextProps {
   me: Me | null;
   isGuest: boolean;
   workspace: Workspace;
   activeGroup: string;
+}
+
+interface WorkspaceActionsContextProps {
   setActiveGroup: (id: string) => void;
   updateTweaks: (t: Partial<Tweaks>) => void;
   reorderGroup: (oldId: string, newId: string) => void;
@@ -38,7 +46,6 @@ interface WorkspaceContextProps {
   extractFolderItem: (folderId: string, itemId: string) => Promise<void>;
   reorderFolderItems: (folderId: string, order: string[]) => Promise<void>;
   /** 图标/组件 的本地状态更新 + API 调用 */
-
   updateIcon: (id: string, patch: Partial<IconView>) => Promise<void>;
   deleteIcon: (id: string) => Promise<void>;
   updateWidget: (id: string, patch: Partial<WidgetView>) => Promise<void>;
@@ -57,7 +64,10 @@ interface WorkspaceContextProps {
   updateMe: (patch: { avatarUrl?: string | null; displayName?: string | null }) => Promise<void>;
 }
 
-const WorkspaceContext = createContext<WorkspaceContextProps | null>(null);
+type WorkspaceContextProps = WorkspaceDataContextProps & WorkspaceActionsContextProps;
+
+const WorkspaceDataContext = createContext<WorkspaceDataContextProps | null>(null);
+const WorkspaceActionsContext = createContext<WorkspaceActionsContextProps | null>(null);
 
 function arrUpdate<T extends { id: string }>(arr: T[], id: string, patch: Partial<T>): T[] {
   return arr.map((x) => (x.id === id ? { ...x, ...patch } : x));
@@ -97,6 +107,16 @@ export function WorkspaceProvider({
   );
   const isGuest = me === null;
 
+  // PERF-1: 「最新态」ref。少数 action 回调过去把 workspace.icons / workspace.groups /
+  // workspace.preferences 等放进 useCallback 依赖,导致每次工作区状态变化都重建这些回调、
+  // 进而让整个 context value 变新引用,把所有消费者(包括只用 action、根本不关心 data 的
+  // WidgetEditModal/Push 等)统统重渲染。解法:把会变的态镜像进一个 ref,回调一律从
+  // latestRef.current 读取,从而把依赖清空 —— 所有 action 引用从此跨渲染稳定。
+  // 注意:ref 在渲染体内同步更新(下一行),保证回调被调用时读到的永远是本次渲染的最新值,
+  // 不会出现 stale closure(回调不再「捕获」某次渲染的 workspace,而是每次实时读 ref)。
+  const latestRef = useRef({ workspace, isGuest, onReload });
+  latestRef.current = { workspace, isGuest, onReload };
+
   // UX-11: 危险删除的「撤销」队列。乐观地从 UI 移除后,延迟若干秒再真正落库;
   // 期间用户点「撤销」即可取消并恢复 UI。卸载/离开页面时 flush 所有未决删除,
   // 保证数据绝不会因为「toast 还没到点」而静默丢失。
@@ -118,66 +138,60 @@ export function WorkspaceProvider({
     }
   }, [workspace.groups, activeGroup]);
 
-  const canEditGroup = useCallback(
-    (id: string) => {
-      if (isGuest) return false;
-      const g = workspace.groups.find((x) => x.id === id);
-      return g ? !g.readOnly : false;
-    },
-    [isGuest, workspace.groups],
-  );
+  const canEditGroup = useCallback((id: string) => {
+    const { isGuest: guest, workspace: ws } = latestRef.current;
+    if (guest) return false;
+    const g = ws.groups.find((x) => x.id === id);
+    return g ? !g.readOnly : false;
+  }, []);
 
-  const updateTweaks = useCallback(
-    async (t: Partial<Tweaks>) => {
-      let nextTweaks: Tweaks = {};
-      setWorkspace((s) => ({
-        ...s,
-        preferences: {
-          ...s.preferences,
-          tweaks: (nextTweaks = { ...s.preferences.tweaks, ...t }),
-        },
-      }));
-      if (isGuest) {
-        try {
-          window.localStorage.setItem("navhub_guest_tweaks", JSON.stringify(nextTweaks));
-        } catch (e) {}
-        return;
-      }
+  const updateTweaks = useCallback(async (t: Partial<Tweaks>) => {
+    let nextTweaks: Tweaks = {};
+    setWorkspace((s) => ({
+      ...s,
+      preferences: {
+        ...s.preferences,
+        tweaks: (nextTweaks = { ...s.preferences.tweaks, ...t }),
+      },
+    }));
+    if (latestRef.current.isGuest) {
       try {
-        await api.patchPrefs({ tweaks: nextTweaks });
-      } catch (e) {
-        console.error("Failed to patch tweaks", e);
-        toast.error("偏好设置保存失败");
-      }
-    },
-    [isGuest],
-  );
+        window.localStorage.setItem("navhub_guest_tweaks", JSON.stringify(nextTweaks));
+      } catch (e) {}
+      return;
+    }
+    try {
+      await api.patchPrefs({ tweaks: nextTweaks });
+    } catch (e) {
+      console.error("Failed to patch tweaks", e);
+      toast.error("偏好设置保存失败");
+    }
+  }, []);
 
-  const reorderGroup = useCallback(
-    (oldId: string, newId: string) => {
-      if (isGuest) return;
-      // FE-5: 纯函数式计算下一态,API 调用移出 setWorkspace updater。
-      // 之前把 api.reorderGroups 放在 updater 内,React StrictMode 会二次调用
-      // updater,导致请求被重复发出且时序难以保证。
-      const gs = workspace.groups.slice();
-      const fi = gs.findIndex((g) => g.id === oldId);
-      const ti = gs.findIndex((g) => g.id === newId);
-      if (fi < 0 || ti < 0) return;
-      const [m] = gs.splice(fi, 1);
-      gs.splice(ti, 0, m);
-      setWorkspace((s) => ({ ...s, groups: gs }));
-      api
-        .reorderGroups(gs.map((g) => g.id))
-        .catch((e) => console.error("reorderGroups failed", e));
-    },
-    [isGuest, workspace.groups],
-  );
+  const reorderGroup = useCallback((oldId: string, newId: string) => {
+    const { isGuest: guest, workspace: ws } = latestRef.current;
+    if (guest) return;
+    // FE-5: 纯函数式计算下一态,API 调用移出 setWorkspace updater。
+    // 之前把 api.reorderGroups 放在 updater 内,React StrictMode 会二次调用
+    // updater,导致请求被重复发出且时序难以保证。
+    const gs = ws.groups.slice();
+    const fi = gs.findIndex((g) => g.id === oldId);
+    const ti = gs.findIndex((g) => g.id === newId);
+    if (fi < 0 || ti < 0) return;
+    const [m] = gs.splice(fi, 1);
+    gs.splice(ti, 0, m);
+    setWorkspace((s) => ({ ...s, groups: gs }));
+    api
+      .reorderGroups(gs.map((g) => g.id))
+      .catch((e) => console.error("reorderGroups failed", e));
+  }, []);
 
-  const reorderIcon = useCallback(
-    (dragId: string, dropId: string) => {
-      if (isGuest) return;
-      // FE-5: 同上,纯函数式计算下一态后再触发 API,避免 updater 内副作用。
-      const icons = workspace.icons.slice();
+  const reorderIcon = useCallback((dragId: string, dropId: string) => {
+    const { isGuest: guest, workspace: ws } = latestRef.current;
+    if (guest) return;
+    // FE-5: 同上,纯函数式计算下一态后再触发 API,避免 updater 内副作用。
+    {
+      const icons = ws.icons.slice();
       const drag = icons.find((i) => i.id === dragId);
       const drop = icons.find((i) => i.id === dropId);
       if (!drag || !drop || drag.groupId !== drop.groupId) return;
@@ -193,13 +207,12 @@ export function WorkspaceProvider({
       api
         .reorderIcons(drag.groupId, order)
         .catch((e) => console.error("reorderIcons failed", e));
-    },
-    [isGuest, workspace.icons],
-  );
+    }
+  }, []);
 
   const reorderGroupItems = useCallback(
     (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => {
-      if (isGuest) return;
+      if (latestRef.current.isGuest) return;
       setWorkspace((s) => {
         let icons = [...s.icons];
         let widgets = [...s.widgets];
@@ -244,19 +257,19 @@ export function WorkspaceProvider({
         } catch (e) {
           console.error("reorderGroupItems failed", e);
           toast.error("排序保存失败");
-          if (onReload) onReload();
+          latestRef.current.onReload?.();
         }
       })();
     },
-    [isGuest, onReload],
+    [],
   );
 
   const mergeIcon = useCallback(
     async (sourceId: string, targetId: string) => {
-      if (isGuest) return;
+      if (latestRef.current.isGuest) return;
       // 合并前快照「被合并图标」的名字，供撤销提示文案使用。
       const sourceName =
-        workspace.icons.find((i) => i.id === sourceId)?.name || "图标";
+        latestRef.current.workspace.icons.find((i) => i.id === sourceId)?.name || "图标";
       try {
         const targetView = await api.mergeIcon(sourceId, targetId);
         setWorkspace((ws) => {
@@ -281,7 +294,7 @@ export function WorkspaceProvider({
                 } catch (err) {
                   console.error("undo mergeIcon failed", err);
                   toast.error("撤销合并失败");
-                  if (onReload) onReload();
+                  latestRef.current.onReload?.();
                 }
               })();
             },
@@ -292,12 +305,12 @@ export function WorkspaceProvider({
         toast.error("合并图标失败");
       }
     },
-    [isGuest, onReload, workspace.icons],
+    [],
   );
 
   const reorderFolderItems = useCallback(
     async (folderId: string, order: string[]) => {
-      if (isGuest) return;
+      if (latestRef.current.isGuest) return;
       // optimistic local update
       setWorkspace((ws) => {
         const nextIcons = ws.icons.map((i) => {
@@ -319,15 +332,15 @@ export function WorkspaceProvider({
       } catch (e) {
         console.error("reorderFolderItems failed", e);
         toast.error("文件夹排序保存失败");
-        if (onReload) onReload();
+        latestRef.current.onReload?.();
       }
     },
-    [isGuest, onReload],
+    [],
   );
 
   const extractFolderItem = useCallback(
     async (folderId: string, itemId: string) => {
-      if (isGuest) return;
+      if (latestRef.current.isGuest) return;
       try {
         const [folderView, newItemView] = await api.extractFolderItem(folderId, itemId);
         setWorkspace((ws) => {
@@ -341,7 +354,7 @@ export function WorkspaceProvider({
         toast.error("提取图标失败");
       }
     },
-    [isGuest],
+    [],
   );
 
   const updateIcon = useCallback(
@@ -588,9 +601,8 @@ export function WorkspaceProvider({
     async (id: string, patch: { name?: string; url?: string }) => {
       // UX-7: 后端无单条引擎编辑接口,但 PATCH /me/preferences 接受整份 custom_engines。
       // 这里在本地数组上就地改名/改 URL,再整体回写,并以返回值更新本地状态。
-      const cur = Array.isArray(workspace.preferences.customEngines)
-        ? (workspace.preferences.customEngines as CustomEngine[])
-        : [];
+      const curEngines = latestRef.current.workspace.preferences.customEngines;
+      const cur = Array.isArray(curEngines) ? (curEngines as CustomEngine[]) : [];
       const next = cur.map((e) => (e.id === id ? { ...e, ...patch } : e));
       try {
         const prefs = await api.patchPrefs({ customEngines: next });
@@ -604,7 +616,7 @@ export function WorkspaceProvider({
         throw e;
       }
     },
-    [workspace.preferences.customEngines],
+    [],
   );
 
   const deleteCustomEngine = useCallback(
@@ -627,11 +639,11 @@ export function WorkspaceProvider({
   );
 
   const refreshWorkspace = useCallback(() => {
-    if (onReload) onReload();
-  }, [onReload]);
+    latestRef.current.onReload?.();
+  }, []);
 
   const updateMe = useCallback(async (patch: { avatarUrl?: string | null; displayName?: string | null }) => {
-    if (isGuest) return;
+    if (latestRef.current.isGuest) return;
     try {
       const updated = await api.patchMe(patch);
       setMe(updated);
@@ -639,14 +651,13 @@ export function WorkspaceProvider({
       console.error("updateMe failed", e);
       toast.error("更新个人信息失败");
     }
-  }, [isGuest]);
+  }, []);
 
-  const value = useMemo(
+  // PERF-1: 动作对象——所有回调身份恒稳(都已用 useCallback([]) + latestRef),
+  // 故 deps 为空,整个 actions 对象在组件生命周期内只创建一次、永不换引用。
+  // setActiveGroup 是 React 的 setState,本身就稳定。
+  const actions = useMemo<WorkspaceActionsContextProps>(
     () => ({
-      me,
-      isGuest,
-      workspace,
-      activeGroup,
       setActiveGroup,
       updateTweaks,
       reorderGroup,
@@ -656,7 +667,6 @@ export function WorkspaceProvider({
       extractFolderItem,
       reorderFolderItems,
       updateIcon,
-
       deleteIcon,
       updateWidget,
       updateWidgetLocal,
@@ -673,45 +683,48 @@ export function WorkspaceProvider({
       refreshWorkspace,
       updateMe,
     }),
-    [
-      me,
-      isGuest,
-      workspace,
-      activeGroup,
-      updateTweaks,
-      reorderGroup,
-      reorderIcon,
-      reorderGroupItems,
-      mergeIcon,
-      extractFolderItem,
-      reorderFolderItems,
-      updateIcon,
+    // 所有成员都是稳定引用;空依赖即可,actions 永不重建。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
-      deleteIcon,
-      updateWidget,
-      updateWidgetLocal,
-      deleteWidget,
-      addWidget,
-      addIcon,
-      updateGroup,
-      deleteGroup,
-      addGroup,
-      canEditGroup,
-      addCustomEngine,
-      updateCustomEngine,
-      deleteCustomEngine,
-      refreshWorkspace,
-      updateMe,
-    ],
+  // PERF-1: 数据对象——只随真正变化的状态重建,触发数据消费者(Shell/SearchBar/…)重渲染,
+  // 但完全不影响 actions context,故只用动作的消费者不会被牵连。
+  const data = useMemo<WorkspaceDataContextProps>(
+    () => ({ me, isGuest, workspace, activeGroup }),
+    [me, isGuest, workspace, activeGroup],
   );
 
   return (
-    <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
+    <WorkspaceActionsContext.Provider value={actions}>
+      <WorkspaceDataContext.Provider value={data}>{children}</WorkspaceDataContext.Provider>
+    </WorkspaceActionsContext.Provider>
   );
 }
 
-export function useWorkspace() {
-  const ctx = useContext(WorkspaceContext);
-  if (!ctx) throw new Error("useWorkspace must be used within WorkspaceProvider");
+/** 只取动作(身份恒稳的回调集合)。数据变化时使用本 hook 的组件不会重渲染。 */
+export function useWorkspaceActions() {
+  const ctx = useContext(WorkspaceActionsContext);
+  if (!ctx) throw new Error("useWorkspaceActions must be used within WorkspaceProvider");
   return ctx;
+}
+
+/** 只取数据(workspace / me / activeGroup …)。 */
+export function useWorkspaceData() {
+  const ctx = useContext(WorkspaceDataContext);
+  if (!ctx) throw new Error("useWorkspaceData must be used within WorkspaceProvider");
+  return ctx;
+}
+
+/**
+ * 向后兼容:返回 data + actions 合并后的旧形状。现有调用点零改动。
+ * 注意——本 hook 同时订阅 data 与 actions 两个 context,故数据变化仍会重渲染;
+ * 想避免被数据变化牵连的「纯动作」消费者应改用 useWorkspaceActions()。
+ */
+export function useWorkspace(): WorkspaceContextProps {
+  const data = useWorkspaceData();
+  const actions = useWorkspaceActions();
+  // 合并对象每次渲染都会新建,但 useWorkspace 的消费者本来就因订阅 data 而随其重渲染,
+  // 这里再多一个对象分配无额外渲染代价(返回值不进入任何下游 memo 依赖比较)。
+  return useMemo(() => ({ ...data, ...actions }), [data, actions]);
 }
