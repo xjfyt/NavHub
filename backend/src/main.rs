@@ -19,6 +19,7 @@ use axum::{
     routing::get,
     Router,
 };
+use axum_prometheus::PrometheusMetricLayer;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::Notify;
 use tower_http::{
@@ -80,9 +81,30 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState::new(cfg.clone(), pg, redis).await?);
     auth::bootstrap_superadmin(&state).await?;
 
+    // OPS-3: Prometheus 指标。`pair()` 返回 (采集层, 指标句柄)。采集层记录每个 HTTP
+    // 请求的延迟直方图、按 method/status/endpoint 维度的计数;句柄供 `/metrics` 渲染。
+    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
     let app = routes::build(&state);
+    // OPS-3: `/metrics` 暴露 Prometheus 抓取端点。出于私网抓取目标的惯例,这里保持
+    // 不鉴权(便于 Prometheus / VictoriaMetrics 直接抓取);它不挂在 require_login 的
+    // /api 子路由下。运维务必在网络层(反代 / 防火墙 / 内网)限制访问,切勿暴露到公网。
+    // 必须在 with_frontend 的 SPA fallback 之前注册,否则会被静态兜底吞掉。
+    let app = app.route(
+        "/metrics",
+        get({
+            let handle = metric_handle.clone();
+            move || {
+                let handle = handle.clone();
+                async move { handle.render() }
+            }
+        }),
+    );
     let app = with_frontend(app, &state);
-    let app = with_global_layers(app, &state);
+    // OPS-3: 采集层置于所有全局层之外(最外),从而 measure 包含压缩/CORS/请求 ID 等
+    // 中间件在内的端到端处理耗时,并把每个请求(含异常)都计入指标。不影响既有层行为
+    // (CatchPanic 仍在内层捕获 panic,采集层只观测最终响应的 status)。
+    let app = with_global_layers(app, &state).layer(prometheus_layer);
     let app = app.with_state(state.clone());
 
     // Background workers — owned by `BackgroundHandles` so we can drain them on shutdown.

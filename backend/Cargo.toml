@@ -9,6 +9,8 @@ tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "trace", "cors", "compression-gzip", "set-header", "compression-zstd", "compression-br", "catch-panic", "request-id"] }
 hyper = "1"
+# OPS-3: Prometheus 指标。0.7.x 线对应 axum 0.7;升到 0.10 会强行引入 axum 0.8 造成双版本冲突。
+axum-prometheus = "0.7"
 
 # Config
 config = { version = "0.14", features = ["toml"] }
