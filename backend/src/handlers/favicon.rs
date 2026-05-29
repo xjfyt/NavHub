@@ -33,7 +33,41 @@ pub struct FaviconSearchCandidate {
 }
 
 fn default_size() -> u16 {
-    64
+    DEFAULT_ICON_SIZE
+}
+
+/// INFRA-5: 允许的图标尺寸白名单。请求里的 `sz` 直接拼进上游 URL,
+/// 不能让调用方传入任意值(放大攻击面 / 缓存键被任意撑开 / 上游被滥用)。
+const ALLOWED_ICON_SIZES: [u16; 5] = [16, 32, 64, 128, 256];
+const DEFAULT_ICON_SIZE: u16 = 64;
+
+/// INFRA-5: 把任意请求尺寸收敛到白名单内的安全值。
+/// - 命中白名单:原样保留。
+/// - 落在白名单范围内但不在集合里:吸附到最接近的允许值(平手向上取)。
+/// - 过小(<最小允许值)或过大(>最大允许值)等离谱取值:吸附到边界值,
+///   不直接拒绝以保证 favicon 始终可返回(失败开放,返回占位图也比报错好)。
+fn snap_icon_size(requested: u16) -> u16 {
+    if ALLOWED_ICON_SIZES.contains(&requested) {
+        return requested;
+    }
+    let min = ALLOWED_ICON_SIZES[0];
+    let max = ALLOWED_ICON_SIZES[ALLOWED_ICON_SIZES.len() - 1];
+    if requested <= min {
+        return min;
+    }
+    if requested >= max {
+        return max;
+    }
+    // 处于 (min, max) 之间但不命中:取绝对差最小的允许值,平手时取较大者。
+    ALLOWED_ICON_SIZES
+        .iter()
+        .copied()
+        .min_by_key(|&s| {
+            let diff = (s as i32 - requested as i32).unsigned_abs();
+            // 平手时偏向更大的尺寸:用 (diff, 反向尺寸) 排序键。
+            (diff, u16::MAX - s)
+        })
+        .unwrap_or(DEFAULT_ICON_SIZE)
 }
 
 /// Probe a host through DNS and reject any address pointing at private / loopback /
@@ -236,7 +270,9 @@ pub async fn proxy(
     let allow_private = state.cfg.app.favicon_allow_private_targets;
     ensure_safe_target(&host, allow_private).await?;
 
-    let cache_key = format!("favicon:{}:{}", q.sz, host);
+    // INFRA-5: 把请求尺寸收敛到白名单,避免任意值拼进上游 URL / 撑爆缓存键空间。
+    let sz = snap_icon_size(q.sz);
+    let cache_key = format!("favicon:{}:{}", sz, host);
 
     {
         let mut conn = state.redis.get().await?;
@@ -248,7 +284,6 @@ pub async fn proxy(
     }
 
     let client = &state.lenient_client;
-    let sz = q.sz;
 
     let direct_url = format!("https://{host}/favicon.ico");
     if let Some(bytes) = try_fetch(client, &direct_url).await {
@@ -469,5 +504,33 @@ mod tests {
     fn allows_public_ip() {
         assert!(check_ip("1.1.1.1".parse().unwrap(), false).is_ok());
         assert!(check_ip("8.8.8.8".parse().unwrap(), false).is_ok());
+    }
+
+    // INFRA-5: 尺寸白名单收敛。
+    #[test]
+    fn snap_size_keeps_whitelisted_values() {
+        for s in [16u16, 32, 64, 128, 256] {
+            assert_eq!(snap_icon_size(s), s);
+        }
+    }
+
+    #[test]
+    fn snap_size_snaps_to_nearest_in_range() {
+        // 介于允许值之间:吸附到最接近的允许值。
+        assert_eq!(snap_icon_size(20), 16); // 距 16 差 4, 距 32 差 12
+        assert_eq!(snap_icon_size(48), 64); // 平手(距 32/64 各 16)向上取 64
+        assert_eq!(snap_icon_size(100), 128); // 距 64 差 36, 距 128 差 28
+        assert_eq!(snap_icon_size(33), 32);
+    }
+
+    #[test]
+    fn snap_size_clamps_absurd_values() {
+        // 过小 / 过大都吸附到边界,绝不放任意值进上游 URL。
+        assert_eq!(snap_icon_size(0), 16);
+        assert_eq!(snap_icon_size(1), 16);
+        assert_eq!(snap_icon_size(15), 16);
+        assert_eq!(snap_icon_size(257), 256);
+        assert_eq!(snap_icon_size(9999), 256);
+        assert_eq!(snap_icon_size(u16::MAX), 256);
     }
 }
