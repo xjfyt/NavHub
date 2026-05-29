@@ -119,6 +119,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   const [sub, setSub] = useState<string | null>(null);
   // UX-7: 正在编辑的自定义引擎(null = 新增模式)。
   const [editingEngine, setEditingEngine] = useState<CustomEngine | null>(null);
+  const [docModal, setDocModal] = useState<"terms" | "privacy" | null>(null);
   const [messages, setMessages] = useState<UserMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [remoteWallpapers, setRemoteWallpapers] = useState<RemoteWallpaperItem[]>([]);
@@ -872,6 +873,37 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
     );
   };
 
+  const renderAbout = () => {
+    // UX-9: 版本号由构建时注入的 __APP_VERSION__ 提供(来自 package.json),不硬编码。
+    const projectUrl = "https://github.com/xjfyt/NavHub";
+    return (
+      <div className="tw-content">
+        <div className="tw-section">
+          <div className="tw-section-title">关于</div>
+          <div className="tw-section-card">
+            <Row label="应用名称"><span style={{ color: "var(--text-soft)" }}>NavHub 导航站</span></Row>
+            <Row label="当前版本"><span style={{ color: "var(--text-soft)" }} className="mono">v{__APP_VERSION__}</span></Row>
+            <Row label="项目主页">
+              <a className="tw-action-btn link" href={projectUrl} target="_blank" rel="noreferrer">
+                查看开源仓库
+              </a>
+            </Row>
+          </div>
+          <div className="tw-custom-hint">
+            NavHub 是一个自托管的个人导航与工作台。版本号在构建时由 package.json 注入。
+          </div>
+        </div>
+        <div className="tw-section">
+          <div className="tw-section-title">条款</div>
+          <div className="tw-section-card">
+            <Row label="用户协议" onClick={() => setDocModal("terms")}><Chevron /></Row>
+            <Row label="隐私政策" onClick={() => setDocModal("privacy")}><Chevron /></Row>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPlaceholder = (title: string, text: string) => (
     <div className="tw-content">
       <div className="tw-empty">
@@ -886,12 +918,10 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
   else if (activeNav === "search") content = renderSearch();
   else if (activeNav === "wallpaper") content = renderWallpaper();
   else if (activeNav === "notify") content = renderNotify();
-  else if (activeNav === "about") content = renderPlaceholder("关于我们", "版本信息、更新日志、开源协议。");
+  else if (activeNav === "about") content = renderAbout();
 
   const userInitial = ((me?.displayName || me?.username) || "U").charAt(0).toUpperCase();
   const userName = me?.displayName || me?.username || "访客";
-
-  const [docModal, setDocModal] = useState<"terms" | "privacy" | null>(null);
 
   return (
     <div className="tw-overlay" onClick={onClose}>
@@ -921,7 +951,7 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
             ))}
           </nav>
           <div className="tw-nav-foot">
-            <div className="tw-version" style={{marginBottom: 4}}>V0.1.11</div>
+            <div className="tw-version" style={{marginBottom: 4}}>v{__APP_VERSION__}</div>
             <div className="tw-foot-links">
               <a href="#" onClick={(e) => { e.preventDefault(); setDocModal("terms"); }}>用户协议</a>
               <span>·</span>
