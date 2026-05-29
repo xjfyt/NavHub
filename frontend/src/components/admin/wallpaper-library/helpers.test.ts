@@ -6,6 +6,8 @@ import {
   formatBytes,
   formatDate,
   siteOriginHref,
+  thumbnailSrc,
+  hasThumbnail,
 } from "./helpers";
 
 describe("extractKeyFromUrl", () => {
@@ -135,5 +137,75 @@ describe("siteOriginHref", () => {
 
   it("无法解析时原样返回", () => {
     expect(siteOriginHref("not a url")).toBe("not a url");
+  });
+});
+
+describe("thumbnailSrc", () => {
+  const base = {
+    thumbnailKey: null,
+    storageKey: null,
+    thumbnailUrl: null,
+    mediaType: "image" as const,
+  };
+
+  it("优先使用 thumbnailKey", () => {
+    expect(
+      thumbnailSrc({
+        ...base,
+        thumbnailKey: "t.jpg",
+        storageKey: "s.jpg",
+        thumbnailUrl: "https://x/u.jpg",
+      }),
+    ).toBe("/uploads/t.jpg");
+  });
+
+  it("图片且无缩略图 key 时用 storageKey", () => {
+    expect(
+      thumbnailSrc({ ...base, storageKey: "s.jpg", mediaType: "image" }),
+    ).toBe("/uploads/s.jpg");
+  });
+
+  it("视频且无缩略图 key 时不使用 storageKey，退回 thumbnailUrl", () => {
+    expect(
+      thumbnailSrc({
+        ...base,
+        storageKey: "s.mp4",
+        thumbnailUrl: "https://x/u.jpg",
+        mediaType: "video",
+      }),
+    ).toBe("https://x/u.jpg");
+  });
+
+  it("都没有时返回 undefined", () => {
+    expect(thumbnailSrc({ ...base, mediaType: "video" })).toBeUndefined();
+  });
+});
+
+describe("hasThumbnail", () => {
+  it("任一来源存在即为 true", () => {
+    expect(
+      hasThumbnail({
+        thumbnailKey: "t",
+        storageKey: null,
+        thumbnailUrl: null,
+      }),
+    ).toBe(true);
+    expect(
+      hasThumbnail({
+        thumbnailKey: null,
+        storageKey: null,
+        thumbnailUrl: "https://x/u.jpg",
+      }),
+    ).toBe(true);
+  });
+
+  it("全为空时为 false", () => {
+    expect(
+      hasThumbnail({
+        thumbnailKey: null,
+        storageKey: null,
+        thumbnailUrl: null,
+      }),
+    ).toBe(false);
   });
 });

@@ -20,38 +20,13 @@ import {
   extractKeyFromUrl,
   stripKeyFromUrl,
   injectKeyIntoUrl,
-  formatBytes,
   formatDate,
   siteOriginHref,
 } from "./wallpaper-library/helpers";
-
-const cell: React.CSSProperties = {
-  padding: "10px 14px",
-  fontSize: 13,
-  borderBottom: "1px solid var(--admin-border-soft)",
-  verticalAlign: "middle",
-};
-
-const th: React.CSSProperties = {
-  ...cell,
-  fontWeight: 600,
-  color: "var(--text-soft)",
-  background: "var(--admin-border-soft)",
-  whiteSpace: "nowrap",
-};
-
-const EmptyCell = ({ text }: { text?: string }) => (
-  <div
-    style={{
-      color: "var(--text-soft)",
-      fontSize: 13,
-      padding: "24px 0",
-      textAlign: "center",
-    }}
-  >
-    {text ?? "暂无数据"}
-  </div>
-);
+import { cell, th, EmptyCell } from "./wallpaper-library/shared";
+import { UploadProgressBar } from "./wallpaper-library/UploadProgressBar";
+import { WallpaperCard } from "./wallpaper-library/WallpaperCard";
+import { WallpaperDetailModal } from "./wallpaper-library/WallpaperDetailModal";
 
 export const AdminWallpaperLibrary = () => {
   const [sources, setSources] = useState<WallpaperSourceView[]>([]);
@@ -1155,88 +1130,7 @@ export const AdminWallpaperLibrary = () => {
         </table>
       </div>
 
-      {uploadProgress && (
-        <div
-          style={{
-            background: "var(--admin-border-soft)",
-            border: "1px solid var(--admin-border-str)",
-            borderRadius: 10,
-            padding: "12px 14px",
-            margin: "-18px 0 24px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 8,
-            }}
-          >
-            <Icon
-              name={uploadProgress.overallPercent >= 100 ? "check" : "activity"}
-              size={16}
-            />
-            <div style={{ fontSize: 13, fontWeight: 600 }}>
-              正在上传 {uploadProgress.index} / {uploadProgress.total}
-            </div>
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                fontSize: 12,
-                color: "var(--text-soft)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {uploadProgress.fileName}
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: "var(--text-soft)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {uploadProgress.overallPercent}%
-            </div>
-          </div>
-          <div
-            style={{
-              height: 8,
-              borderRadius: 999,
-              overflow: "hidden",
-              background: "rgba(255,255,255,0.10)",
-            }}
-          >
-            <div
-              style={{
-                width: `${uploadProgress.overallPercent}%`,
-                height: "100%",
-                borderRadius: 999,
-                background: "var(--accent)",
-                transition: "width 180ms ease",
-              }}
-            />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 6,
-              fontSize: 11,
-              color: "var(--text-soft)",
-            }}
-          >
-            <span>当前文件 {uploadProgress.filePercent}%</span>
-            <span>
-              成功 {uploadProgress.okCount} · 失败 {uploadProgress.failCount}
-            </span>
-          </div>
-        </div>
-      )}
+      {uploadProgress && <UploadProgressBar progress={uploadProgress} />}
 
       {/* Wallpapers grid */}
       <div
@@ -1308,133 +1202,12 @@ export const AdminWallpaperLibrary = () => {
       ) : (
         <div className="wallpaper-grid">
           {wallpapers.map((w) => (
-            <div
+            <WallpaperCard
               key={w.id}
-              onClick={() => setDetailWallpaper(w)}
-              onContextMenu={(e) => openWallpaperCtx(e, w)}
-              style={{
-                background: "var(--admin-border-soft)",
-                borderRadius: 10,
-                overflow: "hidden",
-                position: "relative",
-                border: "1px solid var(--admin-border-str)",
-                cursor: "pointer",
-                transition: "transform 0.15s ease",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.transform = "translateY(-2px)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.transform = "translateY(0)")
-              }
-            >
-              {w.thumbnailUrl || w.thumbnailKey || w.storageKey ? (
-                <img
-                  src={
-                    w.thumbnailKey
-                      ? `/uploads/${w.thumbnailKey}`
-                      : w.mediaType === "image" && w.storageKey
-                        ? `/uploads/${w.storageKey}`
-                        : (w.thumbnailUrl ?? undefined)
-                  }
-                  alt={w.title ?? "壁纸"}
-                  // PERF-4: 缩略图网格按需懒加载、异步解码,屏外图片不阻塞首屏。
-                  loading="lazy"
-                  decoding="async"
-                  style={{
-                    width: "100%",
-                    height: 112,
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: "100%",
-                    height: 112,
-                    background:
-                      "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--text-soft)",
-                    fontSize: 11,
-                  }}
-                >
-                  {w.mediaType === "video" ? "🎬 视频" : "🖼 图片"}
-                </div>
-              )}
-
-              {/* Video indicator badge */}
-              {w.mediaType === "video" && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    left: 6,
-                    background: "rgba(0,0,0,0.65)",
-                    borderRadius: 4,
-                    padding: "2px 6px",
-                    fontSize: 10,
-                    color: "#fff",
-                  }}
-                >
-                  VIDEO
-                </div>
-              )}
-
-              {/* Resolution badge */}
-              {w.width && w.height && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: 6,
-                    background: "rgba(0,0,0,0.65)",
-                    borderRadius: 4,
-                    padding: "2px 6px",
-                    fontSize: 10,
-                    color: "#fff",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {w.width}×{w.height}
-                </div>
-              )}
-
-              <div style={{ padding: "8px 10px 10px" }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 500,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                  title={w.title ?? undefined}
-                >
-                  {w.title ?? "未命名壁纸"}
-                </div>
-                {w.author && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "var(--text-soft)",
-                      marginTop: 2,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {w.author}
-                  </div>
-                )}
-              </div>
-            </div>
+              wallpaper={w}
+              onOpen={setDetailWallpaper}
+              onContextMenu={openWallpaperCtx}
+            />
           ))}
         </div>
       )}
@@ -1501,198 +1274,13 @@ export const AdminWallpaperLibrary = () => {
 
       {/* Detail modal */}
       {detailWallpaper && (
-        <div
-          onClick={() => setDetailWallpaper(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            background: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 24,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "var(--admin-card-bg, var(--admin-bg))",
-              border: "1px solid var(--admin-border-str)",
-              borderRadius: 14,
-              width: "min(560px, 100%)",
-              maxHeight: "calc(100vh - 48px)",
-              overflow: "auto",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            {detailWallpaper.thumbnailUrl ||
-            detailWallpaper.thumbnailKey ||
-            detailWallpaper.storageKey ? (
-              <img
-                src={
-                  detailWallpaper.thumbnailKey
-                    ? `/uploads/${detailWallpaper.thumbnailKey}`
-                    : detailWallpaper.mediaType === "image" &&
-                        detailWallpaper.storageKey
-                      ? `/uploads/${detailWallpaper.storageKey}`
-                      : (detailWallpaper.thumbnailUrl ?? undefined)
-                }
-                alt={detailWallpaper.title ?? ""}
-                style={{
-                  width: "100%",
-                  maxHeight: 280,
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  height: 200,
-                  background:
-                    "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--text-soft)",
-                }}
-              >
-                {detailWallpaper.mediaType === "video" ? "🎬 视频" : "🖼 图片"}
-              </div>
-            )}
-            <div style={{ padding: 20 }}>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                  wordBreak: "break-word",
-                }}
-              >
-                {detailWallpaper.title ?? "未命名壁纸"}
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "var(--text-soft)",
-                  marginBottom: 16,
-                }}
-              >
-                {sourceNameOf(detailWallpaper.sourceId)} ·{" "}
-                {detailWallpaper.mediaType === "video"
-                  ? "动态壁纸"
-                  : "静态壁纸"}
-                {detailWallpaper.author ? ` · ${detailWallpaper.author}` : ""}
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr",
-                  rowGap: 8,
-                  columnGap: 14,
-                  fontSize: 12,
-                }}
-              >
-                <div style={{ color: "var(--text-soft)" }}>分辨率</div>
-                <div>
-                  {detailWallpaper.width && detailWallpaper.height
-                    ? `${detailWallpaper.width} × ${detailWallpaper.height}`
-                    : detailWallpaper.mediaType === "video"
-                      ? "—（视频未探测）"
-                      : "—"}
-                </div>
-                <div style={{ color: "var(--text-soft)" }}>文件大小</div>
-                <div>{formatBytes(detailWallpaper.fileSizeBytes)}</div>
-                <div style={{ color: "var(--text-soft)" }}>抓取时间</div>
-                <div>
-                  {new Date(detailWallpaper.fetchedAt).toLocaleString("zh-CN")}
-                </div>
-                <div style={{ color: "var(--text-soft)" }}>原始链接</div>
-                <div style={{ wordBreak: "break-all" }}>
-                  <a
-                    href={detailWallpaper.originalUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    {detailWallpaper.originalUrl}
-                  </a>
-                </div>
-                {detailWallpaper.pageUrl && (
-                  <>
-                    <div style={{ color: "var(--text-soft)" }}>来源页</div>
-                    <div style={{ wordBreak: "break-all" }}>
-                      <a
-                        href={detailWallpaper.pageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: "var(--accent)" }}
-                      >
-                        {detailWallpaper.pageUrl}
-                      </a>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  justifyContent: "flex-end",
-                  marginTop: 20,
-                }}
-              >
-                <button
-                  onClick={() => setDetailWallpaper(null)}
-                  style={{
-                    padding: "7px 14px",
-                    fontSize: 13,
-                    background: "transparent",
-                    border: "1px solid var(--admin-border-str)",
-                    borderRadius: 8,
-                    color: "var(--text)",
-                    cursor: "pointer",
-                  }}
-                >
-                  关闭
-                </button>
-                <button
-                  onClick={() => handleRenameWallpaper(detailWallpaper)}
-                  style={{
-                    padding: "7px 14px",
-                    fontSize: 13,
-                    background: "var(--admin-border-str)",
-                    border: "none",
-                    borderRadius: 8,
-                    color: "var(--text)",
-                    cursor: "pointer",
-                  }}
-                >
-                  重命名
-                </button>
-                <button
-                  onClick={() => handleDeleteWallpaper(detailWallpaper.id)}
-                  style={{
-                    padding: "7px 14px",
-                    fontSize: 13,
-                    background: "rgba(255,90,90,0.15)",
-                    border: "none",
-                    borderRadius: 8,
-                    color: "#ff6b6b",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <WallpaperDetailModal
+          wallpaper={detailWallpaper}
+          sourceName={sourceNameOf(detailWallpaper.sourceId)}
+          onClose={() => setDetailWallpaper(null)}
+          onRename={handleRenameWallpaper}
+          onDelete={handleDeleteWallpaper}
+        />
       )}
 
       <input

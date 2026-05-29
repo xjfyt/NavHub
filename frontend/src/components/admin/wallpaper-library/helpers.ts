@@ -62,3 +62,27 @@ export const siteOriginHref = (siteUrl: string): string => {
     return siteUrl;
   }
 };
+
+/**
+ * 计算壁纸缩略图 / 预览图的 src：
+ * 优先用缩略图 key（/uploads/…）；其次若为图片且有原图 key 则用原图；
+ * 否则退回远端 thumbnailUrl；都没有则返回 undefined。
+ */
+export const thumbnailSrc = (w: {
+  thumbnailKey: string | null;
+  storageKey: string | null;
+  thumbnailUrl: string | null;
+  mediaType: "video" | "image";
+}): string | undefined => {
+  if (w.thumbnailKey) return `/uploads/${w.thumbnailKey}`;
+  if (w.mediaType === "image" && w.storageKey)
+    return `/uploads/${w.storageKey}`;
+  return w.thumbnailUrl ?? undefined;
+};
+
+/** 该壁纸是否有任意可展示的缩略图来源。 */
+export const hasThumbnail = (w: {
+  thumbnailKey: string | null;
+  storageKey: string | null;
+  thumbnailUrl: string | null;
+}): boolean => Boolean(w.thumbnailUrl || w.thumbnailKey || w.storageKey);
