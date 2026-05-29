@@ -271,7 +271,27 @@ pub async fn healthz() -> &'static str {
 pub async fn readyz(State(state): State<Arc<AppState>>) -> StatusCode {
     let pg_ok = state.pg.acquire().await.is_ok();
     let redis_ok = state.redis.get().await.is_ok();
-    if pg_ok && redis_ok {
+
+    // OPS-10: 可选的浅层对象存储可达性探测。默认关闭(S3 可能慢/可选);开启时用配置的
+    // 短超时兜底,绝不让就绪探测因 S3 慢/挂而长时间阻塞——超时或探测出错都判为未就绪。
+    let storage_ok = if state.cfg.app.readyz_check_storage {
+        let timeout = Duration::from_millis(state.cfg.app.readyz_storage_timeout_ms.max(100));
+        match tokio::time::timeout(timeout, state.storage.health_check()).await {
+            Ok(Ok(())) => true,
+            Ok(Err(e)) => {
+                tracing::warn!("readyz: storage probe failed: {e}");
+                false
+            }
+            Err(_) => {
+                tracing::warn!("readyz: storage probe timed out after {timeout:?}");
+                false
+            }
+        }
+    } else {
+        true
+    };
+
+    if pg_ok && redis_ok && storage_ok {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE

@@ -56,6 +56,11 @@ log_level = "info"
 # tls_accept_invalid_certs = false
 # 是否允许 favicon 代理访问私有/内网 IP(SSRF 开关,默认 false;link-local/云元数据始终拒绝)
 # favicon_allow_private_targets = false
+# 是否在 /readyz 就绪探测中加入一次浅层 S3 可达性检查(HeadBucket)。默认 false:
+# 对象存储可能慢/可选,且 readyz 须快速返回。开启后由下方超时兜底,超时或失败均判为未就绪。
+# readyz_check_storage = false
+# 上面 S3 就绪探测的超时(毫秒)。默认 2000,下限 100。仅在 readyz_check_storage=true 时生效。
+# readyz_storage_timeout_ms = 2000
 
 [storage.s3]
 endpoint = "https://s3.example.com"

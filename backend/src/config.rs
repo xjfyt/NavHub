@@ -188,6 +188,19 @@ pub struct GeneralConfig {
     /// 本值控制同时运行的抓取任务上限。默认 2。
     #[serde(default = "default_admin_fetch_concurrency")]
     pub admin_fetch_max_concurrency: usize,
+    /// OPS-10: 是否在 `/readyz` 就绪探测中加入一次浅层 S3 可达性检查(HeadBucket)。
+    /// 默认 false——对象存储可能慢/可选,且 readyz 须快速返回不能挂起。开启后,探测
+    /// 由 readyz_storage_timeout_ms 短超时兜底;超时或失败都判为未就绪。
+    #[serde(default)]
+    pub readyz_check_storage: bool,
+    /// OPS-10: 上面 S3 就绪探测的超时(毫秒)。默认 2000ms。下限 100ms,避免配 0
+    /// 让探测必然超时。仅在 readyz_check_storage=true 时生效。
+    #[serde(default = "default_readyz_storage_timeout_ms")]
+    pub readyz_storage_timeout_ms: u64,
+}
+
+fn default_readyz_storage_timeout_ms() -> u64 {
+    2000
 }
 
 fn default_admin_fetch_concurrency() -> usize {

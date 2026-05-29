@@ -160,6 +160,19 @@ impl Storage {
         Ok(())
     }
 
+    /// OPS-10: 浅层 S3 可达性探测,供 `/readyz` 可选启用。用最便宜的 HeadBucket
+    /// (仅校验桶可达/有权限,不传输对象),并由调用方用短超时兜底,绝不让就绪探测
+    /// 因对象存储慢/挂而长时间阻塞。返回 Ok(()) 表示可达。
+    pub async fn health_check(&self) -> anyhow::Result<()> {
+        self.client
+            .head_bucket()
+            .bucket(&self.bucket)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("s3 head_bucket failed: {e}"))?;
+        Ok(())
+    }
+
     fn object_key(&self, public_name: &str) -> AppResult<String> {
         let public_name = sanitize_public_name(public_name)?;
         if self.key_prefix.is_empty() {
