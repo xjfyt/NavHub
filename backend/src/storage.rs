@@ -54,7 +54,7 @@ impl Storage {
             client: Client::from_conf(s3_cfg.build()),
             bucket: s3.bucket.clone(),
             key_prefix: normalize_key_prefix(&s3.key_prefix),
-            presign_ttl_secs: s3.presign_ttl_secs.max(60),
+            presign_ttl_secs: clamp_presign_ttl(s3.presign_ttl_secs),
         })
     }
 
@@ -135,4 +135,38 @@ fn sanitize_public_name(name: &str) -> AppResult<String> {
 
 fn normalize_key_prefix(prefix: &str) -> String {
     prefix.trim().trim_matches('/').to_string()
+}
+
+/// INFRA-10: 预签名 URL 的有效期完全来自配置输入,未经约束时可能为 0(立即失效)
+/// 或大到离谱(几乎永不过期,等同于公开)。统一夹取到 [60s, 86400s] 区间:
+/// 低于 1 分钟不实用、超过 1 天的预签名链接安全性极差。
+fn clamp_presign_ttl(ttl: u64) -> u64 {
+    ttl.clamp(MIN_PRESIGN_TTL_SECS, MAX_PRESIGN_TTL_SECS)
+}
+
+const MIN_PRESIGN_TTL_SECS: u64 = 60;
+const MAX_PRESIGN_TTL_SECS: u64 = 86_400;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clamps_below_min_to_floor() {
+        assert_eq!(clamp_presign_ttl(0), 60);
+        assert_eq!(clamp_presign_ttl(59), 60);
+    }
+
+    #[test]
+    fn clamps_above_max_to_ceiling() {
+        assert_eq!(clamp_presign_ttl(86_401), 86_400);
+        assert_eq!(clamp_presign_ttl(u64::MAX), 86_400);
+    }
+
+    #[test]
+    fn leaves_in_range_unchanged() {
+        assert_eq!(clamp_presign_ttl(60), 60);
+        assert_eq!(clamp_presign_ttl(3600), 3600);
+        assert_eq!(clamp_presign_ttl(86_400), 86_400);
+    }
 }
