@@ -263,14 +263,15 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &IconAssetSource) -> anyho
     let mut stored_count = 0u32;
 
     for item in &scraped {
+        // QUAL-12: 此前用 .unwrap_or(false) 吞掉 DB 错误——瞬时连接故障会被当成「记录
+        // 不存在」,导致重新下载并重复入库(浪费带宽 + S3 对象)。改为 ? 向上传播错误。
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM remote_icon_assets WHERE source_id = $1 AND original_url = $2)",
         )
         .bind(source.id)
         .bind(&item.svg_url)
         .fetch_one(&state.pg)
-        .await
-        .unwrap_or(false);
+        .await?;
 
         if exists {
             continue;
