@@ -10,6 +10,7 @@ import { GroupView, IconView, Tweaks, WidgetView } from "../types";
 import { IconTile } from "./IconTile";
 import { Icon } from "./Icon";
 import { pickEmptyState } from "../utils/emptyState";
+import { shouldUseContentVisibility } from "../utils/navVirtualization";
 import {
   shouldShowDragHint,
   readDragHintDismissed,
@@ -180,6 +181,11 @@ export const NavView = ({
     hasContent: gridItems.length > 0,
     dismissed: dragHintDismissed,
   });
+
+  // PERF-7: 大分类(单元格很多)时给网格加 content-visibility 优化类，让浏览器跳过
+  // 离屏单元格的渲染/布局/绘制。DOM 元素仍在 → dnd-kit 注册、碰撞检测、合并几何、
+  // 键盘焦点顺序全部不受影响。小网格不加(切换成本无谓)。判定见 navVirtualization.ts。
+  const useContentVisibility = shouldUseContentVisibility(gridItems.length);
 
   // PERF-2: 把来自 Shell 的回调(onOpenIcon/onCtxTile/onExpandWidget,均为内联箭头、
   // 每次 Shell 渲染换引用)镜像进 ref,再用 useCallback([]) 暴露恒稳的包装回调。
@@ -363,7 +369,7 @@ export const NavView = ({
               )}
             </div>
           ) : null}
-          <div className="nav-grid">
+          <div className={"nav-grid" + (useContentVisibility ? " nav-grid-cv" : "")}>
             {gridItems.map((item) => (
               <NavGridCell
                 key={item.id}

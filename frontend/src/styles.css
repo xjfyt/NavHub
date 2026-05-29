@@ -4125,6 +4125,23 @@ html[data-mode="light"] .icon-search-empty-sub {
   padding-bottom: 80px;
 }
 
+/* PERF-7: 大分类(>150 项，见 navVirtualization.ts 阈值)启用 content-visibility。
+   仅给「大网格」加 .nav-grid-cv 这个门控类，让浏览器跳过【离屏】单元格的渲染/布局/
+   绘制——单元格 DOM 依旧存在，所以 dnd-kit 注册、碰撞检测、合并几何(getBoundingClientRect)、
+   <a> 磁贴点击、键盘焦点顺序全部不受影响。contain-intrinsic-size 给被跳过的离屏格
+   一个占位尺寸(与单元格基准格大小一致)，避免滚动条长度抖动 / 滚动锚定漂移。
+   小网格不加此类，行为完全不变。
+   注：被拖拽的磁贴始终在屏(不会被跳过)，DragOverlay 又单独渲染，故拖拽手感不受影响。 */
+.nav-grid-cv > .nav-cell {
+  content-visibility: auto;
+  /* 宽 × 高 取单格基准尺寸；多格 span 的单元格被跳过时占位略小，滚入视口即修正。 */
+  contain-intrinsic-size: var(--nav-cell-w) var(--nav-cell-h);
+}
+/* 正在被拖拽的单元格强制保持可见，避免拖拽中任何离屏跳过造成几何/动画异常。 */
+.nav-grid-cv > .nav-cell.is-dragging {
+  content-visibility: visible;
+}
+
 /* ===== 引导空状态卡片 ===== */
 .nav-empty {
   width: 100%;
