@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { Icon } from "../components/Icon";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
+import { advancePhase, remainingSeconds, type Phase } from "./pomodoroMath";
 import type { WidgetProps } from "./types";
 
 interface PomodoroConfig {
@@ -10,17 +11,79 @@ interface PomodoroConfig {
 
 const DEFAULTS: PomodoroConfig = { workMin: 25, breakMin: 5 };
 
-type Phase = "work" | "break";
-
 function fmt(s: number): string {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
+// WIDGET-3: 真实提示音 —— 用 Web Audio 合成一段短促双音“叮”,不引入任何外部资源。
+// 浏览器自动播放策略要求 AudioContext 由用户手势创建/恢复,因此延迟到首次点击
+// (toggle 是用户手势)时再创建,并在每次播放前 resume()。
+let audioCtx: AudioContext | null = null;
+
+function ensureAudioContext(): AudioContext | null {
+  try {
+    if (!audioCtx) {
+      const Ctor =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return null;
+      audioCtx = new Ctor();
+    }
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    return audioCtx;
+  } catch {
+    return null;
+  }
+}
+
+/** 在用户手势里预热音频上下文,绕过自动播放限制。 */
+function primeAudio() {
+  ensureAudioContext();
+}
+
+function playChime() {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    // 两声短音:880Hz → 1320Hz,带快速衰减包络,像一记轻快的“叮咚”。
+    const tones = [
+      { freq: 880, start: 0 },
+      { freq: 1320, start: 0.16 },
+    ];
+    for (const t of tones) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = t.freq;
+      const at = now + t.start;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.3, at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.3);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.32);
+    }
+  } catch {
+    /* 忽略音频失败,不影响计时 */
+  }
+}
+
 class PomodoroStore {
   public listeners = new Set<() => void>();
-  public state = { phase: "work" as Phase, remaining: 25 * 60, running: false, rounds: 0, workSec: 25 * 60, breakSec: 5 * 60 };
+  // WIDGET-3: 计时改为时间戳驱动 —— endTs 为当前阶段的目标结束时刻;
+  // running 时由 endTs 推导 remaining,后台节流也不漂移;暂停时冻结 remaining、endTs=null。
+  public state = {
+    phase: "work" as Phase,
+    remaining: 25 * 60,
+    running: false,
+    rounds: 0,
+    workSec: 25 * 60,
+    breakSec: 5 * 60,
+    endTs: null as number | null,
+  };
   private tickRef: number | null = null;
   // FE-8: 引用计数,统计当前挂载的视图数(tile + detail 可同时存在)。
   private refCount = 0;
@@ -43,28 +106,41 @@ class PomodoroStore {
     const workSec = workMin * 60;
     const breakSec = breakMin * 60;
     if (this.state.workSec !== workSec || this.state.breakSec !== breakSec) {
-      const remaining = this.state.running ? this.state.remaining : (this.state.phase === "work" ? workSec : breakSec);
-      this.setState({ workSec, breakSec, remaining });
+      if (this.state.running && this.state.endTs !== null) {
+        // 运行中改时长:仅更新缓存的阶段秒数,不打断当前这一段。
+        this.setState({ workSec, breakSec });
+      } else {
+        const remaining = this.state.phase === "work" ? workSec : breakSec;
+        this.setState({ workSec, breakSec, remaining, endTs: null });
+      }
     }
+  }
+
+  /** 由当前 endTs 重新计算 remaining;到点则切换阶段并响铃。 */
+  private tickFromClock() {
+    if (this.state.endTs === null) return;
+    const now = Date.now();
+    const remaining = remainingSeconds(this.state.endTs, now);
+    if (remaining > 0) {
+      if (remaining !== this.state.remaining) this.setState({ remaining });
+      return;
+    }
+    // 到点:切换阶段、记轮次、设新的结束时间戳,并播放真实提示音。
+    const next = advancePhase(this.state.phase, { workSec: this.state.workSec, breakSec: this.state.breakSec }, this.state.rounds, now);
+    playChime();
+    this.setState({
+      phase: next.phase,
+      rounds: next.rounds,
+      endTs: next.endTs,
+      remaining: remainingSeconds(next.endTs, now),
+    });
   }
 
   startTick() {
     if (this.tickRef !== null) return;
-    this.tickRef = window.setInterval(() => {
-      let r = this.state.remaining - 1;
-      let p = this.state.phase;
-      let rounds = this.state.rounds;
-
-      if (r <= 0) {
-        if (p === "work") rounds++;
-        p = p === "work" ? "break" : "work";
-        r = p === "work" ? this.state.workSec : this.state.breakSec;
-        try {
-            new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=").play().catch(() => {});
-        } catch {}
-      }
-      this.setState({ remaining: r, phase: p, rounds });
-    }, 1000);
+    // 用 250ms 轮询提升到点精度(避免 1s interval 错过整秒),
+    // remaining 始终由时间戳推导,不累计漂移。
+    this.tickRef = window.setInterval(() => this.tickFromClock(), 250);
   }
 
   stopTick() {
@@ -75,15 +151,24 @@ class PomodoroStore {
   }
 
   toggle = () => {
+    // toggle 是用户手势 —— 借机预热/恢复 AudioContext,保证到点提示音能响。
+    primeAudio();
     const running = !this.state.running;
-    this.setState({ running });
-    if (running) this.startTick();
-    else this.stopTick();
+    if (running) {
+      const endTs = Date.now() + this.state.remaining * 1000;
+      this.setState({ running: true, endTs });
+      this.startTick();
+    } else {
+      // 暂停:把当前剩余冻结下来,清掉 endTs。
+      const remaining = this.state.endTs !== null ? remainingSeconds(this.state.endTs, Date.now()) : this.state.remaining;
+      this.stopTick();
+      this.setState({ running: false, remaining, endTs: null });
+    }
   };
 
   reset = () => {
     this.stopTick();
-    this.setState({ running: false, phase: "work", remaining: this.state.workSec });
+    this.setState({ running: false, phase: "work", remaining: this.state.workSec, endTs: null });
   };
 
   // FE-8: 视图挂载时 retain,卸载时 release。最后一个视图卸载后停掉 interval
