@@ -200,7 +200,9 @@
   border-radius: 12px;
 }
 .nh-login-input::placeholder { color: rgba(255, 255, 255, 0.4); }
-.nh-login-input:focus { outline: none; }
+/* A11Y-2: 鼠标点击聚焦时去掉默认 outline(外层 .nh-login-field 已有焦点环);
+   键盘 Tab 聚焦(:focus-visible)保留 outline 作为兜底。 */
+.nh-login-input:focus:not(:focus-visible) { outline: none; }
 
 .nh-login-btn {
   display: inline-flex;

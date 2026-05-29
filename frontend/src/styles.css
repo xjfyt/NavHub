@@ -59,7 +59,22 @@ body {
 
 button, input, select, textarea { font-family: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; padding: 0; }
-input, textarea { outline: none; }
+/* A11Y-2: 仅在「鼠标 / 触摸取焦」(非键盘)时去掉默认 outline,键盘 Tab 取焦
+   仍由下方统一的 :focus-visible 焦点环负责,绝不裸抹掉 outline。 */
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) { outline: none; }
+
+/* A11Y-2: 全局键盘焦点环。任何可交互元素被键盘聚焦时显示统一的高对比焦点环,
+   鼠标点击聚焦(:focus 而非 :focus-visible)不显示,避免误触视觉噪音。
+   覆盖按钮 / 链接 / 输入 / 导航磁贴等;具体组件可再加 box-shadow 叠加。 */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+html[data-mode="light"] :focus-visible {
+  outline-color: #2b6cff;
+}
 
 /* A11Y-4: 仅供读屏的视觉隐藏文本(如对话框 aria-labelledby 的标题锚点)。 */
 .sr-only {
@@ -4448,4 +4463,44 @@ html[data-mode="light"] .nav-empty-btn.primary {
     --nav-cell-h: 92px;
     --nav-gap: 10px;
   }
+}
+
+/* ===== A11Y-2: 键盘焦点环兜底 =====
+   全局 :focus-visible 规则特异性较低(0,1,0),会被前面那些
+   「无边框输入框 outline:none」或带 :focus 的具体选择器覆盖。
+   这里集中把焦点环重新加回这些键盘可达元素上,只在键盘取焦
+   (:focus-visible)时显示,鼠标点击不受影响。 */
+.search-input:focus-visible,
+.engine-add-form input:focus-visible,
+.wcc-input:focus-visible,
+.w-notes textarea:focus-visible,
+.md-notes-search input:focus-visible,
+.tw-wallpaper-search input:focus-visible,
+.wcc-search input:focus-visible,
+.wcc-dest-select select:focus-visible,
+.milkdown-wrap .ProseMirror:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+html[data-mode="light"] .search-input:focus-visible,
+html[data-mode="light"] .engine-add-form input:focus-visible,
+html[data-mode="light"] .wcc-input:focus-visible,
+html[data-mode="light"] .w-notes textarea:focus-visible,
+html[data-mode="light"] .md-notes-search input:focus-visible,
+html[data-mode="light"] .tw-wallpaper-search input:focus-visible,
+html[data-mode="light"] .wcc-search input:focus-visible,
+html[data-mode="light"] .wcc-dest-select select:focus-visible,
+html[data-mode="light"] .milkdown-wrap .ProseMirror:focus-visible {
+  outline-color: #2b6cff;
+}
+
+/* 导航磁贴:当前为 div(不可聚焦),后续可能改为真实 <a>。
+   预置键盘焦点环,焦点环套在整块磁贴的圆角上,届时即生效。 */
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 18px;
+}
+html[data-mode="light"] .tile:focus-visible {
+  outline-color: #2b6cff;
 }
