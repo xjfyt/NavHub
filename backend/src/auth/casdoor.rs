@@ -38,19 +38,44 @@ pub struct UserInfo {
     pub avatar: Option<String>,
 }
 
-pub fn build_authorize_url(sso: &SsoCache, state: &str) -> String {
+/// Build the OIDC authorization-request URL.
+///
+/// AUTH-7: includes a per-login `nonce` (echoed back in the ID token and matched
+/// against the browser-bound value) to defend against ID-token replay.
+/// AUTH-1: includes the PKCE `code_challenge` + `code_challenge_method=S256` so
+/// the auth code can only be redeemed by the browser that holds the matching
+/// `code_verifier`.
+pub fn build_authorize_url(
+    sso: &SsoCache,
+    state: &str,
+    nonce: &str,
+    code_challenge: &str,
+) -> String {
     let scopes = sso.scopes.join(" ");
     format!(
-        "{}/login/oauth/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&state={}",
+        "{}/login/oauth/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&state={}\
+         &nonce={}&code_challenge={}&code_challenge_method=S256",
         sso.issuer.trim_end_matches('/'),
         urlencoding::encode(&sso.client_id),
         urlencoding::encode(&sso.redirect_uri),
         urlencoding::encode(&scopes),
         urlencoding::encode(state),
+        urlencoding::encode(nonce),
+        urlencoding::encode(code_challenge),
     )
 }
 
-pub async fn exchange_code(client: &reqwest::Client, sso: &SsoCache, code: &str) -> AppResult<TokenResponse> {
+/// Exchange the authorization `code` for tokens.
+///
+/// AUTH-1: sends the PKCE `code_verifier` so the IdP can confirm this is the
+/// same browser that initiated the flow (binds the code to the verifier whose
+/// challenge was sent at authorize time).
+pub async fn exchange_code(
+    client: &reqwest::Client,
+    sso: &SsoCache,
+    code: &str,
+    code_verifier: &str,
+) -> AppResult<TokenResponse> {
     let url = format!(
         "{}/api/login/oauth/access_token",
         sso.issuer.trim_end_matches('/')
@@ -63,6 +88,7 @@ pub async fn exchange_code(client: &reqwest::Client, sso: &SsoCache, code: &str)
             ("client_id", &sso.client_id),
             ("client_secret", &sso.client_secret),
             ("redirect_uri", &sso.redirect_uri),
+            ("code_verifier", code_verifier),
         ])
         .send()
         .await?;

@@ -10,6 +10,11 @@ pub struct SsoCache {
     pub client_secret: String,
     pub redirect_uri: String,
     pub scopes: Vec<String>,
+    /// AUTH-1: optional explicit JWKS endpoint. Empty derives from issuer.
+    /// `#[serde(default)]` keeps older persisted `app_settings.sso` rows (which
+    /// predate this field) deserializable.
+    #[serde(default)]
+    pub jwks_uri: String,
 }
 
 impl SsoCache {
@@ -34,7 +39,14 @@ impl SsoCache {
             client_secret: default.client_secret.clone(),
             redirect_uri: default.redirect_uri.clone(),
             scopes: default.scopes.clone(),
+            jwks_uri: default.jwks_uri.clone(),
         }
+    }
+
+    /// AUTH-1: the effective JWKS endpoint — explicit config when set, otherwise
+    /// derived from the issuer (`<issuer>/.well-known/jwks` for Casdoor).
+    pub fn jwks_uri(&self) -> String {
+        crate::auth::oidc::derive_jwks_uri(&self.issuer, &self.jwks_uri)
     }
 
     pub async fn save(&self, pg: &PgPool) -> anyhow::Result<()> {

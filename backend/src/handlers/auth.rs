@@ -1,6 +1,6 @@
 use crate::{
     auth::{
-        casdoor, password,
+        casdoor, oidc, password,
         session::{self, SessionData},
     },
     error::{AppError, AppResult},
@@ -14,8 +14,6 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     Json, Extension,
 };
-use deadpool_redis::redis::AsyncCommands;
-use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -31,22 +29,51 @@ pub async fn login(State(state): State<Arc<AppState>>) -> AppResult<Response> {
     if !sso.enabled {
         return Err(AppError::Forbidden("sso_disabled"));
     }
-    let rand_state: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(32)
-        .map(char::from)
-        .collect();
-    let mut conn = state.redis.get().await?;
-    let _: () = conn
-        .set_ex(format!("oauth_state:{rand_state}"), "1", 300)
-        .await?;
-    let url = casdoor::build_authorize_url(&sso, &rand_state);
-    Ok(Redirect::temporary(&url).into_response())
+    // AUTH-7 + AUTH-1: mint a per-login secret (state + nonce + PKCE verifier)
+    // and bind it to THIS browser via an HttpOnly, SameSite=Lax cookie instead
+    // of an unbound server-side `oauth_state:*` key. The callback only accepts a
+    // `state` that matches the value carried back in this cookie, defeating
+    // login-CSRF / fixation; `nonce` defeats ID-token replay; the PKCE challenge
+    // binds the auth code to the verifier this browser holds.
+    let flow = oidc::OauthFlow::generate();
+    let url = casdoor::build_authorize_url(&sso, &flow.state, &flow.nonce, &flow.code_challenge());
+    let cookie = oidc::build_flow_cookie(&flow.encode_cookie_value(), session::is_https_public(&state));
+    let mut resp = Redirect::temporary(&url).into_response();
+    resp.headers_mut()
+        .insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
+    Ok(resp)
 }
 
 pub async fn callback(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Query(q): Query<CallbackQuery>,
+) -> AppResult<Response> {
+    // Run the verified flow; on ANY outcome clear the single-use flow cookie so
+    // a bound secret can never be replayed (success consumes it; failure burns it).
+    let secure = session::is_https_public(&state);
+    let result = callback_inner(&state, &headers, q).await;
+    match result {
+        Ok(mut resp) => {
+            append_set_cookie(&mut resp, &oidc::clear_flow_cookie(secure));
+            Ok(resp)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Append an extra `Set-Cookie` header (does not clobber an existing one such as
+/// the session cookie).
+fn append_set_cookie(resp: &mut Response, cookie: &str) {
+    if let Ok(v) = HeaderValue::from_str(cookie) {
+        resp.headers_mut().append(header::SET_COOKIE, v);
+    }
+}
+
+async fn callback_inner(
+    state: &Arc<AppState>,
+    headers: &HeaderMap,
+    q: CallbackQuery,
 ) -> AppResult<Response> {
     if let Some(err) = q.error {
         return Err(AppError::BadRequest(format!("sso error: {}", err)));
@@ -58,44 +85,83 @@ pub async fn callback(
         .state
         .ok_or_else(|| AppError::BadRequest("missing state".into()))?;
 
-    // Validate state
-    {
-        let mut conn = state.redis.get().await?;
-        let key = format!("oauth_state:{st}");
-        let found: Option<String> = conn.get(&key).await?;
-        if found.is_none() {
-            return Err(AppError::BadRequest("invalid state".into()));
-        }
-        let _: () = conn.del(&key).await?;
+    // AUTH-7: recover the browser-bound flow secret from the HttpOnly cookie and
+    // require the query `state` to equal the bound value. Missing cookie /
+    // malformed cookie / mismatch all reject (login-CSRF / fixation defense).
+    let flow = oidc::extract_flow_cookie(headers)
+        .and_then(|raw| oidc::OauthFlow::decode_cookie_value(&raw))
+        .ok_or(AppError::Forbidden("oauth_state_missing"))?;
+    if st != flow.state {
+        return Err(AppError::Forbidden("oauth_state_mismatch"));
     }
 
     let sso = state.sso.read().await.clone();
-    // Use the lenient client so homelab OIDC servers signed by a private CA work
-    // when the operator has set `app.tls_accept_invalid_certs = true`. With the
-    // flag off the client still validates TLS normally.
-    let token = casdoor::exchange_code(&state.lenient_client, &sso, &code).await?;
-    let info =
-        casdoor::fetch_userinfo(&state.lenient_client, &sso, &token.access_token).await?;
+    // AUTH-1: the OIDC security path uses a TLS-VALIDATING client (never the
+    // lenient one) for token exchange, JWKS fetch and userinfo. Accepting an
+    // invalid cert here would let a MITM forge tokens/keys and defeat the whole
+    // verification.
+    let token =
+        casdoor::exchange_code(&state.oidc_client, &sso, &code, &flow.code_verifier).await?;
 
-    let email = info
+    // AUTH-1: verify the ID token (RS256 against provider JWKS; iss/aud/exp +
+    // nonce-bound) and use its claims as the trusted identity. Casdoor returns a
+    // standard OIDC `id_token`; absence means we cannot establish a verified
+    // identity, so reject rather than fall back to unverified userinfo.
+    let id_token = token
+        .id_token
+        .as_deref()
+        .ok_or(AppError::Forbidden("sso_missing_id_token"))?;
+    let jwks_uri = sso.jwks_uri();
+    let claims = oidc::verify_id_token_with_cache(
+        &state.jwks_cache,
+        &state.oidc_client,
+        &jwks_uri,
+        id_token,
+        &sso.issuer,
+        &sso.client_id,
+        &flow.nonce,
+    )
+    .await
+    .map_err(|e| {
+        tracing::warn!(error = ?e, "AUTH-1: ID token verification failed");
+        AppError::Forbidden("sso_id_token_invalid")
+    })?;
+
+    // Enrich display/avatar from userinfo (non-authoritative; identity comes from
+    // the verified ID token). Best-effort — a userinfo failure must not block a
+    // login whose identity is already cryptographically verified.
+    let info = casdoor::fetch_userinfo(&state.oidc_client, &sso, &token.access_token)
+        .await
+        .ok();
+
+    let email = claims
         .email
         .clone()
-        .ok_or_else(|| AppError::BadRequest("casdoor userinfo missing email".into()))?;
-    let username = info
+        .or_else(|| info.as_ref().and_then(|i| i.email.clone()))
+        .ok_or_else(|| AppError::BadRequest("id token missing email".into()))?;
+    let username = claims
         .preferred_username
         .clone()
-        .or_else(|| info.name.clone())
+        .or_else(|| info.as_ref().and_then(|i| i.preferred_username.clone()))
+        .or_else(|| claims.name.clone())
+        .or_else(|| info.as_ref().and_then(|i| i.name.clone()))
         .unwrap_or_else(|| email.split('@').next().unwrap_or("user").to_string());
-    let display = info.display_name.clone().or(info.name.clone());
-    let avatar = info.avatar.clone().or(info.picture.clone());
+    let display = info
+        .as_ref()
+        .and_then(|i| i.display_name.clone().or_else(|| i.name.clone()))
+        .or_else(|| claims.name.clone());
+    let avatar = info
+        .as_ref()
+        .and_then(|i| i.avatar.clone().or_else(|| i.picture.clone()));
 
+    // Trusted identity is the verified ID-token `sub` + `email` + `email_verified`.
     // If a superadmin exists with this email but no casdoor_id, bind it
     // (only when the IdP asserts the email is verified — see AUTH-2).
     let user = upsert_sso_user(
-        &state,
-        &info.sub,
+        state,
+        &claims.sub,
         &email,
-        info.email_verified,
+        claims.email_verified,
         &username,
         display.as_deref(),
         avatar.as_deref(),
@@ -109,9 +175,9 @@ pub async fn callback(
         email: user.email.clone(),
         must_change_password: user.must_change_password,
     };
-    let sid = session::create_session(&state, &sd).await?;
+    let sid = session::create_session(state, &sd).await?;
     util::audit(
-        &state,
+        state,
         None,
         "sso_login",
         Some(user.username.clone()),
@@ -123,7 +189,7 @@ pub async fn callback(
     let cookie = session::build_cookie(
         &sid,
         state.cfg.app.session_ttl_days,
-        session::is_https_public(&state),
+        session::is_https_public(state),
     );
     let mut resp = Redirect::temporary("/").into_response();
     resp.headers_mut()

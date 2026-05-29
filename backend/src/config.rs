@@ -137,6 +137,12 @@ pub struct SsoConfig {
     pub redirect_uri: String,
     #[serde(default = "default_scopes")]
     pub scopes: Vec<String>,
+    /// AUTH-1: explicit JWKS endpoint for verifying ID-token signatures. Empty
+    /// (default) derives it from the issuer as Casdoor's `<issuer>/.well-known/jwks`,
+    /// so existing configs keep working. Override only for providers whose JWKS
+    /// path differs.
+    #[serde(default)]
+    pub jwks_uri: String,
 }
 
 fn default_true() -> bool {

@@ -1,6 +1,7 @@
-use crate::{auth::sso_cache::SsoCache, config::AppConfig, storage::Storage};
+use crate::{auth::oidc::JwksCache, auth::sso_cache::SsoCache, config::AppConfig, storage::Storage};
 use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 pub struct AppState {
@@ -19,6 +20,16 @@ pub struct AppState {
     /// The strict `reqwest_client` is unaffected so MITM on third-party APIs
     /// still gets caught.
     pub lenient_client: reqwest::Client,
+    /// AUTH-1: TLS-validating client dedicated to the OIDC security path —
+    /// token exchange, JWKS fetch and userinfo. Unlike `lenient_client` this is
+    /// NEVER weakened by `tls_accept_invalid_certs`: accepting an invalid cert
+    /// here would let a MITM forge the ID-token signing keys / token response
+    /// and defeat the whole verification. Redirects are disabled (same SSRF
+    /// reasoning as the lenient client).
+    pub oidc_client: reqwest::Client,
+    /// AUTH-1: short-TTL in-memory cache of the provider JWKS, keyed implicitly
+    /// by the configured jwks_uri. Refetched on miss / expiry / unknown-kid.
+    pub jwks_cache: Arc<JwksCache>,
 }
 
 impl AppState {
@@ -47,6 +58,15 @@ impl AppState {
         }
         let lenient_client = lenient_builder.build()?;
 
+        // AUTH-1: dedicated OIDC client — always TLS-validating, redirects off.
+        // Built independently of `tls_accept_invalid_certs` so the security path
+        // can never be downgraded by that homelab convenience flag.
+        let oidc_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .pool_max_idle_per_host(16)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
+
         Ok(Self {
             cfg,
             pg,
@@ -55,6 +75,8 @@ impl AppState {
             storage,
             reqwest_client,
             lenient_client,
+            oidc_client,
+            jwks_cache: Arc::new(JwksCache::new()),
         })
     }
 }

@@ -18,6 +18,8 @@ pub struct SsoView {
     pub client_secret: String,
     pub redirect_uri: String,
     pub scopes: Vec<String>,
+    /// AUTH-1: explicit JWKS endpoint; empty means "derive from issuer".
+    pub jwks_uri: String,
 }
 
 pub async fn get(
@@ -33,6 +35,7 @@ pub async fn get(
         client_secret: sso.client_secret,
         redirect_uri: sso.redirect_uri,
         scopes: sso.scopes,
+        jwks_uri: sso.jwks_uri,
     }))
 }
 
@@ -45,6 +48,7 @@ pub struct SsoPatch {
     pub client_secret: Option<String>,
     pub redirect_uri: Option<String>,
     pub scopes: Option<Vec<String>>,
+    pub jwks_uri: Option<String>,
 }
 
 pub async fn patch(
@@ -74,6 +78,9 @@ pub async fn patch(
     if let Some(v) = body.scopes {
         new_cache.scopes = v;
     }
+    if let Some(v) = body.jwks_uri {
+        new_cache.jwks_uri = v;
+    }
     new_cache.save(&state.pg).await?;
     *state.sso.write().await = new_cache.clone();
     util::audit(
@@ -92,5 +99,6 @@ pub async fn patch(
         client_secret: new_cache.client_secret,
         redirect_uri: new_cache.redirect_uri,
         scopes: new_cache.scopes,
+        jwks_uri: new_cache.jwks_uri,
     }))
 }
