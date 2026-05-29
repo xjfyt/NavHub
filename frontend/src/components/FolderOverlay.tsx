@@ -135,7 +135,7 @@ export const FolderOverlay = ({
           transition: 'transform 250ms cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 600, color: 'var(--text)', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '20px', fontWeight: 600, color: 'var(--text)', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
           {editingName ? (
             <input
               autoFocus
@@ -149,9 +149,15 @@ export const FolderOverlay = ({
                 if (e.key === "Enter") {
                   setEditingName(false);
                   if (onRename && nameValue.trim() !== folder.name) onRename(nameValue.trim());
+                } else if (e.key === "Escape") {
+                  // UX-23:Esc 取消内联重命名,恢复原名且不触发保存
+                  e.stopPropagation();
+                  setNameValue(folder.name || "");
+                  setEditingName(false);
                 }
               }}
               onClick={(e) => e.stopPropagation()}
+              aria-label="文件夹名称"
               style={{
                 background: "transparent",
                 border: "none",
@@ -166,19 +172,46 @@ export const FolderOverlay = ({
               }}
             />
           ) : (
-            <span
-              onClick={(e) => {
-                if (onRename) {
-                  e.stopPropagation();
-                  setNameValue(folder.name || "");
-                  setEditingName(true);
-                }
-              }}
-              style={{ cursor: onRename ? "pointer" : "default" }}
-              title={onRename ? "点击重命名" : undefined}
-            >
-              {folder.name || "文件夹"}
-            </span>
+            <>
+              <span
+                onClick={(e) => {
+                  if (onRename) {
+                    e.stopPropagation();
+                    setNameValue(folder.name || "");
+                    setEditingName(true);
+                  }
+                }}
+                style={{ cursor: onRename ? "pointer" : "default" }}
+                title={onRename ? "重命名" : undefined}
+              >
+                {folder.name || "文件夹"}
+              </span>
+              {onRename && (
+                <button
+                  type="button"
+                  className="folder-rename-btn"
+                  aria-label="重命名文件夹"
+                  title="重命名"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNameValue(folder.name || "");
+                    setEditingName(true);
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: 0,
+                    padding: 4,
+                    borderRadius: 6,
+                    display: "grid",
+                    placeItems: "center",
+                    color: "var(--text-soft)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Icon name="edit" size={15} />
+                </button>
+              )}
+            </>
           )}
         </div>
         <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
