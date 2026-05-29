@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GroupView, IconView, Tweaks, WidgetView } from "../types";
 import { IconTile } from "./IconTile";
 import { Icon } from "./Icon";
+import { pickEmptyState } from "../utils/emptyState";
 import {
   WIDGET_REGISTRY,
   WidgetSizeId,
@@ -91,6 +92,9 @@ export const NavView = ({
   onMoveGroupItem,
   onExpandWidget,
   onExtractFolderItem,
+  editable = false,
+  onAddCategory,
+  onAddIcon,
 }: {
   activeGroup: string;
   groups: GroupView[];
@@ -114,6 +118,12 @@ export const NavView = ({
   ) => void;
   onExpandWidget?: (w: WidgetView) => void;
   onExtractFolderItem?: (folderId: string, itemId: string) => void;
+  /** 当前用户能否在当前分类做写操作(非访客 + 分类可编辑)。决定空状态是否给「添加」入口。 */
+  editable?: boolean;
+  /** 打开「新建分类」弹窗(空工作区时引导)。 */
+  onAddCategory?: () => void;
+  /** 打开「添加图标」弹窗(空分类时引导)。 */
+  onAddIcon?: () => void;
 }) => {
   const [slideDir, setSlideDir] = useState(0);
   const [newIconIds, setNewIconIds] = useState<Set<string>>(new Set());
@@ -524,6 +534,14 @@ export const NavView = ({
 
   const activeItem = activeId ? gridItems.find((it) => it.id === activeId) ?? null : null;
 
+  // 引导空状态：整个工作区没有分类 / 当前分类没有任何 icon&widget 时,
+  // 给一张友好的引导卡片(而不是一片空白)。写操作入口只在 editable 时出现。
+  const emptyState = pickEmptyState({
+    hasGroups: groups.length > 0,
+    hasItems: gridItems.length > 0,
+    editable,
+  });
+
   // ----- 单个 grid item 的内容 -----
   const renderItemContent = (item: Item) => {
     if (item.kind === "widget") {
@@ -648,6 +666,56 @@ export const NavView = ({
           onDragCancel={onDragCancel}
         >
           <SortableContext items={gridItems.map((it) => it.id)} strategy={rectSortingStrategy}>
+            {emptyState ? (
+              <div className="nav-empty">
+                <div className="nav-empty-glyph">
+                  <Icon name={emptyState === "no-groups" ? "grid" : "plus"} size={30} />
+                </div>
+                {emptyState === "no-groups" ? (
+                  <>
+                    <div className="nav-empty-title">还没有任何分类</div>
+                    <div className="nav-empty-desc">
+                      {editable
+                        ? "创建第一个分类来归置你的网站和小组件。"
+                        : "当前还没有可浏览的内容。"}
+                    </div>
+                    {editable && onAddCategory ? (
+                      <div className="nav-empty-actions">
+                        <button
+                          type="button"
+                          className="nav-empty-btn primary"
+                          onClick={onAddCategory}
+                        >
+                          <Icon name="plus" size={16} />
+                          添加第一个分类
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <div className="nav-empty-title">这个分类还没有网站</div>
+                    <div className="nav-empty-desc">
+                      {editable
+                        ? "添加第一个网站,或从右键菜单加入小组件。"
+                        : "当前分类暂时没有内容。"}
+                    </div>
+                    {editable && onAddIcon ? (
+                      <div className="nav-empty-actions">
+                        <button
+                          type="button"
+                          className="nav-empty-btn primary"
+                          onClick={onAddIcon}
+                        >
+                          <Icon name="plus" size={16} />
+                          添加第一个网站
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            ) : null}
             <div className="nav-grid">
               {gridItems.map((item) => (
                 <SortableCell key={item.id} item={item}>

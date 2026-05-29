@@ -342,6 +342,9 @@ export const Shell = ({
             }}
             onExpandWidget={(w) => setDetailWidgetId(w.id)}
             onExtractFolderItem={extractFolderItem}
+            editable={!isGuest && canEditGroup(activeGroup)}
+            onAddCategory={() => setAddCatOpen(true)}
+            onAddIcon={() => setAddIconOpen(true)}
           />
         </main>
       </div>
