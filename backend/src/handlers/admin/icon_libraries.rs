@@ -304,10 +304,14 @@ pub struct UpdateIconRequest {
 
 pub async fn update_icon(
     State(state): State<Arc<AppState>>,
-    Extension(_user): Extension<SessionUser>,
+    Extension(user): Extension<SessionUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateIconRequest>,
 ) -> AppResult<Json<LibraryIcon>> {
+    // SEC-3: 该接口挂在 /api/admin 下却曾丢弃用户、未校验角色,任何登录用户都能改图标库。
+    if !user.role.at_least_admin() {
+        return Err(AppError::Forbidden("admin only"));
+    }
     let row = sqlx::query_as::<_, LibraryIcon>(
         r#"
         UPDATE library_icons
