@@ -473,6 +473,31 @@ html[data-mode="light"] .sidebar-bottom::before {
   padding: 8px 16px 8px;
 }
 
+/* UX-3:访客登录提示横幅 */
+.guest-banner {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border-soft);
+  color: var(--text-soft);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.guest-banner .guest-banner-text { flex: 1; min-width: 0; }
+.guest-banner-btn {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #1a1a1a;
+  font-size: 13px; font-weight: 600;
+  border: 0; cursor: pointer;
+  transition: filter 140ms, transform 140ms;
+}
+.guest-banner-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
 .topbar-spacer { height: 56px; }
 .search-wrap { display: flex; justify-content: center; margin-bottom: 28px; }
 .search {

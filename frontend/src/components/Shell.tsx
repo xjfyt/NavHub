@@ -7,6 +7,7 @@ import { Sidebar } from "./Sidebar";
 import { NavView } from "./NavView";
 import { UserMenu } from "./UserMenu";
 import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
+import { Icon } from "./Icon";
 import { GroupView, IconView, WidgetView } from "../types";
 import { WIDGET_REGISTRY } from "../widgets";
 import { safeHttpUrl } from "../utils/iconSources";
@@ -321,6 +322,21 @@ export const Shell = ({
         />
 
         <main className="main">
+          {isGuest && (
+            <div className="guest-banner" role="status">
+              <Icon name="key" size={16} />
+              <span className="guest-banner-text">
+                你正在以访客身份浏览，登录后可保存图标、组件与个性化设置。
+              </span>
+              <button
+                type="button"
+                className="guest-banner-btn"
+                onClick={onRequestLogin}
+              >
+                登录
+              </button>
+            </div>
+          )}
           <NavView
             activeGroup={activeGroup}
             groups={workspace.groups}
