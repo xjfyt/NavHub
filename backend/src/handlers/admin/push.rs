@@ -423,7 +423,10 @@ async fn materialize_exported_asset(
     }
 
     let content_type = detect_exported_asset_mime(&data, asset.content_type.as_deref())?;
-    if content_type == "image/svg+xml" {
+    // SEC: 嗅探真实字节判定是否为 SVG,而非信任 content_type。否则攻击者用
+    // contentType:"image/png" 包裹含 <script> 的 SVG 字节,detect_* 会因 hint 提前
+    // 返回 image/png,使下面的扫描被跳过。无论 hint 为何,只要字节是 SVG 形态就扫描。
+    if content_type == "image/svg+xml" || is_svg_bytes(&data) {
         util::scan_svg_for_active_content(&data)
             .map_err(|reason| AppError::BadRequest(format!("SVG rejected: {reason}")))?;
     }
@@ -465,6 +468,18 @@ async fn materialize_exported_asset(
     Ok(Some(url))
 }
 
+/// SEC: 仅凭字节判定是否为 SVG 形态(裁掉 BOM/前导空白后以 `<svg` 或
+/// `<?xml ... <svg` 开头,或正文出现 `<svg`)。与 detect_exported_asset_mime 末段同义,
+/// 抽出供主动内容扫描复用 —— 关键在于该判定不受调用方 content_type hint 影响。纯函数,可单测。
+fn is_svg_bytes(bytes: &[u8]) -> bool {
+    // 裁掉 UTF-8 BOM。
+    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+    let text = String::from_utf8_lossy(bytes);
+    let trimmed = text.trim_start();
+    let lower = trimmed.to_ascii_lowercase();
+    lower.starts_with("<svg") || lower.starts_with("<?xml") || lower.contains("<svg")
+}
+
 fn detect_exported_asset_mime(bytes: &[u8], hinted: Option<&str>) -> AppResult<String> {
     if let Some(ct) = hinted.map(str::trim).filter(|v| !v.is_empty()) {
         if ct.starts_with("image/") {
@@ -477,9 +492,7 @@ fn detect_exported_asset_mime(bytes: &[u8], hinted: Option<&str>) -> AppResult<S
             return Ok(mime.to_string());
         }
     }
-    let text = String::from_utf8_lossy(bytes);
-    let trimmed = text.trim_start();
-    if trimmed.starts_with("<?xml") || trimmed.starts_with("<svg") || text.contains("<svg") {
+    if is_svg_bytes(bytes) {
         return Ok("image/svg+xml".to_string());
     }
     Err(AppError::BadRequest(
@@ -516,5 +529,65 @@ fn exported_asset_ext(content_type: &str, filename: Option<&str>) -> &'static st
         "image/gif" => "gif",
         "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
         _ => "bin",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // 真实 PNG 魔数(8 字节签名),不应被当作 SVG。
+    const PNG_MAGIC: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    #[test]
+    fn detects_svg_shaped_bytes() {
+        assert!(is_svg_bytes(b"<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"));
+        assert!(is_svg_bytes(
+            b"<?xml version=\"1.0\"?>\n<svg><script>alert(1)</script></svg>"
+        ));
+        // 前导空白 + 大写标签。
+        assert!(is_svg_bytes(b"   \n\t<SVG></SVG>"));
+        // BOM 前缀。
+        let mut with_bom = vec![0xEF, 0xBB, 0xBF];
+        with_bom.extend_from_slice(b"<svg></svg>");
+        assert!(is_svg_bytes(&with_bom));
+    }
+
+    #[test]
+    fn real_png_not_treated_as_svg() {
+        assert!(!is_svg_bytes(PNG_MAGIC));
+        let mut png = PNG_MAGIC.to_vec();
+        png.extend_from_slice(&[0u8; 64]);
+        assert!(!is_svg_bytes(&png));
+        assert!(!is_svg_bytes(b"just plain text no markup"));
+    }
+
+    /// 复现核心攻击面:contentType:"image/png" 包裹含 <script> 的 SVG 字节。
+    /// detect_* 因 hint 提前返回 image/png,但生产代码用 `|| is_svg_bytes(..)` 兜底,
+    /// 仍会触发扫描并拒绝。本测试断言这条组合判定与扫描结果。
+    #[test]
+    fn png_hint_does_not_skip_svg_scan() {
+        let svg_with_script = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
+
+        // hint=image/png 时 detect 返回 image/png(被信任),单看它不会判为 svg。
+        let detected =
+            detect_exported_asset_mime(svg_with_script, Some("image/png")).unwrap();
+        assert_eq!(detected, "image/png");
+
+        // 但字节嗅探仍识别为 SVG,生产代码据此触发扫描。
+        let should_scan = detected == "image/svg+xml" || is_svg_bytes(svg_with_script);
+        assert!(should_scan, "svg-shaped bytes must be scanned despite png hint");
+
+        // 扫描必须拒绝带 <script> 的内容。
+        assert!(util::scan_svg_for_active_content(svg_with_script).is_err());
+    }
+
+    #[test]
+    fn real_png_bytes_not_scanned_as_svg() {
+        let mut png = PNG_MAGIC.to_vec();
+        png.extend_from_slice(&[0u8; 64]);
+        let detected = detect_exported_asset_mime(&png, Some("image/png")).unwrap();
+        let should_scan = detected == "image/svg+xml" || is_svg_bytes(&png);
+        assert!(!should_scan, "real png must not be scanned as svg");
     }
 }
