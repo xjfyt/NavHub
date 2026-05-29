@@ -141,16 +141,47 @@ async fn wallpaper_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
             Err(e) => tracing::warn!("wallpaper source query failed: {e}"),
         }
         // Clean up expired wallpapers — keep this small and batched for the same
-        // reason as audit_log.
-        let _ = sqlx::query(
+        // reason as audit_log. DATA-7: RETURNING storage_key/thumbnail_key 后清理 S3,
+        // 否则过期壁纸的视频/缩略图对象会永远滞留在桶里(孤儿 blob)。
+        expire_wallpapers(&state, &shutdown).await;
+    }
+}
+
+/// DATA-7: 分批删除过期 remote_wallpapers,并清理其 S3 对象。每批 5000 行,
+/// RETURNING 对象 key 后调用 delete_objects;删空即停。对象删失败仅告警,不阻塞
+/// 数据库清理(残留对象下次仍会被孤儿 GC / 重新统计兜底,但行已删干净)。
+async fn expire_wallpapers(state: &Arc<AppState>, shutdown: &AtomicBool) {
+    loop {
+        if shutdown.load(Ordering::Relaxed) {
+            break;
+        }
+        let rows: Result<Vec<(Option<String>, Option<String>)>, _> = sqlx::query_as(
             "DELETE FROM remote_wallpapers WHERE id IN (\
                 SELECT id FROM remote_wallpapers \
                 WHERE expires_at IS NOT NULL AND expires_at < now() \
                 LIMIT 5000\
-            )",
+            ) RETURNING storage_key, thumbnail_key",
         )
-        .execute(&state.pg)
+        .fetch_all(&state.pg)
         .await;
+        match rows {
+            Ok(r) if r.is_empty() => break,
+            Ok(r) => {
+                let keys = wallpapers::collect_wallpaper_keys(
+                    r.iter().map(|(s, t)| (s.as_deref(), t.as_deref())),
+                );
+                if !keys.is_empty() {
+                    if let Err(e) = state.storage.delete_objects(&keys).await {
+                        tracing::warn!("expired wallpaper S3 cleanup failed: {e}");
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(e) => {
+                tracing::warn!("expired wallpaper cleanup batch failed: {e}");
+                break;
+            }
+        }
     }
 }
 

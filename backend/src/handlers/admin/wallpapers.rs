@@ -144,11 +144,59 @@ pub async fn delete_source(
     Path(id): Path<Uuid>,
 ) -> AppResult<StatusCode> {
     require_at_least_admin(user.role)?;
+    // DATA-7: 删除来源会 CASCADE 掉其 remote_wallpapers,但 S3 blob 不会随之消失。
+    // 删行前先采集该来源所有壁纸的 storage_key / thumbnail_key,删行后批量清理对象。
+    let keys: Vec<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT storage_key, thumbnail_key FROM remote_wallpapers WHERE source_id = $1",
+    )
+    .bind(id)
+    .fetch_all(&state.pg)
+    .await
+    .unwrap_or_default();
+
     sqlx::query("DELETE FROM wallpaper_sources WHERE id = $1")
         .bind(id)
         .execute(&state.pg)
         .await?;
+
+    let objects = collect_wallpaper_keys(keys.iter().map(|(s, t)| (s.as_deref(), t.as_deref())));
+    if !objects.is_empty() {
+        if let Err(e) = state.storage.delete_objects(&objects).await {
+            tracing::warn!("failed to delete S3 objects for wallpaper source {id}: {e}");
+        }
+    }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// DATA-7: 把 (storage_key, thumbnail_key) 序列里非空的 key 收成去重后的删除列表。
+/// 纯逻辑,可单测。manual:// 等非 S3 来源不会进 storage_key,这里只处理真实对象 key。
+pub fn collect_wallpaper_keys<'a, I>(rows: I) -> Vec<String>
+where
+    I: IntoIterator<Item = (Option<&'a str>, Option<&'a str>)>,
+{
+    let mut keys: Vec<String> = Vec::new();
+    for (sk, tk) in rows {
+        for k in [sk, tk].into_iter().flatten() {
+            let k = k.trim();
+            if !k.is_empty() {
+                keys.push(k.to_string());
+            }
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
+/// DATA-7: 删除单张壁纸对应的 S3 对象(视频/图片 + 缩略图)。尽力而为:失败仅告警。
+async fn delete_wallpaper_objects(storage: &Storage, storage_key: Option<&str>, thumb_key: Option<&str>) {
+    let keys = collect_wallpaper_keys([(storage_key, thumb_key)]);
+    if keys.is_empty() {
+        return;
+    }
+    if let Err(e) = storage.delete_objects(&keys).await {
+        tracing::warn!("failed to delete wallpaper S3 objects: {e}");
+    }
 }
 
 pub async fn trigger_fetch(
@@ -274,11 +322,18 @@ pub async fn delete_wallpaper(
     require_at_least_admin(user.role)?;
     // API-3: 删除壁纸后,被影响来源的 total_fetched 必须随之回算,否则计数只增不减。
     // 用 RETURNING source_id 拿到归属来源,再按 COUNT 重算(最稳妥,避免计数漂移)。
-    let source_id: Option<Uuid> =
-        sqlx::query_scalar("DELETE FROM remote_wallpapers WHERE id = $1 RETURNING source_id")
-            .bind(id)
-            .fetch_optional(&state.pg)
-            .await?;
+    // DATA-7: 同时 RETURNING storage_key / thumbnail_key,删行后清理对应 S3 blob,
+    // 否则视频/缩略图对象会永远滞留在桶里。
+    let deleted: Option<(Option<Uuid>, Option<String>, Option<String>)> = sqlx::query_as(
+        "DELETE FROM remote_wallpapers WHERE id = $1 RETURNING source_id, storage_key, thumbnail_key",
+    )
+    .bind(id)
+    .fetch_optional(&state.pg)
+    .await?;
+    let source_id = deleted.as_ref().and_then(|(sid, _, _)| *sid);
+    if let Some((_, sk, tk)) = &deleted {
+        delete_wallpaper_objects(&state.storage, sk.as_deref(), tk.as_deref()).await;
+    }
     if let Some(sid) = source_id {
         sqlx::query(
             "UPDATE wallpaper_sources
@@ -689,5 +744,57 @@ fn ext_from_content_type(content_type: &str, url: &str) -> &'static str {
         "image/webp" => "webp",
         "image/gif" => "gif",
         _ => "bin",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collects_storage_and_thumb_keys() {
+        let rows = [
+            (Some("wallpapers/remote/a.mp4"), Some("wallpapers/remote/thumbs/a.jpg")),
+            (Some("wallpapers/remote/b.mp4"), None),
+        ];
+        let keys = collect_wallpaper_keys(rows);
+        assert_eq!(
+            keys,
+            vec![
+                "wallpapers/remote/a.mp4".to_string(),
+                "wallpapers/remote/b.mp4".to_string(),
+                "wallpapers/remote/thumbs/a.jpg".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn skips_none_and_blank_keys() {
+        let rows = [
+            (None, None),
+            (Some(""), Some("   ")),
+            (Some("  wallpapers/remote/c.mp4  "), None),
+        ];
+        let keys = collect_wallpaper_keys(rows);
+        assert_eq!(keys, vec!["wallpapers/remote/c.mp4".to_string()]);
+    }
+
+    #[test]
+    fn dedups_repeated_keys() {
+        let rows = [
+            (Some("wallpapers/remote/x.mp4"), Some("shared.jpg")),
+            (Some("wallpapers/remote/x.mp4"), Some("shared.jpg")),
+        ];
+        let keys = collect_wallpaper_keys(rows);
+        assert_eq!(
+            keys,
+            vec!["shared.jpg".to_string(), "wallpapers/remote/x.mp4".to_string()]
+        );
+    }
+
+    #[test]
+    fn empty_input_yields_empty() {
+        let rows: [(Option<&str>, Option<&str>); 0] = [];
+        assert!(collect_wallpaper_keys(rows).is_empty());
     }
 }
