@@ -61,12 +61,34 @@ async fn apply_migrations(pool: &PgPool) -> anyhow::Result<()> {
         .collect();
 
     if let Err(problems) = check_migration_integrity(&on_disk, &recorded) {
-        let summary = problems.join("; ");
+        // 区分两类问题并差异化处置,避免合法的迁移改名/编辑阻断生产升级:
+        //   - 重复版本号:同一 version 对应多个磁盘文件,属无歧义的仓库损坏,生产 FAIL;
+        //   - checksum 不一致:已应用迁移文件被事后编辑/改名(如本仓库历史 029 改名),
+        //     默认仅 warn 以保证升级部署不被阻断;设 NAVHUB_MIGRATION_STRICT=1 可升级为 FAIL。
+        let (dups, mismatches): (Vec<String>, Vec<String>) = problems
+            .into_iter()
+            .partition(|p| p.starts_with("duplicate on-disk migration version"));
         let dev = is_dev_migration_mode();
-        if dev {
-            tracing::warn!("migration integrity check found issues (dev mode, continuing): {summary}");
-        } else {
-            anyhow::bail!("migration integrity check failed: {summary}");
+        let strict = std::env::var("NAVHUB_MIGRATION_STRICT").ok().as_deref() == Some("1");
+
+        if !dups.is_empty() {
+            let summary = dups.join("; ");
+            if dev {
+                tracing::warn!("migration duplicate-version issues (dev mode, continuing): {summary}");
+            } else {
+                anyhow::bail!("migration integrity check failed (duplicate versions): {summary}");
+            }
+        }
+
+        if !mismatches.is_empty() {
+            let summary = mismatches.join("; ");
+            if strict && !dev {
+                anyhow::bail!("migration checksum mismatch (NAVHUB_MIGRATION_STRICT=1): {summary}");
+            } else {
+                tracing::warn!(
+                    "migration checksum mismatch (continuing; set NAVHUB_MIGRATION_STRICT=1 to enforce): {summary}"
+                );
+            }
         }
     }
 
