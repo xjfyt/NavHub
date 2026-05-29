@@ -8,14 +8,20 @@ services:
       # 容器内应用监听 8088(见 config 的 [server].port);两侧须一致,否则访问不到。
       - "8088:8088"
     environment:
-      # NEVER ship a default password in a public manifest. Set these via a local
-      # `.env` next to this file, or in your orchestrator's secret store. The
-      # build will refuse to come up if any of them are empty.
+      # 切勿在公开清单里硬编码默认密码。下列变量从同目录 `.env` 注入(见 .env.example),
+      # 或交由编排器的密钥存储管理;任一为空则启动即失败(`:?`)。
       - NAVHUB__DATABASE__HOST=postgres
       - NAVHUB__DATABASE__USER=${PG_USER:?PG_USER must be set}
       - NAVHUB__DATABASE__PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set}
       - NAVHUB__DATABASE__DATABASE=${PG_DATABASE:?PG_DATABASE must be set}
       - NAVHUB__REDIS__HOST=redis
+    # OPS-9 资源限额(compose v2 `up` 原生支持的非 swarm 形式),防单容器吃满宿主。
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    # 禁止进程通过 setuid 提权,纵深防御。
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,6 +37,10 @@ services:
       - POSTGRES_DB=${PG_DATABASE:?PG_DATABASE must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    mem_limit: 512m
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${PG_USER}"]
       interval: 10s
@@ -42,11 +52,33 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    mem_limit: 256m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+# OPS-12 多副本迁移竞态:应用启动时会执行迁移(幂等:已存在的版本跳过,并做完整性
+# 校验)。单实例部署无需额外处理。若要把 navhub 扩到多副本,推荐"单迁移者"模式——
+# 先用一个一次性服务跑完迁移,再启动应用副本,避免多个副本同时建表/插入竞态:
+#
+#   migrate:
+#     build: .
+#     command: ["./navhub", "--migrate-only"]   # 待后端支持该入口(见下方说明)
+#     environment: [ ... 同 navhub 的 DB 变量 ... ]
+#     depends_on:
+#       postgres: { condition: service_healthy }
+#   navhub:
+#     depends_on:
+#       migrate: { condition: service_completed_successfully }
+#
+# 说明:后端当前在常规启动路径内执行迁移,尚无 `--migrate-only`/`NAVHUB_SKIP_MIGRATIONS`
+# 入口(属后续源码改造项)。在补齐之前,多副本首次上线新迁移时,先将副本数缩到 1
+# 完成迁移、再扩容,即可规避竞态。详见 docs/11-backup-restore.md 与 docs/08-deployment.md。
 
 volumes:
   postgres_data:
