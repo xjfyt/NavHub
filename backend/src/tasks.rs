@@ -31,6 +31,7 @@ impl BackgroundHandles {
             tokio::spawn(audit_cleanup_loop(state.clone(), shutdown.clone())),
             tokio::spawn(wallpaper_loop(state.clone(), shutdown.clone())),
             tokio::spawn(icon_loop(state.clone(), shutdown.clone())),
+            tokio::spawn(system_message_cleanup_loop(state.clone(), shutdown.clone())),
         ];
         Self { handles, shutdown }
     }
@@ -106,6 +107,58 @@ async fn audit_cleanup_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
         }
         if total > 0 {
             tracing::info!("audit cleanup: removed {total} rows");
+        }
+    }
+}
+
+/// DATA-2: 每批删除多少行过期 system_messages。与 audit_log 同理用 5000 行小批,
+/// 避免一次性 DELETE 在 system_messages 上长时间持有锁拖住消息读写。
+const MESSAGE_CLEANUP_BATCH: i64 = 5_000;
+
+/// DATA-2: 把配置/调用方给的批大小夹到 [1, MESSAGE_CLEANUP_BATCH],杜绝 0(死循环
+/// 永远删不动)或负数/超大值。纯函数,可单测。
+fn clamp_cleanup_batch(requested: i64) -> i64 {
+    requested.clamp(1, MESSAGE_CLEANUP_BATCH)
+}
+
+/// DATA-2: 过期 system_messages 此前从不清理 → 表无界增长,且 message_reads 留下
+/// 孤儿行。新增每日一次的后台清理:分 5000 行小批删除已过期消息(expires_at < now()),
+/// message_reads 因 ON DELETE CASCADE 随之清理;删空即停,支持优雅关停。
+async fn system_message_cleanup_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
+    let day = Duration::from_secs(86_400);
+    while sleep_or_shutdown(day, &shutdown).await {
+        tracing::info!("system message cleanup: purging expired messages");
+        let batch = clamp_cleanup_batch(MESSAGE_CLEANUP_BATCH);
+        let mut total: u64 = 0;
+        loop {
+            if shutdown.load(Ordering::Relaxed) {
+                break;
+            }
+            let res = sqlx::query(
+                "DELETE FROM system_messages WHERE id IN (\
+                    SELECT id FROM system_messages \
+                    WHERE expires_at IS NOT NULL AND expires_at < now() \
+                    ORDER BY expires_at ASC \
+                    LIMIT $1\
+                )",
+            )
+            .bind(batch)
+            .execute(&state.pg)
+            .await;
+            match res {
+                Ok(r) if r.rows_affected() == 0 => break,
+                Ok(r) => {
+                    total += r.rows_affected();
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                }
+                Err(e) => {
+                    tracing::warn!("system message cleanup batch failed: {e}");
+                    break;
+                }
+            }
+        }
+        if total > 0 {
+            tracing::info!("system message cleanup: removed {total} expired messages");
         }
     }
 }
@@ -223,5 +276,31 @@ async fn icon_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
         )
         .execute(&state.pg)
         .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // DATA-2: 批大小夹取逻辑。
+    #[test]
+    fn clamp_batch_floors_zero_and_negative() {
+        assert_eq!(clamp_cleanup_batch(0), 1);
+        assert_eq!(clamp_cleanup_batch(-100), 1);
+        assert_eq!(clamp_cleanup_batch(i64::MIN), 1);
+    }
+
+    #[test]
+    fn clamp_batch_caps_oversized() {
+        assert_eq!(clamp_cleanup_batch(10_000), MESSAGE_CLEANUP_BATCH);
+        assert_eq!(clamp_cleanup_batch(i64::MAX), MESSAGE_CLEANUP_BATCH);
+    }
+
+    #[test]
+    fn clamp_batch_keeps_in_range() {
+        assert_eq!(clamp_cleanup_batch(1), 1);
+        assert_eq!(clamp_cleanup_batch(2_500), 2_500);
+        assert_eq!(clamp_cleanup_batch(MESSAGE_CLEANUP_BATCH), MESSAGE_CLEANUP_BATCH);
     }
 }
