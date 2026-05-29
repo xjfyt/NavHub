@@ -23,6 +23,7 @@ import type {
   IconAssetSourceView,
   AdminPaginatedIconAssets,
 } from "./types";
+import { withTimeoutSignal } from "./utils/abortTimeout";
 
 export interface WeatherHour {
   h: string;
@@ -77,12 +78,30 @@ async function request<T>(
       headers.set("content-type", "application/json");
     }
   }
-  const res = await fetch(path, {
-    credentials: "include",
-    ...init,
-    cache: init.cache ?? "no-store",
-    headers,
-  });
+  // FE-1: 给每个请求套上超时 + 取消。把内部超时信号与调用方传入的
+  // init.signal(如组件卸载时的 AbortController)合并,任一触发即中止 fetch,
+  // 避免后端挂起时 UI 永久卡死。
+  const { signal, cleanup, didTimeout } = withTimeoutSignal(15_000, init.signal);
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      credentials: "include",
+      ...init,
+      signal,
+      cache: init.cache ?? "no-store",
+      headers,
+    });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      if (didTimeout()) {
+        throw new ApiError(0, "timeout", "请求超时");
+      }
+      throw new ApiError(0, "aborted", "请求已取消");
+    }
+    throw e;
+  } finally {
+    cleanup();
+  }
   if (res.status === 401) {
     throw new ApiError(401, "unauthorized", "unauthorized");
   }
