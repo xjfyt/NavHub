@@ -2,7 +2,7 @@ use crate::{
     auth::require_at_least_admin,
     error::{AppError, AppResult},
     handlers::util,
-    models::{AdminMessageRow, Role, SessionUser},
+    models::{AdminMessageRow, SessionUser},
     state::AppState,
 };
 use axum::{
@@ -194,31 +194,23 @@ async fn validate_target(
     state: &Arc<AppState>,
     body: &CreateMessage,
 ) -> AppResult<(String, Option<String>, Option<Uuid>)> {
-    match body.target_type.trim() {
-        "all" => Ok(("all".into(), None, None)),
-        "role" => {
-            let role = body
-                .target_role
-                .as_deref()
-                .and_then(Role::from_str)
-                .ok_or_else(|| AppError::BadRequest("invalid target role".into()))?;
-            Ok(("role".into(), Some(role.as_str().to_string()), None))
+    // API-1: 复用 util 中的纯校验逻辑,确保 target_type 与 role/user 字段一致;
+    // 用户存在性需触库,留在此处补做。
+    let (target_type, target_role, target_user_id) = util::validate_push_target(
+        &body.target_type,
+        body.target_role.as_deref(),
+        body.target_user_id,
+    )?;
+    if let Some(uid) = target_user_id {
+        let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE id = $1")
+            .bind(uid)
+            .fetch_optional(&state.pg)
+            .await?;
+        if exists.is_none() {
+            return Err(AppError::BadRequest("target user not found".into()));
         }
-        "user" => {
-            let uid = body
-                .target_user_id
-                .ok_or_else(|| AppError::BadRequest("target user is required".into()))?;
-            let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE id = $1")
-                .bind(uid)
-                .fetch_optional(&state.pg)
-                .await?;
-            if exists.is_none() {
-                return Err(AppError::BadRequest("target user not found".into()));
-            }
-            Ok(("user".into(), None, Some(uid)))
-        }
-        _ => Err(AppError::BadRequest("invalid target type".into())),
     }
+    Ok((target_type, target_role, target_user_id))
 }
 
 fn normalize_link(link: Option<&str>) -> AppResult<Option<String>> {

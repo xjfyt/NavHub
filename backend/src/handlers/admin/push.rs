@@ -36,14 +36,32 @@ pub async fn push(
     Json(payload): Json<PushRequest>,
 ) -> AppResult<StatusCode> {
     require_at_least_admin(user.role)?;
+
+    // API-1: 校验 target_type 与 role/user 字段的一致性,复用系统消息同款校验逻辑。
+    let (target_type, target_role, target_user_id) = util::validate_push_target(
+        &payload.target_type,
+        payload.target_role.as_deref(),
+        payload.target_user_id,
+    )?;
+    // target_type=user 时进一步确认目标用户存在(与系统消息一致)。
+    if let Some(uid) = target_user_id {
+        let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM users WHERE id = $1")
+            .bind(uid)
+            .fetch_optional(&state.pg)
+            .await?;
+        if exists.is_none() {
+            return Err(AppError::BadRequest("target user not found".into()));
+        }
+    }
+
     let g: Group = sqlx::query_as(
         "UPDATE groups SET pushed = TRUE, push_target_type = $2, push_target_role = $3, push_target_user_id = $4, push_allow_edit = $5, updated_at = now() \
          WHERE id = $1 RETURNING *",
     )
     .bind(id)
-    .bind(payload.target_type)
-    .bind(payload.target_role)
-    .bind(payload.target_user_id)
+    .bind(target_type)
+    .bind(target_role)
+    .bind(target_user_id)
     .bind(payload.push_allow_edit.unwrap_or(false))
     .fetch_optional(&state.pg)
     .await?

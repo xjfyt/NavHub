@@ -1,10 +1,68 @@
 use crate::{
-    models::{Group, SessionUser},
+    error::{AppError, AppResult},
+    models::{Group, Role, SessionUser},
     state::AppState,
 };
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// API-1: 校验推送/系统消息的目标 (target_type, role, user) 三元组的一致性。
+/// 这是一个纯函数,便于单元测试,被 push 与系统消息两处复用。
+///
+/// 规则:
+///   - target_type=all  → 不允许携带 role 或 user_id
+///   - target_type=role → 必须给出合法 role,且不允许携带 user_id
+///   - target_type=user → 必须给出 user_id,且不允许携带 role
+///   - 其他 target_type  → 非法
+///
+/// 返回归一化后的 (target_type, role, user_id);user_id 是否真实存在由调用方
+/// 在数据库层另行校验(本函数不触库)。
+pub fn validate_push_target(
+    target_type: &str,
+    target_role: Option<&str>,
+    target_user_id: Option<Uuid>,
+) -> AppResult<(String, Option<String>, Option<Uuid>)> {
+    match target_type.trim() {
+        "all" => {
+            if target_role.map(str::trim).filter(|v| !v.is_empty()).is_some() {
+                return Err(AppError::BadRequest(
+                    "target_type=all must not include a role".into(),
+                ));
+            }
+            if target_user_id.is_some() {
+                return Err(AppError::BadRequest(
+                    "target_type=all must not include a user".into(),
+                ));
+            }
+            Ok(("all".into(), None, None))
+        }
+        "role" => {
+            if target_user_id.is_some() {
+                return Err(AppError::BadRequest(
+                    "target_type=role must not include a user".into(),
+                ));
+            }
+            let role = target_role
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .and_then(Role::from_str)
+                .ok_or_else(|| AppError::BadRequest("invalid target role".into()))?;
+            Ok(("role".into(), Some(role.as_str().to_string()), None))
+        }
+        "user" => {
+            if target_role.map(str::trim).filter(|v| !v.is_empty()).is_some() {
+                return Err(AppError::BadRequest(
+                    "target_type=user must not include a role".into(),
+                ));
+            }
+            let uid = target_user_id
+                .ok_or_else(|| AppError::BadRequest("target user is required".into()))?;
+            Ok(("user".into(), None, Some(uid)))
+        }
+        _ => Err(AppError::BadRequest("invalid target type".into())),
+    }
+}
 
 pub async fn audit(
     state: &Arc<AppState>,
@@ -195,5 +253,68 @@ mod tests {
         let u = session(uid, Role::User);
         let g = pushed_group("user", None, Some(uid), false);
         assert!(!group_writable_by(&g, &u));
+    }
+
+    // API-1: 推送/系统消息目标一致性校验
+    #[test]
+    fn validate_push_target_all_ok() {
+        let (t, r, u) = validate_push_target("all", None, None).unwrap();
+        assert_eq!(t, "all");
+        assert!(r.is_none());
+        assert!(u.is_none());
+    }
+
+    #[test]
+    fn validate_push_target_all_rejects_role_or_user() {
+        assert!(validate_push_target("all", Some("user"), None).is_err());
+        assert!(validate_push_target("all", None, Some(Uuid::new_v4())).is_err());
+    }
+
+    #[test]
+    fn validate_push_target_role_ok() {
+        let (t, r, u) = validate_push_target("role", Some("admin"), None).unwrap();
+        assert_eq!(t, "role");
+        assert_eq!(r.as_deref(), Some("admin"));
+        assert!(u.is_none());
+    }
+
+    #[test]
+    fn validate_push_target_role_requires_valid_role() {
+        // 缺失 role
+        assert!(validate_push_target("role", None, None).is_err());
+        // 空白 role
+        assert!(validate_push_target("role", Some("  "), None).is_err());
+        // 非法 role 值
+        assert!(validate_push_target("role", Some("bogus"), None).is_err());
+    }
+
+    #[test]
+    fn validate_push_target_role_rejects_user() {
+        assert!(validate_push_target("role", Some("admin"), Some(Uuid::new_v4())).is_err());
+    }
+
+    #[test]
+    fn validate_push_target_user_ok() {
+        let uid = Uuid::new_v4();
+        let (t, r, u) = validate_push_target("user", None, Some(uid)).unwrap();
+        assert_eq!(t, "user");
+        assert!(r.is_none());
+        assert_eq!(u, Some(uid));
+    }
+
+    #[test]
+    fn validate_push_target_user_requires_user_id() {
+        assert!(validate_push_target("user", None, None).is_err());
+    }
+
+    #[test]
+    fn validate_push_target_user_rejects_role() {
+        assert!(validate_push_target("user", Some("admin"), Some(Uuid::new_v4())).is_err());
+    }
+
+    #[test]
+    fn validate_push_target_unknown_type_rejected() {
+        assert!(validate_push_target("everyone", None, None).is_err());
+        assert!(validate_push_target("", None, None).is_err());
     }
 }
