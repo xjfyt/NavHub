@@ -430,23 +430,38 @@ export function WorkspaceProvider({
 
   const addCustomEngine = useCallback(
     async (input: { name: string; url: string; color?: string; label?: string }) => {
-      const arr = await api.addEngine(input);
-      setWorkspace((ws) => ({
-        ...ws,
-        preferences: { ...ws.preferences, customEngines: arr },
-      }));
+      // FE-7: 增加错误处理。调用方(TweaksPanel)依赖 reject 来区分成功/失败,
+      // 因此这里在弹出 toast 后必须 re-throw,保持其 .then/.catch 分支正确。
+      try {
+        const arr = await api.addEngine(input);
+        setWorkspace((ws) => ({
+          ...ws,
+          preferences: { ...ws.preferences, customEngines: arr },
+        }));
+      } catch (e) {
+        console.error("addCustomEngine failed", e);
+        toast.error("添加搜索引擎失败");
+        throw e;
+      }
     },
     [],
   );
 
   const deleteCustomEngine = useCallback(
     async (id: string) => {
-      await api.deleteEngine(id);
-      const arr = await api.listEngines();
-      setWorkspace((ws) => ({
-        ...ws,
-        preferences: { ...ws.preferences, customEngines: arr },
-      }));
+      // FE-7: 该方法被 fire-and-forget 调用,无 .catch,失败前会静默丢失。
+      // 包裹 try/catch 并弹出 toast,避免删除失败无任何反馈。
+      try {
+        await api.deleteEngine(id);
+        const arr = await api.listEngines();
+        setWorkspace((ws) => ({
+          ...ws,
+          preferences: { ...ws.preferences, customEngines: arr },
+        }));
+      } catch (e) {
+        console.error("deleteCustomEngine failed", e);
+        toast.error("删除搜索引擎失败");
+      }
     },
     [],
   );
