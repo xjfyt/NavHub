@@ -365,7 +365,7 @@ async fn export_image_asset(
     state: &Arc<AppState>,
     image_url: Option<&str>,
 ) -> Option<ExportedAssetData> {
-    let key = upload_key_from_url(image_url?)?;
+    let key = crate::storage::key_from_stored_value(image_url?)?;
     match state.storage.get_bytes(&key).await {
         Ok((bytes, content_type)) => {
             let digest = Sha256::digest(&bytes);
@@ -447,31 +447,6 @@ async fn materialize_exported_asset(
     .await?;
 
     Ok(Some(url))
-}
-
-fn upload_key_from_url(url: &str) -> Option<String> {
-    let trimmed = url.trim();
-    if let Some(rest) = trimmed.strip_prefix("/uploads/") {
-        return clean_upload_key(rest);
-    }
-    if let Ok(parsed) = url::Url::parse(trimmed) {
-        if let Some(rest) = parsed.path().strip_prefix("/uploads/") {
-            return clean_upload_key(rest);
-        }
-    }
-    None
-}
-
-fn clean_upload_key(value: &str) -> Option<String> {
-    let key = value
-        .trim_start_matches('/')
-        .split(['?', '#'])
-        .next()?
-        .trim();
-    if key.is_empty() || key.contains("..") || key.contains('\\') {
-        return None;
-    }
-    Some(key.to_string())
 }
 
 fn detect_exported_asset_mime(bytes: &[u8], hinted: Option<&str>) -> AppResult<String> {

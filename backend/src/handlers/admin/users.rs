@@ -140,11 +140,45 @@ pub async fn delete(
     if matches!(victim.role_enum(), Role::Superadmin) {
         return Err(AppError::Forbidden("cannot_delete_superadmin"));
     }
+
+    // DATA-3: 隐私/合规 —— 删除用户前先收集其 S3 对象(头像 + 该用户上传的图标 blob),
+    // 删行后再清理对象,否则它们会永远滞留在桶里。仅删可识别为我们 /uploads/ 命名空间
+    // 的对象;外链头像(如 OIDC 提供的 gravatar)key_from_stored_value 返回 None 自动跳过。
+    // 先采集 key,因为 DELETE users 会 CASCADE 掉相关行(library_icons.uploader_id 为
+    // ON DELETE SET NULL,所以这里在删行前查;查不到/失败都不应阻塞用户删除)。
+    let mut s3_keys: Vec<String> = Vec::new();
+    if let Some(av) = victim.avatar_url.as_deref() {
+        if let Some(k) = crate::storage::key_from_stored_value(av) {
+            s3_keys.push(k);
+        }
+    }
+    let owned_urls: Vec<(String,)> =
+        sqlx::query_as("SELECT url FROM library_icons WHERE uploader_id = $1")
+            .bind(id)
+            .fetch_all(&state.pg)
+            .await
+            .unwrap_or_default();
+    for (url,) in owned_urls {
+        if let Some(k) = crate::storage::key_from_stored_value(&url) {
+            s3_keys.push(k);
+        }
+    }
+
     sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(id)
         .execute(&state.pg)
         .await?;
-        
+
+    // S3 清理是尽力而为:对象删失败不回滚用户删除(用户已删是更重要的合规结果),
+    // 残留对象由 DATA-4 的孤儿 GC 兜底。去重避免重复 key。
+    if !s3_keys.is_empty() {
+        s3_keys.sort();
+        s3_keys.dedup();
+        if let Err(e) = state.storage.delete_objects(&s3_keys).await {
+            tracing::warn!("failed to delete S3 objects for user {id}: {e}");
+        }
+    }
+
     let _ = crate::auth::session::clear_all_user_sessions(&state, id).await;
     util::audit(
         &state,
