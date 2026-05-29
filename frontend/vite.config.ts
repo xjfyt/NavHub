@@ -23,24 +23,24 @@ export default defineConfig({
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom"],
-          // Markdown editor: heavy and only needed when the markdown widget
-          // mounts.
-          milkdown: [
-            "@milkdown/core",
-            "@milkdown/ctx",
-            "@milkdown/preset-commonmark",
-            "@milkdown/preset-gfm",
-            "@milkdown/prose",
-            "@milkdown/react",
-            "@milkdown/transformer",
-            "@milkdown/plugin-history",
-            "@milkdown/plugin-listener",
-          ],
-          // sonner is needed at first paint (App.tsx mounts <Toaster />),
-          // so it stays in its own small always-loaded chunk.
-          ui: ["sonner"],
+        // PERF-6: 用函数形式的 manualChunks,把「任意」@milkdown/* 包(含
+        // 直接依赖与 ctx/transformer/prose 等传递依赖,以及未来可能新增的
+        // 子包)都收进独立的 milkdown chunk。MarkdownWidget 已是 React.lazy
+        // 动态导入,故该 ~454KB chunk 不进入入口 / 不在首屏 HTML 中预加载,
+        // 仅在笔记编辑器真正挂载时按需拉取。函数式写法比白名单更稳健,杜绝
+        // 漏列子包导致重型编辑器代码悄悄回流进入口 bundle。
+        manualChunks(id) {
+          if (id.includes("node_modules/@milkdown/")) return "milkdown";
+          // ProseMirror 是 Milkdown 的底层依赖,同样只在编辑器内用到。
+          if (id.includes("node_modules/prosemirror-")) return "milkdown";
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/")
+          ) {
+            return "vendor";
+          }
+          // sonner 在首屏即需(App.tsx 挂载 <Toaster />),保持独立小 chunk。
+          if (id.includes("node_modules/sonner/")) return "ui";
         },
       },
     },
