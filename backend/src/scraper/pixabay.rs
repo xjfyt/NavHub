@@ -11,8 +11,8 @@ pub struct PixabayScraper {
 
 impl PixabayScraper {
     pub fn new() -> Result<Self> {
-        // INFRA-8: 构造失败向上传播,不再 unwrap_or_default 静默退化。
-        let client = super::build_scraper_client("NavHub/1.0")?;
+        // QUAL-7: 复用进程级共享 NavHub/1.0 客户端(共用连接池);构造失败仍向上传播。
+        let client = super::default_client()?;
         Ok(Self { client })
     }
 }

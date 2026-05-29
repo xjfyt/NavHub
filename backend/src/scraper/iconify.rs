@@ -12,11 +12,16 @@ struct IconifyCollection {
     categories: Option<HashMap<String, Vec<String>>>,
 }
 
-pub struct IconifyScraper;
+pub struct IconifyScraper {
+    client: reqwest::Client,
+}
 
 impl IconifyScraper {
-    pub fn new() -> Self {
-        Self
+    pub fn new() -> Result<Self> {
+        // QUAL-7: 此前在 scrape() 里每次现场 build 客户端(绕过集中 builder)。Iconify 用
+        // NavHub/1.0 UA,故复用进程级共享 default_client(共用连接池);构造失败向上传播。
+        let client = super::default_client()?;
+        Ok(Self { client })
     }
 }
 
@@ -24,13 +29,8 @@ impl IconifyScraper {
 impl IconScraper for IconifyScraper {
     async fn scrape(&self, site_url: &str, _batch_size: usize) -> Result<Vec<ScrapedIconAsset>> {
         let mut all_icons = Vec::new();
-        // INFRA-1: 此前用 reqwest::Client::new() 无任何超时,慢/恶意主机可让任务无限挂起。
-        // 改为带连接超时(10s)与整体请求超时(30s)的客户端。
-        let client = reqwest::Client::builder()
-            .user_agent("NavHub/1.0")
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
+        // QUAL-7: 复用 new() 中构造好的共享客户端,而非每次 scrape 现场重建。
+        let client = &self.client;
 
         // Allow multiple urls separated by comma, space or newline
         for url_str in site_url.split(|c| c == '\n' || c == ',' || c == ' ') {

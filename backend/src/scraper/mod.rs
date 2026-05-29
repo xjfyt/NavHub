@@ -9,6 +9,7 @@ pub mod wallhaven;
 pub mod wikimedia;
 
 use anyhow::Result;
+use std::sync::OnceLock;
 
 /// INFRA-8: 此前各爬虫在 new() 里用 `build().unwrap_or_default()` 构造客户端,
 /// 一旦构建失败(如 TLS 后端初始化错误)会被静默吞掉、退化成一个无超时、无 UA 的
@@ -20,6 +21,27 @@ pub(crate) fn build_scraper_client(user_agent: &str) -> reqwest::Result<reqwest:
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(30))
         .build()
+}
+
+/// QUAL-7: 大多数爬虫(nasa/unsplash/wallhaven/pexels/pixabay/iconify)都用同一个
+/// `NavHub/1.0` UA 的客户端。INFRA-8 已把构造收敛到 `build_scraper_client`,但每个
+/// 爬虫在 `new()` 里仍各建一个独立 `reqwest::Client`(各自维护连接池)。这里再进一步:
+/// 用进程级 `OnceLock` 复用单个共享客户端,既统一配置又共用连接池,避免重复构建。
+///
+/// `reqwest::Client` 内部是 `Arc`,clone 仅计数 +1。构造失败时返回 `Err` 向上传播,
+/// 绝不退化成无超时的默认客户端(沿用 INFRA-8 的语义)。
+pub(crate) const DEFAULT_SCRAPER_USER_AGENT: &str = "NavHub/1.0";
+
+pub(crate) fn default_client() -> reqwest::Result<reqwest::Client> {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    if let Some(c) = CLIENT.get() {
+        return Ok(c.clone());
+    }
+    // 首次构造可能失败(TLS 后端初始化等)——失败不写入 OnceLock,向上传播错误,
+    // 留待下次再试;成功则缓存并复用。
+    let built = build_scraper_client(DEFAULT_SCRAPER_USER_AGENT)?;
+    // 与并发首次构造竞争时,以先写入者为准,统一复用同一个实例。
+    Ok(CLIENT.get_or_init(|| built).clone())
 }
 
 #[derive(Debug, Clone)]
@@ -138,7 +160,7 @@ pub fn get_scraper(scraper_type: &str) -> Result<Box<dyn Scraper>> {
     // INFRA-8: 构造失败时向上传播,而非静默退化成默认客户端。
     Ok(match scraper_type {
         "builtin" => Box::new(BuiltinScraper),
-        "bing" => Box::new(bing::BingScraper::new()),
+        "bing" => Box::new(bing::BingScraper::new()?),
         "desktophut" => Box::new(desktophut::DesktopHutScraper::new()?),
         "wikimedia" => Box::new(wikimedia::WikimediaScraper::new()?),
         "nasa" => Box::new(nasa::NasaScraper::new()?),
@@ -162,9 +184,11 @@ pub trait IconScraper: Send + Sync {
     async fn scrape(&self, site_url: &str, batch_size: usize) -> Result<Vec<ScrapedIconAsset>>;
 }
 
-pub fn get_icon_scraper(scraper_type: &str) -> Box<dyn IconScraper> {
-    match scraper_type {
-        "iconify" => Box::new(iconify::IconifyScraper::new()),
-        _ => Box::new(iconify::IconifyScraper::new()),
-    }
+pub fn get_icon_scraper(scraper_type: &str) -> Result<Box<dyn IconScraper>> {
+    // QUAL-7: IconifyScraper::new() 现经集中 builder 构造客户端,可能失败,向上传播
+    // 而非静默退化(与 get_scraper 一致)。
+    Ok(match scraper_type {
+        "iconify" => Box::new(iconify::IconifyScraper::new()?),
+        _ => Box::new(iconify::IconifyScraper::new()?),
+    })
 }

@@ -244,7 +244,7 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &IconAssetSource) -> anyho
 
     tracing::info!("fetching icons from source '{}' ({})", source.name, source.site_url);
 
-    let scraper = get_icon_scraper(&source.scraper_type);
+    let scraper = get_icon_scraper(&source.scraper_type)?;
     let scraped = scraper.scrape(&source.site_url, source.fetch_batch_size as usize).await?;
 
     tracing::info!("scraped {} icons, downloading...", scraped.len());

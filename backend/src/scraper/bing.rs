@@ -3,11 +3,18 @@ use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashSet;
 
-pub struct BingScraper;
+pub struct BingScraper {
+    client: reqwest::Client,
+}
 
 impl BingScraper {
-    pub fn new() -> Self {
-        Self
+    pub fn new() -> Result<Self> {
+        // QUAL-7: 此前在 scrape() 里每次现场 build 客户端(且绕过集中 builder)。改为
+        // 在 new() 里经集中 builder 构造一次并复用(连接超时 10s、整体 30s)。Bing 需要
+        // 浏览器 UA,不能共用 NavHub/1.0 的 default_client。构造失败向上传播。
+        let client =
+            super::build_scraper_client("Mozilla/5.0 (compatible; NavHub/1.0)")?;
+        Ok(Self { client })
     }
 }
 
@@ -30,12 +37,8 @@ struct BingImage {
 #[async_trait::async_trait]
 impl Scraper for BingScraper {
     async fn scrape(&self, site_url: &str, batch_size: usize) -> Result<Vec<ScrapedWallpaper>> {
-        let client = reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (compatible; NavHub/1.0)")
-            // INFRA-1: 增加连接超时,避免慢/恶意主机拖住建连阶段。
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(std::time::Duration::from_secs(30))
-            .build()?;
+        // QUAL-7: 复用 new() 中构造好的共享客户端,而非每次 scrape 现场重建。
+        let client = &self.client;
 
         // Bing HPImageArchive returns at most 8 images per request. Recent
         // behavior clamps high idx values to the oldest public window, so page
