@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Editor, rootCtx, defaultValueCtx, editorViewOptionsCtx, prosePluginsCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
@@ -6,18 +6,11 @@ import { listener, listenerCtx } from "@milkdown/plugin-listener";
 import { history } from "@milkdown/plugin-history";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { linkSanitizerPlugin } from "./markdownSanitize";
+import { deriveTitle, formatDate, plainPreview, type Note } from "./markdownNote";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { Icon } from "../components/Icon";
 import { confirmDialog } from "../components/Dialogs";
 import type { WidgetProps } from "./types";
-
-interface Note {
-  id: string;
-  title: string;
-  color: string;
-  content: string;
-  updatedAt: number;
-}
 
 interface MarkdownConfig {
   notes?: Note[];
@@ -46,38 +39,29 @@ function pickColor(notes: Note[]) {
   return free ?? COLOR_PALETTE[notes.length % COLOR_PALETTE.length];
 }
 
-function deriveTitle(content: string, fallback = "未命名笔记") {
-  const firstLine = content.split(/\n/).find((l) => l.trim().length > 0);
-  if (!firstLine) return fallback;
-  return firstLine.replace(/^#{1,6}\s+/, "").replace(/[*_`>]/g, "").trim().slice(0, 32) || fallback;
-}
-
-function formatDate(ts: number) {
-  const d = new Date(ts);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) {
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-  }
-  const sameYear = d.getFullYear() === now.getFullYear();
-  return sameYear
-    ? `${d.getMonth() + 1}月${d.getDate()}日`
-    : `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-function plainPreview(content: string, limit = 80) {
-  return content
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/[*_`>#]/g, "")
-    .replace(/!\[.*?\]\(.*?\)/g, "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/```[\s\S]*?```/g, "「代码」")
-    .replace(/\n+/g, " ")
-    .trim()
-    .slice(0, limit);
-}
-
 // ===== TILE =====
+
+/**
+ * PERF-5: 磁贴单行。React.memo + 内部 useMemo 让 title/preview 仅在该条
+ * 笔记内容变化时重算,而非整列每次渲染都对每条重算 plainPreview。
+ */
+const TileNoteRow = memo(function TileNoteRow({ note }: { note: Note }) {
+  const title = useMemo(
+    () => note.title || deriveTitle(note.content),
+    [note.title, note.content],
+  );
+  const preview = useMemo(() => plainPreview(note.content), [note.content]);
+  return (
+    <li className="md-note-row">
+      <span className="md-note-accent" style={{ background: note.color }} />
+      <div className="md-note-body">
+        <div className="md-note-title">{title}</div>
+        {preview && <div className="md-note-preview muted">{preview}</div>}
+      </div>
+      <span className="md-note-date muted mono">{formatDate(note.updatedAt)}</span>
+    </li>
+  );
+});
 
 export const MarkdownWidget = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
   const { config } = useWidgetConfig<MarkdownConfig>(w, DEFAULTS);
@@ -103,20 +87,9 @@ export const MarkdownWidget = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
         </div>
       ) : (
         <ul className="md-notes-list tile">
-          {visible.map((n) => {
-            const preview = plainPreview(n.content);
-            const title = n.title || deriveTitle(n.content);
-            return (
-              <li key={n.id} className="md-note-row">
-                <span className="md-note-accent" style={{ background: n.color }} />
-                <div className="md-note-body">
-                  <div className="md-note-title">{title}</div>
-                  {preview && <div className="md-note-preview muted">{preview}</div>}
-                </div>
-                <span className="md-note-date muted mono">{formatDate(n.updatedAt)}</span>
-              </li>
-            );
-          })}
+          {visible.map((n) => (
+            <TileNoteRow key={n.id} note={n} />
+          ))}
         </ul>
       )}
     </div>
@@ -162,6 +135,110 @@ const MilkdownEditor = ({ initial, onChange }: MilkdownEditorProps) => {
   );
 };
 
+/**
+ * PERF-5: 详情侧栏单行。memo + useMemo,只有该条内容/激活态变化时才重渲染、
+ * 才重算 title/preview。回调以 id 形式上抛,父级回调引用保持稳定。
+ */
+interface SideNoteRowProps {
+  note: Note;
+  isActive: boolean;
+  onSelect: (id: string) => void;
+  onCycleColor: (id: string) => void;
+  onDelete: (id: string, title: string) => void;
+}
+
+const SideNoteRow = memo(function SideNoteRow({
+  note,
+  isActive,
+  onSelect,
+  onCycleColor,
+  onDelete,
+}: SideNoteRowProps) {
+  const title = useMemo(
+    () => note.title || deriveTitle(note.content),
+    [note.title, note.content],
+  );
+  const preview = useMemo(() => plainPreview(note.content, 60), [note.content]);
+  return (
+    <li
+      className={"md-note-row" + (isActive ? " active" : "")}
+      onClick={() => onSelect(note.id)}
+    >
+      <button
+        className="md-note-accent-btn"
+        style={{ background: note.color }}
+        title="切换颜色"
+        onClick={(e) => {
+          e.stopPropagation();
+          onCycleColor(note.id);
+        }}
+      />
+      <div className="md-note-body">
+        <div className="md-note-title">{title}</div>
+        <div className="md-note-sub muted">
+          <span>{formatDate(note.updatedAt)}</span>
+          {preview && <span className="md-note-dot">·</span>}
+          {preview && <span className="md-note-preview-inline">{preview}</span>}
+        </div>
+      </div>
+      <button
+        className="md-note-del"
+        title="删除笔记"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(note.id, title);
+        }}
+      >
+        <Icon name="close" size={12} />
+      </button>
+    </li>
+  );
+});
+
+/**
+ * PERF-5: 侧栏列表整体抽成 memo 组件。它只依赖 filtered/activeId 与一组
+ * 稳定回调——编辑器输入引起的「无关」重渲染不会穿透到这里;反之列表交互
+ * 也不重渲染编辑器(见 MarkdownDetail 里编辑器被独立隔离)。
+ */
+interface NoteSideListProps {
+  filtered: Note[];
+  activeId: string | undefined;
+  query: string;
+  onSelect: (id: string) => void;
+  onCycleColor: (id: string) => void;
+  onDelete: (id: string, title: string) => void;
+}
+
+const NoteSideList = memo(function NoteSideList({
+  filtered,
+  activeId,
+  query,
+  onSelect,
+  onCycleColor,
+  onDelete,
+}: NoteSideListProps) {
+  return (
+    <ul className="md-notes-list detail">
+      {filtered.length === 0 ? (
+        <li className="md-notes-empty-side muted">
+          {query ? "没有匹配的笔记" : "点击 + 新建笔记"}
+        </li>
+      ) : (
+        filtered.map((n) => (
+          <SideNoteRow
+            key={n.id}
+            note={n}
+            isActive={n.id === activeId}
+            onSelect={onSelect}
+            onCycleColor={onCycleColor}
+            onDelete={onDelete}
+          />
+        ))
+      )}
+    </ul>
+  );
+});
+
 export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
   const { config, replace } = useWidgetConfig<MarkdownConfig>(w, DEFAULTS);
   const notes = config.notes ?? [];
@@ -188,59 +265,90 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
       : sorted[0]?.id;
   const active = notes.find((n) => n.id === activeId);
 
+  // 始终读取最新 config 的 ref,让下方回调引用保持稳定(不随 notes 变化重建),
+  // 从而 memo 化的列表/行不会因父级回调身份变化而无谓重渲染。
+  const configRef = useRef(config);
+  configRef.current = config;
+
   const commit = useCallback(
     (next: MarkdownConfig) => {
-      replace({ ...config, ...next });
+      replace({ ...configRef.current, ...next });
     },
-    [config, replace],
+    [replace],
   );
 
-  const addNote = () => {
+  const addNote = useCallback(() => {
+    const cur = configRef.current.notes ?? [];
     const id = genId();
     const now = Date.now();
     const note: Note = {
       id,
       title: "",
-      color: pickColor(notes),
+      color: pickColor(cur),
       content: "",
       updatedAt: now,
     };
-    commit({ notes: [note, ...notes], activeId: id });
-  };
+    commit({ notes: [note, ...cur], activeId: id });
+  }, [commit]);
 
-  const deleteNote = (id: string) => {
-    const next = notes.filter((n) => n.id !== id);
-    const nextActive =
-      config.activeId === id ? next[0]?.id : config.activeId;
-    commit({ notes: next, activeId: nextActive });
-  };
+  const deleteNote = useCallback(
+    (id: string) => {
+      const cur = configRef.current.notes ?? [];
+      const next = cur.filter((n) => n.id !== id);
+      const nextActive =
+        configRef.current.activeId === id ? next[0]?.id : configRef.current.activeId;
+      commit({ notes: next, activeId: nextActive });
+    },
+    [commit],
+  );
 
-  const setActive = (id: string) => {
-    commit({ activeId: id });
-  };
+  const setActive = useCallback(
+    (id: string) => {
+      commit({ activeId: id });
+    },
+    [commit],
+  );
 
-  const cycleColor = (id: string) => {
-    const n = notes.find((x) => x.id === id);
-    if (!n) return;
-    const idx = COLOR_PALETTE.indexOf(n.color);
-    const nextColor = COLOR_PALETTE[(idx + 1) % COLOR_PALETTE.length];
-    commit({
-      notes: notes.map((x) => (x.id === id ? { ...x, color: nextColor } : x)),
-    });
-  };
+  const cycleColor = useCallback(
+    (id: string) => {
+      const cur = configRef.current.notes ?? [];
+      const n = cur.find((x) => x.id === id);
+      if (!n) return;
+      const idx = COLOR_PALETTE.indexOf(n.color);
+      const nextColor = COLOR_PALETTE[(idx + 1) % COLOR_PALETTE.length];
+      commit({
+        notes: cur.map((x) => (x.id === id ? { ...x, color: nextColor } : x)),
+      });
+    },
+    [commit],
+  );
 
+  const confirmDelete = useCallback(
+    async (id: string, title: string) => {
+      if (await confirmDialog(`删除「${title}」？`, undefined, { danger: true })) {
+        deleteNote(id);
+      }
+    },
+    [deleteNote],
+  );
+
+  // UX-16 自动保存:编辑器每次 markdownUpdated 都把全文写回当前激活笔记。
+  // 用 activeId(而非 active 对象)作为依赖,保证引用稳定、不在每次按键
+  // 触发的 notes 变更后重建 onChange,从而不重挂编辑器。
   const updateContent = useCallback(
     (md: string) => {
-      if (!active) return;
+      const cur = configRef.current;
+      const curNotes = cur.notes ?? [];
+      if (!activeId || !curNotes.some((x) => x.id === activeId)) return;
       const title = deriveTitle(md, "");
-      const next = notes.map((x) =>
-        x.id === active.id
+      const next = curNotes.map((x) =>
+        x.id === activeId
           ? { ...x, content: md, title, updatedAt: Date.now() }
           : x,
       );
-      replace({ ...config, notes: next });
+      replace({ ...cur, notes: next });
     },
-    [active, notes, config, replace],
+    [activeId, replace],
   );
 
   return (
@@ -260,54 +368,14 @@ export const MarkdownDetail = ({ w }: WidgetProps<MarkdownConfig> = {}) => {
             <Icon name="plus" size={14} />
           </button>
         </div>
-        <ul className="md-notes-list detail">
-          {filtered.length === 0 ? (
-            <li className="md-notes-empty-side muted">
-              {query ? "没有匹配的笔记" : "点击 + 新建笔记"}
-            </li>
-          ) : (
-            filtered.map((n) => {
-              const title = n.title || deriveTitle(n.content);
-              const preview = plainPreview(n.content, 60);
-              const isActive = n.id === activeId;
-              return (
-                <li
-                  key={n.id}
-                  className={"md-note-row" + (isActive ? " active" : "")}
-                  onClick={() => setActive(n.id)}
-                >
-                  <button
-                    className="md-note-accent-btn"
-                    style={{ background: n.color }}
-                    title="切换颜色"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      cycleColor(n.id);
-                    }}
-                  />
-                  <div className="md-note-body">
-                    <div className="md-note-title">{title}</div>
-                    <div className="md-note-sub muted">
-                      <span>{formatDate(n.updatedAt)}</span>
-                      {preview && <span className="md-note-dot">·</span>}
-                      {preview && <span className="md-note-preview-inline">{preview}</span>}
-                    </div>
-                  </div>
-                  <button
-                    className="md-note-del"
-                    title="删除笔记"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (await confirmDialog(`删除「${title}」？`, undefined, { danger: true })) deleteNote(n.id);
-                    }}
-                  >
-                    <Icon name="close" size={12} />
-                  </button>
-                </li>
-              );
-            })
-          )}
-        </ul>
+        <NoteSideList
+          filtered={filtered}
+          activeId={activeId}
+          query={query}
+          onSelect={setActive}
+          onCycleColor={cycleColor}
+          onDelete={confirmDelete}
+        />
       </aside>
       <section className="md-notes-main">
         {active ? (
