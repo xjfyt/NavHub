@@ -12,7 +12,11 @@ pub async fn connect(cfg: &DatabaseConfig) -> anyhow::Result<PgPool> {
     ensure_database(cfg).await?;
 
     let mut opts = PgConnectOptions::from_str(&cfg.dsn())?;
-    opts = opts.log_statements(tracing::log::LevelFilter::Debug);
+    // DATA-1: 关闭 SQLx 语句日志。在 Debug 级别它会打印 SQL 文本及绑定参数,
+    // 可能泄露密码 hash、邮箱等 PII;慢查询日志同样含参数,一并关闭。
+    opts = opts
+        .log_statements(tracing::log::LevelFilter::Off)
+        .log_slow_statements(tracing::log::LevelFilter::Off, Duration::from_secs(0));
 
     let pool = PgPoolOptions::new()
         .max_connections(cfg.max_connections)
