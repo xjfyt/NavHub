@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 import type { GroupView } from "../types";
@@ -25,6 +25,12 @@ export function AddCategoryModal({
   const [name, setName] = useState(initial?.name ?? "");
   const [icon, setIcon] = useState(initial?.icon ?? "grid");
 
+  // UX-29: 表单提交(Enter 或点主按钮)统一走这里,空名称不提交。
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) onSave({ name: name.trim(), icon });
+  };
+
   return (
     <Modal
       onClose={onClose}
@@ -42,6 +48,7 @@ export function AddCategoryModal({
             <Icon name="close" size={18} />
           </button>
         </div>
+        <form onSubmit={submit} style={{ display: "contents" }}>
         <div className="modal-body">
           <div className="field">
             <label>分组名称</label>
@@ -74,14 +81,14 @@ export function AddCategoryModal({
             取消
           </button>
           <button
-            type="button"
+            type="submit"
             className="pill-btn primary"
-            onClick={() => name.trim() && onSave({ name: name.trim(), icon })}
           >
             <Icon name="check" size={14} />
             {isEdit ? "保存" : "添加"}
           </button>
         </div>
+        </form>
     </Modal>
   );
 }

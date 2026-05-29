@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type FormEvent } from "react";
 import {
   GroupView,
   IconFontSize,
@@ -269,7 +269,9 @@ export function AddIconModal({
     (sourceMode !== "url" || !!selectedAutoImageUrl) &&
     (sourceMode !== "library" || !!librarySelectedUrl);
 
-  const submit = () => {
+  const submit = (e?: FormEvent) => {
+    // UX-29: 既作为表单 onSubmit(Enter),也作为主按钮 onClick。
+    e?.preventDefault();
     if (!canSave) return;
     onSave({
       groupId,
@@ -324,8 +326,9 @@ export function AddIconModal({
           </button>
         </div>
 
+        <form onSubmit={submit} style={{ display: 'contents' }}>
         <div className="wcc-body" style={{ padding: '32px', display: 'grid', gridTemplateColumns: 'minmax(240px, 1.1fr) 2fr', gap: '32px', alignItems: 'start', overflowY: 'auto' }}>
-          
+
           {/* LEFT: Preview & Visuals */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ 
@@ -613,11 +616,12 @@ export function AddIconModal({
                <Icon name="chevron-down" size={12} color="var(--text-soft)" />
              </div>
           </div>
-          <button className="wcc-btn-cancel" onClick={onClose}>取消</button>
-          <button className={"wcc-btn-add" + (canSave ? "" : " disabled")} onClick={submit}>
+          <button type="button" className="wcc-btn-cancel" onClick={onClose}>取消</button>
+          <button type="submit" className={"wcc-btn-add" + (canSave ? "" : " disabled")}>
              保存图标
           </button>
         </div>
+        </form>
     </Modal>
   );
 }
