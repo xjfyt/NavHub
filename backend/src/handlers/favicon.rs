@@ -379,15 +379,55 @@ async fn cache_and_return(
     Ok(image_response(bytes, mime))
 }
 
+/// INFRA-9: 用真实文件魔数(magic bytes)校验下载到的图标确实是图片,
+/// 而不是仅凭 content-type/长度这种可被上游谎报的弱信号。
+/// - 二进制图片(png/jpeg/gif/webp/ico/bmp 等):交给 `infer` 按魔数识别。
+/// - SVG:本质是 text/xml,`infer` 不会识别,这里显式按文本特征判定。
+/// - HTML 错误页 / 任意垃圾字节:一律拒绝。
 fn is_valid_icon(bytes: &[u8]) -> bool {
-    if bytes.len() < 64 {
+    if bytes.len() < 4 {
         return false;
     }
-    let prefix = &bytes[..bytes.len().min(16)];
-    if prefix.starts_with(b"<!DOCTYPE") || prefix.starts_with(b"<html") || prefix.starts_with(b"<!") {
-        return false;
+    // 二进制图片:魔数命中即接受(infer 的 is_image 覆盖 png/jpeg/gif/webp/ico/bmp/tiff 等)。
+    if infer::is_image(bytes) {
+        return true;
     }
-    true
+    // SVG / XML 文本:infer 识别不了文本格式,显式处理。
+    is_svg_bytes(bytes)
+}
+
+/// INFRA-9: SVG 是文本(text/xml),没有二进制魔数,显式按文本特征识别。
+/// 跳过 UTF-8 BOM 和前导空白后,要么直接是 `<svg`,要么是 `<?xml` 声明后跟 svg 根。
+fn is_svg_bytes(bytes: &[u8]) -> bool {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let trimmed = trim_ascii_ws_start(bytes);
+    if trimmed.starts_with(b"<svg") {
+        return true;
+    }
+    if trimmed.starts_with(b"<?xml") {
+        // XML 声明开头:在前面一段内容里找 "<svg",避免把任意 XML 当成图标。
+        let scan_len = trimmed.len().min(512);
+        return find_subslice(&trimmed[..scan_len], b"<svg").is_some();
+    }
+    false
+}
+
+fn trim_ascii_ws_start(mut bytes: &[u8]) -> &[u8] {
+    while let [first, rest @ ..] = bytes {
+        if first.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
+fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 fn detect_mime(bytes: &[u8]) -> &'static str {
@@ -532,5 +572,58 @@ mod tests {
         assert_eq!(snap_icon_size(257), 256);
         assert_eq!(snap_icon_size(9999), 256);
         assert_eq!(snap_icon_size(u16::MAX), 256);
+    }
+
+    // INFRA-9: 用魔数校验真实图片。
+    #[test]
+    fn valid_icon_accepts_png_magic() {
+        // PNG 签名 + 一点 IHDR 填充。
+        let mut png = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        png.extend_from_slice(&[0u8; 16]);
+        assert!(is_valid_icon(&png));
+    }
+
+    #[test]
+    fn valid_icon_accepts_gif_jpeg_ico_webp() {
+        // GIF89a
+        let mut gif = b"GIF89a".to_vec();
+        gif.extend_from_slice(&[0u8; 8]);
+        assert!(is_valid_icon(&gif));
+        // JPEG SOI + APP0
+        assert!(is_valid_icon(&[0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0]));
+        // ICO: 00 00 01 00
+        assert!(is_valid_icon(&[0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0, 0]));
+        // WEBP: RIFF....WEBP
+        let webp = [
+            b'R', b'I', b'F', b'F', 0x1A, 0, 0, 0, b'W', b'E', b'B', b'P', b'V', b'P', b'8', b' ',
+        ];
+        assert!(is_valid_icon(&webp));
+    }
+
+    #[test]
+    fn valid_icon_accepts_svg_text() {
+        assert!(is_valid_icon(br#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#));
+        assert!(is_valid_icon(
+            br#"<?xml version="1.0"?><svg width="16"></svg>"#
+        ));
+        // 带 BOM + 前导空白
+        assert!(is_valid_icon(b"\xEF\xBB\xBF  \n<svg></svg>"));
+    }
+
+    #[test]
+    fn valid_icon_rejects_html_and_garbage() {
+        assert!(!is_valid_icon(
+            b"<!DOCTYPE html><html><body>404</body></html>"
+        ));
+        assert!(!is_valid_icon(b"<html><head></head></html>"));
+        assert!(!is_valid_icon(
+            b"not an image at all, just plain text bytes here"
+        ));
+        // 太短
+        assert!(!is_valid_icon(b"ab"));
+        // 普通 XML 但不是 svg
+        assert!(!is_valid_icon(
+            br#"<?xml version="1.0"?><rss><channel></channel></rss>"#
+        ));
     }
 }
