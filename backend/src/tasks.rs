@@ -352,22 +352,24 @@ async fn wallpaper_loop(state: Arc<AppState>, shutdown: Arc<AtomicBool>) {
 /// delete_wallpaper 不一致)。改为 RETURNING source_id 收集受影响来源,删完后按
 /// COUNT 逐源重算,与手动删除路径保持一致。
 async fn expire_wallpapers(state: &Arc<AppState>, shutdown: &AtomicBool) {
+    // (source_id, storage_key, thumbnail_key) —— DELETE ... RETURNING 的行类型,
+    // 抽成别名以满足 clippy::type_complexity。
+    type ExpiredWallpaperRow = (Option<uuid::Uuid>, Option<String>, Option<String>);
     let mut affected_sources: std::collections::HashSet<uuid::Uuid> =
         std::collections::HashSet::new();
     loop {
         if shutdown.load(Ordering::Relaxed) {
             break;
         }
-        let rows: Result<Vec<(Option<uuid::Uuid>, Option<String>, Option<String>)>, _> =
-            sqlx::query_as(
-                "DELETE FROM remote_wallpapers WHERE id IN (\
+        let rows: Result<Vec<ExpiredWallpaperRow>, _> = sqlx::query_as(
+            "DELETE FROM remote_wallpapers WHERE id IN (\
                 SELECT id FROM remote_wallpapers \
                 WHERE expires_at IS NOT NULL AND expires_at < now() \
                 LIMIT 5000\
             ) RETURNING source_id, storage_key, thumbnail_key",
-            )
-            .fetch_all(&state.pg)
-            .await;
+        )
+        .fetch_all(&state.pg)
+        .await;
         match rows {
             Ok(r) if r.is_empty() => break,
             Ok(r) => {

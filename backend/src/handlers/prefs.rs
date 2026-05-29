@@ -25,10 +25,12 @@ pub async fn get_prefs(
 /// 字段的 scheme,任一不合法即拒绝整次更新。非数组/缺 url 字段时放行(交由上层兜底)。
 fn custom_engines_schemes_ok(engines: &Value) -> bool {
     match engines.as_array() {
-        Some(arr) => arr.iter().all(|e| match e.get("url").and_then(Value::as_str) {
-            Some(url) => engine_url_scheme_ok(url),
-            None => true,
-        }),
+        Some(arr) => arr
+            .iter()
+            .all(|e| match e.get("url").and_then(Value::as_str) {
+                Some(url) => engine_url_scheme_ok(url),
+                None => true,
+            }),
         None => true,
     }
 }
@@ -241,7 +243,9 @@ mod tests {
         assert!(!custom_engines_schemes_ok(&bad));
 
         // 缺 url 字段的项放行;非数组放行。
-        assert!(custom_engines_schemes_ok(&serde_json::json!([{"name": "x"}])));
+        assert!(custom_engines_schemes_ok(
+            &serde_json::json!([{"name": "x"}])
+        ));
         assert!(custom_engines_schemes_ok(&serde_json::json!({})));
     }
 }

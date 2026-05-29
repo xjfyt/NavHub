@@ -541,7 +541,9 @@ mod tests {
 
     #[test]
     fn detects_svg_shaped_bytes() {
-        assert!(is_svg_bytes(b"<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"));
+        assert!(is_svg_bytes(
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>"
+        ));
         assert!(is_svg_bytes(
             b"<?xml version=\"1.0\"?>\n<svg><script>alert(1)</script></svg>"
         ));
@@ -567,16 +569,19 @@ mod tests {
     /// 仍会触发扫描并拒绝。本测试断言这条组合判定与扫描结果。
     #[test]
     fn png_hint_does_not_skip_svg_scan() {
-        let svg_with_script = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
+        let svg_with_script =
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
 
         // hint=image/png 时 detect 返回 image/png(被信任),单看它不会判为 svg。
-        let detected =
-            detect_exported_asset_mime(svg_with_script, Some("image/png")).unwrap();
+        let detected = detect_exported_asset_mime(svg_with_script, Some("image/png")).unwrap();
         assert_eq!(detected, "image/png");
 
         // 但字节嗅探仍识别为 SVG,生产代码据此触发扫描。
         let should_scan = detected == "image/svg+xml" || is_svg_bytes(svg_with_script);
-        assert!(should_scan, "svg-shaped bytes must be scanned despite png hint");
+        assert!(
+            should_scan,
+            "svg-shaped bytes must be scanned despite png hint"
+        );
 
         // 扫描必须拒绝带 <script> 的内容。
         assert!(util::scan_svg_for_active_content(svg_with_script).is_err());
