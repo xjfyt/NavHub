@@ -118,7 +118,7 @@ export const SearchBar = () => {
         <>
           <div className="engine-backdrop" onClick={()=>setPickerOpen(false)}/>
           <div className="engine-grid-pop" onClick={e=>e.stopPropagation()}>
-            <div className="engine-grid" ref={gridRef} role="menu" aria-label="选择搜索引擎" onKeyDown={onGridKeyDown}>
+            <div className="engine-grid" ref={gridRef} role="menu" tabIndex={-1} aria-label="选择搜索引擎" onKeyDown={onGridKeyDown}>
               {Object.values(allEngines).map((v) => (
                 <button key={v.id} type="button" role="menuitemradio" aria-checked={v.id===engineKey} aria-label={v.name} className={"engine-tile "+(v.id===engineKey?"active":"")} onClick={()=>{ updateTweaks({ searchEngine: v.id }); setPickerOpen(false);}}>
                   <div className="wt-logo-tile lg"><EngineLogo engine={v} size={30}/></div>

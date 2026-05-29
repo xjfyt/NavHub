@@ -215,6 +215,7 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
       <div
         className="prog"
         role="slider"
+        tabIndex={0}
         aria-label="播放进度"
         aria-valuemin={0}
         aria-valuemax={Math.round(dur)}
@@ -259,6 +260,8 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
           />
         </div>
       )}
+      {/* 纯音乐播放器,无语音内容,字幕轨(track）不适用。 */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <audio
         ref={audioRef}
         onTimeUpdate={(e) => { if (!seeking) setPos(e.currentTarget.currentTime); }}

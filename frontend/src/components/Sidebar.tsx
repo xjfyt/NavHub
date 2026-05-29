@@ -113,7 +113,7 @@ export const Sidebar = ({
                     e.currentTarget.classList.add("group-receive-pulse");
                     window.setTimeout(() => e.currentTarget?.classList.remove("group-receive-pulse"), 520);
                   }
-                } catch (err) {}
+                } catch {}
               }
               setDragId(null);
             }}

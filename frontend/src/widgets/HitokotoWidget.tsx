@@ -123,7 +123,7 @@ export const HitokotoDetail = ({ w }: WidgetProps<HitokotoConfig> = {}) => {
       setError("一言加载失败，已显示离线文案");
     } finally { setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [config.type]);
+  useEffect(() => { load();   }, [config.type]);
   return (
     <div style={{ display: "grid", gap: 20, padding: "20px 0" }}>
       {data ? (

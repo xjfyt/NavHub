@@ -94,6 +94,7 @@ export const UserMenu = ({
         ref={menuRef}
         className="user-menu glass-strong"
         role="menu"
+        tabIndex={-1}
         aria-label="用户菜单"
         onClick={e=>e.stopPropagation()}
         onContextMenu={e=>e.stopPropagation()}
@@ -126,7 +127,7 @@ export const UserMenu = ({
         </div>
         <div className="user-menu-items">
           {items.map((it, i) => it.divider ? <div key={i} className="ctx-divider" role="separator"/> :
-            <button key={i} type="button" role="menuitem" className={"ctx-item "+(it.danger?"danger":"")} onClick={() => { it.onClick && it.onClick(); onClose(); }}>
+            <button key={i} type="button" role="menuitem" className={"ctx-item "+(it.danger?"danger":"")} onClick={() => { it.onClick?.(); onClose(); }}>
               <Icon name={it.icon} size={14}/><span>{it.label}</span>
             </button>
           )}

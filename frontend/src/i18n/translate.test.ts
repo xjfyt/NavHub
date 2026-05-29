@@ -58,7 +58,7 @@ describe("translate", () => {
   it("未知语言:整门语言不存在 -> 回退语言 -> key", () => {
     // @ts-expect-error 故意传入未注册的语言代码
     expect(translate(dicts, "fr", "common.save")).toBe("保存"); // 回退 zh
-    // @ts-expect-error 同上
+    // @ts-expect-error 同上:故意传入未注册的语言代码
     expect(translate(dicts, "fr", "no.key")).toBe("no.key");
   });
 

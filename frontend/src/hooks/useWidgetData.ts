@@ -101,7 +101,7 @@ export function useWidgetData<T>(
 
   const refresh = useCallback(() => {
     void run(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [run]);
 
   useEffect(() => {

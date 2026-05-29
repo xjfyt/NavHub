@@ -159,7 +159,7 @@ export function WorkspaceProvider({
     if (latestRef.current.isGuest) {
       try {
         window.localStorage.setItem("navhub_guest_tweaks", JSON.stringify(nextTweaks));
-      } catch (e) {}
+      } catch {}
       return;
     }
     try {
@@ -202,8 +202,8 @@ export function WorkspaceProvider({
     (groupId: string, items: { id: string; type: "icon" | "widget"; x: number | null; y: number | null }[]) => {
       if (latestRef.current.isGuest) return;
       setWorkspace((s) => {
-        let icons = [...s.icons];
-        let widgets = [...s.widgets];
+        const icons = [...s.icons];
+        const widgets = [...s.widgets];
         items.forEach((it, idx) => {
           if (it.type === "icon") {
             const idxIcon = icons.findIndex((i) => i.id === it.id);

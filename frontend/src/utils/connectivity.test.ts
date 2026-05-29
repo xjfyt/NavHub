@@ -56,7 +56,7 @@ describe("connectivityReducer", () => {
   });
 
   it("浏览器离线时即便后端 ok 也判离线", () => {
-    let s: ConnectivityState = { online: false, backend: "reachable" };
+    const s: ConnectivityState = { online: false, backend: "reachable" };
     expect(selectBanner(s)?.kind).toBe("offline");
   });
 

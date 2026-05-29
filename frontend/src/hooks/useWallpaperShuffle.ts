@@ -17,7 +17,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     try {
       const cached = window.localStorage.getItem("navhub_last_wallpaper");
       if (cached) return JSON.parse(cached);
-    } catch (e) {}
+    } catch {}
     return randomWallpaperPreset(null);
   });
 
@@ -25,7 +25,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     if (shufflePreset) {
       try {
         window.localStorage.setItem("navhub_last_wallpaper", JSON.stringify(shufflePreset));
-      } catch (e) {}
+      } catch {}
     }
   }, [shufflePreset]);
   const poolRef = useRef<WallpaperPreset[]>([]);

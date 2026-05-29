@@ -108,6 +108,7 @@ export function ContextMenu({
       ref={menuRef}
       className="ctx-menu"
       role="menu"
+      tabIndex={-1}
       style={pos}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={onMenuKeyDown}

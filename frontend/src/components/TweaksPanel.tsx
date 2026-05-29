@@ -961,9 +961,9 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
           <div className="tw-nav-foot">
             <div className="tw-version" style={{marginBottom: 4}}>v{__APP_VERSION__}</div>
             <div className="tw-foot-links">
-              <a href="#" onClick={(e) => { e.preventDefault(); setDocModal("terms"); }}>用户协议</a>
+              <button type="button" className="tw-foot-link" onClick={() => setDocModal("terms")}>用户协议</button>
               <span>·</span>
-              <a href="#" onClick={(e) => { e.preventDefault(); setDocModal("privacy"); }}>隐私政策</a>
+              <button type="button" className="tw-foot-link" onClick={() => setDocModal("privacy")}>隐私政策</button>
             </div>
           </div>
         </aside>
