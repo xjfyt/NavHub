@@ -23,7 +23,7 @@ import type {
   IconAssetSourceView,
   AdminPaginatedIconAssets,
 } from "./types";
-import { withTimeoutSignal } from "./utils/abortTimeout";
+import { withTimeoutSignal, DEFAULT_REQUEST_TIMEOUT_MS } from "./utils/abortTimeout";
 
 export interface WeatherHour {
   h: string;
@@ -81,7 +81,8 @@ async function request<T>(
   // FE-1: 给每个请求套上超时 + 取消。把内部超时信号与调用方传入的
   // init.signal(如组件卸载时的 AbortController)合并,任一触发即中止 fetch,
   // 避免后端挂起时 UI 永久卡死。
-  const { signal, cleanup, didTimeout } = withTimeoutSignal(15_000, init.signal);
+  // QUAL-14: 复用命名常量,避免 15s 超时这个有含义的数字散落成裸字面量。
+  const { signal, cleanup, didTimeout } = withTimeoutSignal(DEFAULT_REQUEST_TIMEOUT_MS, init.signal);
   let res: Response;
   try {
     res = await fetch(path, {

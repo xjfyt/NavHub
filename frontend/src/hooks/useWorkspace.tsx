@@ -18,12 +18,13 @@ import {
 } from "../types";
 import { api } from "../api";
 import { toast } from "sonner";
-import { createUndoQueue } from "../utils/undoQueue";
+import { createUndoQueue, DEFAULT_UNDO_DELAY_MS } from "../utils/undoQueue";
 import { reorderGroups, reorderIconsInGroup, reorderByIdList } from "../utils/reorder";
 import { WIDGET_REGISTRY, WIDGET_SIZE_DIMENSIONS, type WidgetSizeId } from "../widgets";
 
-// UX-11: 危险删除延迟落库的时长。期间用户可点「撤销」恢复。
-const UNDO_DELAY_MS = 5000;
+// UX-11 / QUAL-14: 危险删除延迟落库的时长。期间用户可点「撤销」恢复。
+// 复用 undoQueue 导出的单一事实来源,避免 5s 这个有含义的数字重复定义。
+const UNDO_DELAY_MS = DEFAULT_UNDO_DELAY_MS;
 
 // PERF-1: 拆成「数据」与「动作」两块。
 //  • WorkspaceDataContextProps —— 会随状态变化而变的数据(workspace / me / activeGroup …)。

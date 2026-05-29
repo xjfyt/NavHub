@@ -20,11 +20,19 @@ export interface TouchActivationConstraint {
   tolerance: number;
 }
 
+// QUAL-14: 把传感器激活阈值从内联字面量提为命名常量,使其含义自解释、便于统一调参。
+/** 鼠标:指针移动达到该像素数即开始拖动。 */
+export const MOUSE_ACTIVATION_DISTANCE_PX = 4;
+/** 触摸:需长按这么久(ms)才进入拖拽,避免轻点/滑动误触。 */
+export const TOUCH_LONG_PRESS_DELAY_MS = 220;
+/** 触摸:长按期间允许的手指抖动容差(px),超出则取消长按。 */
+export const TOUCH_LONG_PRESS_TOLERANCE_PX = 8;
+
 export const mouseActivationConstraint: MouseActivationConstraint = {
-  distance: 4,
+  distance: MOUSE_ACTIVATION_DISTANCE_PX,
 };
 
 export const touchActivationConstraint: TouchActivationConstraint = {
-  delay: 220,
-  tolerance: 8,
+  delay: TOUCH_LONG_PRESS_DELAY_MS,
+  tolerance: TOUCH_LONG_PRESS_TOLERANCE_PX,
 };

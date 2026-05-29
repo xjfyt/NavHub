@@ -8,6 +8,10 @@
 // 这里不直接依赖 React / 计时器以外的任何东西,setTimeout/clearTimeout 走 globalThis,
 // 既能在浏览器跑,也能在 vitest 的 fake timers 下被精确推进。
 
+// QUAL-14: 危险删除的「撤销」窗口默认时长。期间用户可点「撤销」恢复,到点才真正落库。
+// 作为单一事实来源导出,useWorkspace 等调用方复用,避免 5s 这个有含义的数字重复散落。
+export const DEFAULT_UNDO_DELAY_MS = 5000;
+
 export interface UndoEntry {
   /** 唯一标识(被删除对象的 id);相同 id 再次 schedule 会替换前一个。 */
   id: string;
@@ -20,7 +24,7 @@ export interface UndoEntry {
 }
 
 export interface UndoQueueOptions {
-  /** 自动提交的延迟,默认 5000ms。 */
+  /** 自动提交的延迟,默认 DEFAULT_UNDO_DELAY_MS(5000ms)。 */
   delayMs?: number;
 }
 
@@ -43,7 +47,7 @@ interface PendingItem {
 }
 
 export function createUndoQueue(options: UndoQueueOptions = {}): UndoQueue {
-  const delayMs = options.delayMs ?? 5000;
+  const delayMs = options.delayMs ?? DEFAULT_UNDO_DELAY_MS;
   const pending = new Map<string, PendingItem>();
 
   const clearTimer = (item: PendingItem) => {
