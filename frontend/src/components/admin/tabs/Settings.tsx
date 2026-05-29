@@ -38,6 +38,7 @@ export const AdminSettings = () => {
       const ok = await confirmDialog(
         `「${row.t}」是高风险设置。\n${row.dangerHint || row.d}\n\n确定要开启吗？`,
         "危险操作确认",
+        { danger: true },
       );
       if (!ok) return;
     }
