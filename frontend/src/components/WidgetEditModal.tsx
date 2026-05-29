@@ -51,6 +51,8 @@ export const WidgetEditModal = ({
 
   const body = (() => {
     switch (widget.widget) {
+      case "clock":
+        return <ClockEdit value={draft as ClockDraft} onChange={patch} />;
       case "weather":
         return <WeatherEdit value={draft as { city?: string }} onChange={patch} />;
       case "countdown":
@@ -74,6 +76,7 @@ export const WidgetEditModal = ({
 
   const title = useMemo(() => {
     switch (widget.widget) {
+      case "clock": return "编辑 · 时钟";
       case "weather": return "编辑 · 天气";
       case "countdown": return "编辑 · 倒计时";
       case "rss": return "编辑 · 热搜";
@@ -110,6 +113,63 @@ export const WidgetEditModal = ({
     </div>
   );
 };
+
+interface ClockDraft {
+  timeZone?: string;
+  hour12?: boolean;
+}
+
+const CLOCK_TZ_OPTIONS: { tz: string; label: string }[] = [
+  { tz: "", label: "本地" },
+  { tz: "UTC", label: "UTC" },
+  { tz: "Asia/Shanghai", label: "北京" },
+  { tz: "Asia/Tokyo", label: "东京" },
+  { tz: "America/New_York", label: "纽约" },
+  { tz: "America/Los_Angeles", label: "洛杉矶" },
+  { tz: "Europe/London", label: "伦敦" },
+  { tz: "Europe/Paris", label: "巴黎" },
+];
+
+function ClockEdit({
+  value,
+  onChange,
+}: {
+  value: ClockDraft;
+  onChange: (p: Record<string, unknown>) => void;
+}) {
+  const tz = value.timeZone ?? "";
+  const hour12 = value.hour12 ?? false;
+  return (
+    <div className="wcc-form">
+      <label className="wcc-label">时区</label>
+      <select
+        className="wcc-input"
+        value={tz}
+        onChange={(e) => onChange({ timeZone: e.target.value })}
+      >
+        {CLOCK_TZ_OPTIONS.map((z) => (
+          <option key={z.tz || "local"} value={z.tz}>{z.label}</option>
+        ))}
+      </select>
+      <label className="wcc-label" style={{ marginTop: 12 }}>时制</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          className={"wcc-btn-cancel" + (!hour12 ? " active" : "")}
+          style={{ flex: 1, background: !hour12 ? "rgba(255,255,255,0.15)" : undefined }}
+          onClick={() => onChange({ hour12: false })}
+        >24 小时制</button>
+        <button
+          className={"wcc-btn-cancel" + (hour12 ? " active" : "")}
+          style={{ flex: 1, background: hour12 ? "rgba(255,255,255,0.15)" : undefined }}
+          onClick={() => onChange({ hour12: true })}
+        >12 小时制</button>
+      </div>
+      <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+        问候语会按所选时区的当前时间显示（早上好 / 下午好 / 晚上好）。
+      </div>
+    </div>
+  );
+}
 
 function WeatherEdit({
   value,

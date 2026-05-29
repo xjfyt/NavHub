@@ -131,6 +131,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     name: "时钟",
     description: "世界时钟与本地问候，时刻保持时间敏感度。",
     defaultSize: "small",
+    editable: true,
     render: (w) => tile(<ClockWidget w={w} />),
     renderDetail: (w) => detail(<ClockDetail w={w} />),
   },
