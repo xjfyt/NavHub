@@ -32,6 +32,8 @@ impl Scraper for BingScraper {
     async fn scrape(&self, site_url: &str, batch_size: usize) -> Result<Vec<ScrapedWallpaper>> {
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (compatible; NavHub/1.0)")
+            // INFRA-1: 增加连接超时,避免慢/恶意主机拖住建连阶段。
+            .connect_timeout(std::time::Duration::from_secs(10))
             .timeout(std::time::Duration::from_secs(30))
             .build()?;
 

@@ -290,6 +290,8 @@ pub async fn run_fetch(state: &Arc<AppState>, source: &WallpaperSource) -> anyho
 
     let http = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (compatible; NavHub/1.0)")
+        // INFRA-1: 增加连接超时,避免慢/恶意主机拖住建连阶段。
+        .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_secs(120))
         // SEC-10: 禁用自动重定向,防止 302 跳到内网/云元数据绕过 SSRF 校验。
         .redirect(reqwest::redirect::Policy::none())

@@ -24,8 +24,14 @@ impl IconifyScraper {
 impl IconScraper for IconifyScraper {
     async fn scrape(&self, site_url: &str, _batch_size: usize) -> Result<Vec<ScrapedIconAsset>> {
         let mut all_icons = Vec::new();
-        let client = reqwest::Client::new();
-        
+        // INFRA-1: 此前用 reqwest::Client::new() 无任何超时,慢/恶意主机可让任务无限挂起。
+        // 改为带连接超时(10s)与整体请求超时(30s)的客户端。
+        let client = reqwest::Client::builder()
+            .user_agent("NavHub/1.0")
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
+            .build()?;
+
         // Allow multiple urls separated by comma, space or newline
         for url_str in site_url.split(|c| c == '\n' || c == ',' || c == ' ') {
             let url_str = url_str.trim();
