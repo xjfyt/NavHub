@@ -137,14 +137,28 @@ fn with_frontend(mut app: Router<Arc<AppState>>, state: &Arc<AppState>) -> Route
     app
 }
 
+/// INFRA-12: 判定是否处于开发模式。dev 构建(debug_assertions)或显式设置
+/// `NAVHUB_DEV=1` 时为真。纯函数,便于单元测试:仅在 dev 模式下才放行
+/// localhost 跨域来源,生产构建只信任配置的 public_url。
+fn is_dev_mode(debug_build: bool, navhub_dev_env: Option<&str>) -> bool {
+    debug_build || navhub_dev_env == Some("1")
+}
+
 fn with_global_layers(
     app: Router<Arc<AppState>>,
     state: &Arc<AppState>,
 ) -> Router<Arc<AppState>> {
-    let mut cors_origins = vec![
-        "http://localhost:5173".parse().unwrap(),
-        "http://127.0.0.1:5173".parse().unwrap(),
-    ];
+    let dev = is_dev_mode(
+        cfg!(debug_assertions),
+        std::env::var("NAVHUB_DEV").ok().as_deref(),
+    );
+    // INFRA-12: 生产环境只信任配置的 public_url;localhost 开发来源仅在 dev 模式放行,
+    // 避免生产部署始终允许本地源的跨域携带凭证请求。
+    let mut cors_origins: Vec<axum::http::HeaderValue> = Vec::new();
+    if dev {
+        cors_origins.push("http://localhost:5173".parse().unwrap());
+        cors_origins.push("http://127.0.0.1:5173".parse().unwrap());
+    }
     if let Ok(u) = state.cfg.server.public_url.trim_end_matches('/').parse() {
         cors_origins.push(u);
     }
@@ -217,5 +231,30 @@ async fn shutdown_signal() {
         _ = terminate => {
             tracing::info!("shutdown signal received: terminate");
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_dev_mode;
+
+    #[test]
+    fn dev_when_debug_build() {
+        // debug 构建即视为 dev,无论环境变量如何。
+        assert!(is_dev_mode(true, None));
+        assert!(is_dev_mode(true, Some("0")));
+    }
+
+    #[test]
+    fn dev_when_env_flag_set_in_release() {
+        // release 构建下,显式 NAVHUB_DEV=1 才放行。
+        assert!(is_dev_mode(false, Some("1")));
+    }
+
+    #[test]
+    fn prod_when_release_and_no_flag() {
+        assert!(!is_dev_mode(false, None));
+        assert!(!is_dev_mode(false, Some("0")));
+        assert!(!is_dev_mode(false, Some("true")));
     }
 }
