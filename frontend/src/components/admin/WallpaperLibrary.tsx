@@ -816,7 +816,19 @@ export const AdminWallpaperLibrary = () => {
             ) : sources.map((src) => (
               <tr
                 key={src.id}
-                style={{ background: selectedSourceId === src.id ? "var(--admin-border-str)" : "transparent" }}
+                // UX-10: 行此前带「选中高亮」样式却无任何点击行为(误导)。
+                // 列表本就用 selectedSourceId 驱动来源筛选,这里把整行接成
+                // 点击即按该来源筛选下方壁纸(再次点击取消),并补上指针/提示。
+                onClick={() => {
+                  const next = selectedSourceId === src.id ? null : src.id;
+                  setSelectedSourceId(next);
+                  setWallpaperPage(0);
+                }}
+                title={selectedSourceId === src.id ? "再次点击取消按此来源筛选" : "点击按此来源筛选下方壁纸"}
+                style={{
+                  background: selectedSourceId === src.id ? "var(--admin-border-str)" : "transparent",
+                  cursor: "pointer",
+                }}
               >
                 <td style={cell}>
                   <a
