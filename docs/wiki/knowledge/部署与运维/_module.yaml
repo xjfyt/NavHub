@@ -1,0 +1,63 @@
+﻿# 部署与运维模块配置
+
+module:
+  name: "部署与运维"
+  description: "NavHub的部署、运维和监控"
+  version: "1.0.0"
+  maintainer: "NavHub Team"
+
+components:
+  - name: "Docker部署"
+    description: "容器化部署方案"
+    files:
+      - "Dockerfile"
+      - "docker-compose.yaml"
+      - ".env.example"
+
+  - name: "CDN加速"
+    description: "Cloudflare CDN配置"
+    files:
+      - "docs/07-deployment/03-cdn-cloudflare.md"
+
+  - name: "备份恢复"
+    description: "数据备份和恢复"
+    files:
+      - "scripts/backup.sh"
+      - "scripts/restore.sh"
+      - "docs/07-deployment/02-backup-restore.md"
+
+  - name: "监控告警"
+    description: "健康检查和日志"
+    files:
+      - "backend/src/main.rs"
+
+  - name: "配置管理"
+    description: "环境变量和配置文件"
+    files:
+      - "config.example.toml"
+      - ".env.example"
+
+deployment_modes:
+  - "Docker Compose（推荐）"
+  - "Docker 单容器"
+  - "直接编译运行"
+
+dependencies:
+  - "Docker"
+  - "Docker Compose"
+  - "PostgreSQL 15"
+  - "Redis 7"
+
+ports:
+  application: 8088
+  postgresql: 5432
+  redis: 6379
+
+health_checks:
+  liveness: "/api/healthz"
+  readiness: "/api/readyz"
+
+backup_strategy:
+  database: "pg_dump 每日备份"
+  storage: "S3版本控制 + 跨区域复制"
+  retention: "默认保留14份"

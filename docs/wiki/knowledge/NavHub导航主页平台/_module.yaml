@@ -1,0 +1,15 @@
+module_name: "NavHub 导航主页平台"
+slug: "navhub_platform"
+description: "NavHub是一个开源、自托管的个人导航主页项目，基于Rust+React技术栈构建"
+scope:
+  - README.md
+  - config.example.toml
+  - Dockerfile
+  - docker-compose.yaml
+  - backend/Cargo.toml
+  - frontend/package.json
+sections:
+  - overview
+  - architecture_design
+  - tech_stack
+  - coding_conventions

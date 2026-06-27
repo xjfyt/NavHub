@@ -1,0 +1,72 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-06-27T16:30:00Z"
+modules:
+    "":
+        dir_name: NavHub 导航主页平台
+        title: NavHub 导航主页平台
+        scope:
+            - README.md
+            - config.example.toml
+            - Dockerfile
+            - docker-compose.yaml
+            - backend/Cargo.toml
+            - frontend/package.json
+            - docs/README.md
+            - docs/01-overview/01-introduction.md
+            - docs/01-overview/02-architecture.md
+            - docs/01-overview/03-tech-stack.md
+    backend/src/auth:
+        dir_name: 认证与权限系统
+        title: 认证与权限系统
+        scope:
+            - backend/src/auth/mod.rs
+            - backend/src/auth/casdoor.rs
+            - backend/src/auth/oidc.rs
+            - backend/src/auth/password.rs
+            - backend/src/auth/session.rs
+            - backend/src/auth/middleware.rs
+            - backend/src/auth/rate_limit.rs
+            - backend/src/handlers/auth.rs
+    backend/src/db:
+        dir_name: 数据库与存储系统
+        title: 数据库与存储系统
+        scope:
+            - backend/src/db.rs
+            - backend/src/cache.rs
+            - backend/src/storage.rs
+            - backend/src/models/
+            - backend/migrations/
+    frontend/src:
+        dir_name: 前端组件系统
+        title: 前端组件系统
+        scope:
+            - frontend/src/App.tsx
+            - frontend/src/main.tsx
+            - frontend/src/api.ts
+            - frontend/src/types.ts
+            - frontend/src/components/
+            - frontend/src/widgets/
+            - frontend/src/hooks/
+    backend/src/handlers:
+        dir_name: API接口层
+        title: API接口层
+        scope:
+            - backend/src/handlers/mod.rs
+            - backend/src/handlers/groups.rs
+            - backend/src/handlers/icons.rs
+            - backend/src/handlers/widgets/
+            - backend/src/handlers/wallpapers.rs
+            - backend/src/handlers/admin/
+    deploy:
+        dir_name: 部署与运维
+        title: 部署与运维
+        scope:
+            - Dockerfile
+            - docker-compose.yaml
+            - scripts/backup.sh
+            - scripts/restore.sh
+            - .github/workflows/

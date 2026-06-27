@@ -1,0 +1,71 @@
+﻿# API 接口层模块配置
+
+module:
+  name: "API接口层"
+  description: "NavHub的REST API接口"
+  version: "1.0.0"
+  maintainer: "NavHub Team"
+
+components:
+  - name: "路由定义"
+    description: "API路由注册和配置"
+    files:
+      - "backend/src/routes.rs"
+
+  - name: "认证接口"
+    description: "登录、登出、回调等"
+    files:
+      - "backend/src/handlers/auth.rs"
+
+  - name: "用户接口"
+    description: "当前用户信息和偏好"
+    files:
+      - "backend/src/handlers/me.rs"
+      - "backend/src/handlers/prefs.rs"
+
+  - name: "工作区接口"
+    description: "工作区聚合数据"
+    files:
+      - "backend/src/handlers/workspace.rs"
+
+  - name: "分类接口"
+    description: "分类CRUD和排序"
+    files:
+      - "backend/src/handlers/groups.rs"
+
+  - name: "图标接口"
+    description: "图标CRUD和操作"
+    files:
+      - "backend/src/handlers/icons.rs"
+
+  - name: "小组件接口"
+    description: "小组件CRUD"
+    files:
+      - "backend/src/handlers/widgets.rs"
+
+  - name: "管理后台接口"
+    description: "管理员专用接口"
+    files:
+      - "backend/src/handlers/admin/"
+
+  - name: "中间件"
+    description: "认证、限流、日志等中间件"
+    files:
+      - "backend/src/auth/middleware.rs"
+      - "backend/src/auth/rate_limit.rs"
+
+api_conventions:
+  base_path: "/api"
+  format: "JSON"
+  auth: "Cookie (nh_sid)"
+  error_format: '{"error": "code_key", "message": "description"}'
+
+status_codes:
+  success: [200, 201, 204]
+  bad_request: 400
+  unauthorized: 401
+  forbidden: 403
+  not_found: 404
+  conflict: 409
+  rate_limit: 429
+  internal_error: 500

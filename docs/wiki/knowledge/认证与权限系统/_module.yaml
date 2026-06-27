@@ -1,0 +1,50 @@
+﻿# 认证与权限系统模块配置
+
+module:
+  name: "认证与权限系统"
+  description: "NavHub的认证、授权和会话管理"
+  version: "1.0.0"
+  maintainer: "NavHub Team"
+
+components:
+  - name: "OIDC认证"
+    description: "基于OpenID Connect的单点登录"
+    files:
+      - "backend/src/auth/casdoor.rs"
+      - "backend/src/auth/oidc.rs"
+  
+  - name: "会话管理"
+    description: "用户会话存储和验证"
+    files:
+      - "backend/src/auth/session.rs"
+  
+  - name: "权限控制"
+    description: "基于角色的访问控制"
+    files:
+      - "backend/src/auth/mod.rs"
+      - "backend/src/auth/middleware.rs"
+  
+  - name: "密码认证"
+    description: "超级管理员密码登录"
+    files:
+      - "backend/src/auth/password.rs"
+  
+  - name: "登录限流"
+    description: "防止暴力破解的限流机制"
+    files:
+      - "backend/src/auth/rate_limit.rs"
+
+dependencies:
+  - "Redis: 会话存储和状态缓存"
+  - "PostgreSQL: 用户数据和权限存储"
+  - "Casdoor: OIDC身份提供商"
+
+config_file: "config.toml"
+config_section: "[sso]"
+
+api_endpoints:
+  - "GET /auth/login: SSO登录重定向"
+  - "GET /auth/callback: OIDC回调处理"
+  - "POST /auth/password: 密码登录"
+  - "POST /auth/logout: 用户登出"
+  - "GET /auth/status: 认证状态检查"

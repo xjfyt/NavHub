@@ -1,0 +1,53 @@
+﻿# 数据库与存储系统模块配置
+
+module:
+  name: "数据库与存储系统"
+  description: "NavHub的数据持久化和缓存"
+  version: "1.0.0"
+  maintainer: "NavHub Team"
+
+components:
+  - name: "PostgreSQL"
+    description: "主数据库，存储业务数据"
+    files:
+      - "backend/src/db.rs"
+      - "backend/src/models/"
+    version: "15+"
+
+  - name: "Redis"
+    description: "缓存、会话存储、限流"
+    files:
+      - "backend/src/cache.rs"
+    version: "7"
+
+  - name: "S3/MinIO"
+    description: "对象存储，存储壁纸、图标等文件"
+    files:
+      - "backend/src/storage.rs"
+
+  - name: "数据模型"
+    description: "Rust数据模型定义"
+    files:
+      - "backend/src/models/user.rs"
+      - "backend/src/models/group.rs"
+      - "backend/src/models/icon.rs"
+      - "backend/src/models/widget.rs"
+
+  - name: "数据库迁移"
+    description: "SQL迁移脚本"
+    files:
+      - "backend/migrations/"
+
+dependencies:
+  - "pgcrypto: UUID生成扩展"
+  - "SQLx: Rust异步数据库驱动"
+
+config_file: "config.toml"
+config_sections:
+  - "[database]"
+  - "[redis]"
+  - "[storage.s3]"
+
+backup_scripts:
+  - "scripts/backup.sh"
+  - "scripts/restore.sh"
