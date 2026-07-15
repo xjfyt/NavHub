@@ -25,6 +25,7 @@
 ### Changed 变更
 - 随机壁纸仅使用后端已本地化的资源池；资源池请求失败时按 5/15/30 秒退避重试，避免依赖不可控的外部直链。
 - Vite 配置改用标准 Import Attributes `with { type: "json" }`，消除新版 Node.js 构建警告。
+- GitHub Actions 官方运行时依赖升级到 `actions/checkout@v6`、`actions/setup-node@v6` 与 `actions/cache@v6`，消除 Node 20 Action 运行时弃用提示。
 - 统一后端、前端、锁文件、部署示例和项目文档版本号为 `0.2.1`。
 
 ### Validation 验证

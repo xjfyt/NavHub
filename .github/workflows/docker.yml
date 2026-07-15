@@ -1,6 +1,6 @@
 name: Build and Push Docker Images
 
-# 仅使用 docker/* 官方 Action(@v3/@v6 稳定大版本)与 actions/checkout@v4,避免第三方
+# 仅使用 docker/* 官方 Action(@v3/@v6 稳定大版本)与 actions/checkout@v6,避免第三方
 # 复合 Action 的传递性 tag 被回收导致整作业在 setup 阶段就无法解析(曾因
 # aquasecurity/trivy-action 传递依赖 setup-trivy@v0.2.1 被删而反复失败)。
 # 镜像的 SBOM 与 provenance 证明由 build-push-action 原生生成并随镜像推送(无需额外 Action)。
@@ -19,7 +19,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up QEMU (multi-arch)
       uses: docker/setup-qemu-action@v3
