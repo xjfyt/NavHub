@@ -13,6 +13,7 @@ import type {
   Me,
   PreferencesView,
   PaginatedWallpapers,
+  RemoteWallpaperItem,
   PublicWallpaperSource,
   AdminPaginatedWallpapers,
   AdminRemoteWallpaper,
@@ -471,6 +472,9 @@ export const api = {
     if (params.q) qs.set("q", params.q);
     const tail = qs.toString() ? `?${qs}` : "";
     return request(`/api/wallpapers${tail}`);
+  },
+  async wallpaper(id: string): Promise<RemoteWallpaperItem> {
+    return request(`/api/wallpapers/${encodeURIComponent(id)}`);
   },
   async wallpaperSourcesPublic(): Promise<PublicWallpaperSource[]> {
     return request("/api/wallpaper-sources");

@@ -1,6 +1,9 @@
-use crate::{error::AppResult, state::AppState};
+use crate::{
+    error::{AppError, AppResult},
+    state::AppState,
+};
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -56,6 +59,51 @@ pub struct WallpaperItem {
 pub struct WallpaperListResponse {
     pub items: Vec<WallpaperItem>,
     pub total: i64,
+}
+
+fn stable_upload_url(key: &str) -> String {
+    let encoded = key
+        .split('/')
+        .map(|part| urlencoding::encode(part).into_owned())
+        .collect::<Vec<_>>()
+        .join("/");
+    format!("/uploads/{encoded}")
+}
+
+fn wallpaper_item(row: ListRow) -> WallpaperItem {
+    // Never expose a presigned S3 URL to the browser. Wallpaper selections and
+    // the shuffle snapshot are persisted by the frontend, while presigned URLs
+    // expire after at most 24 hours. The stable same-origin route creates a
+    // fresh short-lived redirect every time the object is requested.
+    let url = row
+        .storage_key
+        .as_deref()
+        .map(stable_upload_url)
+        .unwrap_or_else(|| row.original_url.clone());
+
+    let thumbnail_url = if let Some(ref key) = row.thumbnail_key {
+        Some(stable_upload_url(key))
+    } else if row.media_type == "image" && row.storage_key.is_some() {
+        Some(url.clone())
+    } else {
+        // This is retained for old video rows without a cached thumbnail. New
+        // image rows always use a MinIO-backed stable URL above.
+        row.thumbnail_url.clone()
+    };
+
+    WallpaperItem {
+        id: row.id,
+        source_id: row.source_id,
+        source_name: row.source_name,
+        title: row.title,
+        url,
+        thumbnail_url,
+        page_url: row.page_url,
+        media_type: row.media_type,
+        author: row.author,
+        file_size_bytes: row.file_size_bytes,
+        fetched_at: row.fetched_at,
+    }
 }
 
 pub async fn list_wallpapers(
@@ -117,49 +165,34 @@ pub async fn list_wallpapers(
     .fetch_all(&state.pg)
     .await?;
 
-    let mut items = Vec::with_capacity(rows.len());
-    for row in rows {
-        let url = if let Some(ref key) = row.storage_key {
-            state
-                .storage
-                .presign_get_url(key)
-                .await
-                .unwrap_or_else(|_| format!("/uploads/{key}"))
-        } else {
-            row.original_url.clone()
-        };
-
-        let thumbnail_url = if let Some(ref tkey) = row.thumbnail_key {
-            let tu = state
-                .storage
-                .presign_get_url(tkey)
-                .await
-                .unwrap_or_else(|_| format!("/uploads/{tkey}"));
-            Some(tu)
-        } else if row.thumbnail_url.is_some() {
-            row.thumbnail_url.clone()
-        } else if row.media_type == "image" && row.storage_key.is_some() {
-            Some(url.clone())
-        } else {
-            None
-        };
-
-        items.push(WallpaperItem {
-            id: row.id,
-            source_id: row.source_id,
-            source_name: row.source_name,
-            title: row.title,
-            url,
-            thumbnail_url,
-            page_url: row.page_url,
-            media_type: row.media_type,
-            author: row.author,
-            file_size_bytes: row.file_size_bytes,
-            fetched_at: row.fetched_at,
-        });
-    }
+    let items = rows.into_iter().map(wallpaper_item).collect();
 
     Ok(Json(WallpaperListResponse { items, total }))
+}
+
+/// Resolve a persisted remote wallpaper id to fresh, stable object URLs.
+/// This repairs preferences created by older frontend versions that stored an
+/// already-expired S3 presigned URL alongside the id.
+pub async fn get_wallpaper(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<WallpaperItem>> {
+    let row: Option<ListRow> = sqlx::query_as(
+        "SELECT rw.id, rw.source_id, ws.name AS source_name, rw.title, rw.original_url,
+                rw.page_url, rw.storage_key, rw.thumbnail_key, rw.thumbnail_url,
+                rw.media_type, rw.file_size_bytes, rw.author, rw.fetched_at
+         FROM remote_wallpapers rw
+         LEFT JOIN wallpaper_sources ws ON ws.id = rw.source_id
+         WHERE rw.id = $1
+           AND rw.is_active = true
+           AND rw.storage_key IS NOT NULL
+           AND (rw.expires_at IS NULL OR rw.expires_at > now())",
+    )
+    .bind(id)
+    .fetch_optional(&state.pg)
+    .await?;
+
+    Ok(Json(wallpaper_item(row.ok_or(AppError::NotFound)?)))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -193,4 +226,17 @@ pub async fn list_sources(
     .fetch_all(&state.pg)
     .await?;
     Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stable_upload_url;
+
+    #[test]
+    fn stable_upload_url_preserves_path_and_encodes_segments() {
+        assert_eq!(
+            stable_upload_url("wallpapers/remote/a b#1.webp"),
+            "/uploads/wallpapers/remote/a%20b%231.webp"
+        );
+    }
 }

@@ -121,7 +121,17 @@ HTTP 状态码：
 
 代理 Google S2 favicon（128px），Redis 缓存 24h。返回 image/png.
 
-## 7、管理后台（`/api/admin/*`）
+## 7、公开壁纸接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/wallpapers` | 分页查询已激活、已本地化且未过期的壁纸，返回稳定的 `/uploads/...` 地址 |
+| GET | `/api/wallpapers/:id` | 按 UUID 重新解析固定壁纸，用于恢复历史临时签名地址 |
+| GET | `/api/wallpaper-sources` | 查询具有可用缓存的公开壁纸来源 |
+
+`GET /uploads/*key` 会临时重定向到刚生成的 S3 预签名地址，并禁止缓存重定向响应；客户端不应持久化重定向后的 URL。
+
+## 8、管理后台（`/api/admin/*`）
 
 | 方法 | 路径 | 权限 |
 |---|---|---|

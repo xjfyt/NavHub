@@ -1,4 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const IMAGE_RETRY_DELAYS_MS = [1_000, 3_000, 8_000, 15_000];
+const IMAGE_LOAD_TIMEOUT_MS = 20_000;
+const IMAGE_DECODE_TIMEOUT_MS = 8_000;
 
 export function Background({
   theme,
@@ -16,15 +20,23 @@ export function Background({
   const [loadedUrl, setLoadedUrl] = useState<string | undefined>(() =>
     wallpaperMediaType === "video" ? wallpaperUrl : undefined,
   );
+  const loadedUrlRef = useRef(loadedUrl);
   const [prevUrl, setPrevUrl] = useState<string | undefined>(undefined);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const retryCountRef = useRef(0);
+
+  useEffect(() => {
+    retryCountRef.current = 0;
+  }, [wallpaperUrl]);
 
   useEffect(() => {
     if (!wallpaperUrl) {
+      loadedUrlRef.current = undefined;
       setLoadedUrl(undefined);
       setPrevUrl(undefined);
       return;
     }
-    if (wallpaperUrl === loadedUrl) {
+    if (wallpaperUrl === loadedUrlRef.current) {
       return;
     }
 
@@ -32,22 +44,27 @@ export function Background({
     // 触发 setPrevUrl,造成定时器泄漏与「卸载后 setState」。这里统一持有
     // 定时器 id 并在 effect 清理中清除。
     let fadeTimer: number | undefined;
+    let retryTimer: number | undefined;
+    let loadTimer: number | undefined;
+    let decodeTimer: number | undefined;
+    let animationFrame: number | undefined;
 
     if (wallpaperMediaType === "video") {
-      const previous = loadedUrl;
+      const previous = loadedUrlRef.current;
       if (previous && previous !== wallpaperUrl) {
         setPrevUrl(previous);
         fadeTimer = window.setTimeout(() => {
           setPrevUrl((current) => (current === previous ? undefined : current));
         }, 1000);
       }
+      loadedUrlRef.current = wallpaperUrl;
       setLoadedUrl(wallpaperUrl);
       return () => {
         if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
       };
     }
 
-    const previous = loadedUrl;
+    const previous = loadedUrlRef.current;
     if (previous && previous !== wallpaperUrl) {
       setPrevUrl(previous);
     }
@@ -57,26 +74,63 @@ export function Background({
     img.decoding = "async";
     const finish = () => {
       if (cancelled) return;
+      if (loadTimer !== undefined) window.clearTimeout(loadTimer);
+      retryCountRef.current = 0;
+      loadedUrlRef.current = wallpaperUrl;
       setLoadedUrl(wallpaperUrl);
       fadeTimer = window.setTimeout(() => {
         setPrevUrl((current) => (current === previous ? undefined : current));
       }, 1000);
     };
+    const retry = () => {
+      if (cancelled) return;
+      if (loadTimer !== undefined) window.clearTimeout(loadTimer);
+      const attempt = retryCountRef.current++;
+      const delay = IMAGE_RETRY_DELAYS_MS[attempt];
+      if (delay !== undefined) {
+        retryTimer = window.setTimeout(
+          () => setRetryNonce((value) => value + 1),
+          delay,
+        );
+      } else {
+        console.warn("Wallpaper image failed after retries", wallpaperUrl);
+      }
+    };
     img.onload = () => {
-      const decoded = img.decode
+      if (loadTimer !== undefined) window.clearTimeout(loadTimer);
+      const decode = img.decode
         ? img.decode().catch(() => undefined)
         : Promise.resolve();
-      decoded.then(() => window.requestAnimationFrame(finish));
+      const timeout = new Promise<void>((resolve) => {
+        decodeTimer = window.setTimeout(resolve, IMAGE_DECODE_TIMEOUT_MS);
+      });
+      Promise.race([decode, timeout]).then(() => {
+        if (decodeTimer !== undefined) window.clearTimeout(decodeTimer);
+        animationFrame = window.requestAnimationFrame(finish);
+      });
     };
-    img.onerror = () => {
-      finish();
-    };
+    img.onerror = retry;
+    loadTimer = window.setTimeout(() => {
+      // A stalled request may never emit `error`. Abort this attempt so the
+      // next stable `/uploads/...` request gets a fresh S3 redirect.
+      img.onload = null;
+      img.onerror = null;
+      img.src = "";
+      retry();
+    }, IMAGE_LOAD_TIMEOUT_MS);
     img.src = wallpaperUrl;
     return () => {
       cancelled = true;
       if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      if (loadTimer !== undefined) window.clearTimeout(loadTimer);
+      if (decodeTimer !== undefined) window.clearTimeout(decodeTimer);
+      if (animationFrame !== undefined)
+        window.cancelAnimationFrame(animationFrame);
+      img.onload = null;
+      img.onerror = null;
     };
-  }, [wallpaperUrl, wallpaperMediaType, loadedUrl]);
+  }, [wallpaperUrl, wallpaperMediaType, retryNonce]);
 
   const fullImageReady =
     wallpaperMediaType === "video" || loadedUrl === wallpaperUrl;

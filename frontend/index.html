@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NavHub</title>
-    <meta name="description" content="NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。" />
+    <meta
+      name="description"
+      content="NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。"
+    />
     <meta name="theme-color" content="#0f1626" />
 
     <!-- Favicons: keep the existing raster favicon, add the scalable SVG. -->
@@ -16,18 +19,27 @@
     <link rel="apple-touch-icon" href="/icon.svg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <meta name="apple-mobile-web-app-title" content="NavHub" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="NavHub" />
-    <meta property="og:description" content="NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。" />
+    <meta
+      property="og:description"
+      content="NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。"
+    />
 
     <!-- Twitter card -->
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="NavHub" />
-    <meta name="twitter:description" content="NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。" />
+    <meta
+      name="twitter:description"
+      content="NavHub — 自托管的个人导航与工作台，聚合书签、搜索与小组件。"
+    />
   </head>
   <body>
     <!--
@@ -39,41 +51,92 @@
     <script>
       (function () {
         try {
+          var seen = {};
+          var isTemporaryUrl = function (href) {
+            if (!href || typeof href !== "string") return false;
+            try {
+              var params = new URL(href, location.origin).searchParams;
+              var temporary = false;
+              params.forEach(function (_value, key) {
+                var normalized = key.toLowerCase();
+                if (
+                  normalized === "x-amz-signature" ||
+                  normalized === "x-amz-credential" ||
+                  normalized === "x-amz-date" ||
+                  normalized === "x-amz-expires" ||
+                  normalized === "awsaccesskeyid"
+                ) {
+                  temporary = true;
+                }
+              });
+              return temporary;
+            } catch (_e) {
+              return false;
+            }
+          };
           var addPreload = function (href, priority) {
-            if (!href || typeof href !== "string") return;
+            if (
+              !href ||
+              typeof href !== "string" ||
+              isTemporaryUrl(href) ||
+              seen[href]
+            )
+              return false;
+            seen[href] = true;
             var l = document.createElement("link");
             l.rel = "preload";
             l.as = "image";
             l.href = href;
-            // Thumbnail is tiny and renders as the visible backdrop until the
-            // full-res image arrives, so we want it ahead of the heavy asset.
-            l.fetchPriority = priority || "high";
+            l.fetchPriority = priority || "auto";
             document.head.appendChild(l);
+            return true;
           };
-          // Shuffle mode: useWallpaperShuffle caches the last preset here.
-          var shuffleRaw = localStorage.getItem("navhub_last_wallpaper");
-          if (shuffleRaw) {
-            var preset = JSON.parse(shuffleRaw);
-            if (preset && preset.mediaType !== "video") {
-              addPreload(preset.thumbUrl || preset.posterUrl, "high");
-              addPreload(preset.assetUrl, "high");
-              return;
-            }
-          }
-          // Pinned mode: read from the SWR snapshot of /workspace.
+
+          // Work out the active mode before preloading. Older versions always
+          // preferred a stale shuffle snapshot, even after the user pinned a
+          // different wallpaper.
+          var tweaks = {};
+          var authenticated = false;
           var swrRaw = localStorage.getItem("navhub_swr_v1");
           if (swrRaw) {
             var swr = JSON.parse(swrRaw);
-            var tweaks =
-              swr && swr.workspace && swr.workspace.preferences && swr.workspace.preferences.tweaks;
-            if (
-              tweaks &&
-              tweaks.backgroundMode === "wallpaper" &&
-              tweaks.wallpaperMediaType !== "video"
-            ) {
-              addPreload(tweaks.wallpaperPosterUrl, "high");
-              addPreload(tweaks.wallpaperUrl, "high");
+            authenticated = !!(swr && swr.status && swr.status.authenticated);
+            tweaks =
+              swr &&
+              swr.workspace &&
+              swr.workspace.preferences &&
+              swr.workspace.preferences.tweaks;
+            tweaks = tweaks || {};
+          }
+          if (!authenticated) {
+            var guestRaw = localStorage.getItem("navhub_guest_tweaks");
+            if (guestRaw) {
+              tweaks = Object.assign({}, tweaks, JSON.parse(guestRaw));
             }
+          }
+
+          var shuffleEnabled =
+            tweaks.wallpaperShuffle !== false &&
+            tweaks.backgroundMode !== "theme";
+          if (shuffleEnabled) {
+            var shuffleRaw = localStorage.getItem("navhub_last_wallpaper");
+            if (shuffleRaw) {
+              var preset = JSON.parse(shuffleRaw);
+              if (preset && preset.mediaType !== "video") {
+                addPreload(preset.posterUrl || preset.thumbUrl, "high");
+                // The full image must not compete with its visible thumbnail.
+                addPreload(preset.assetUrl, "auto");
+                return;
+              }
+            }
+          }
+
+          if (
+            tweaks.backgroundMode === "wallpaper" &&
+            tweaks.wallpaperMediaType !== "video"
+          ) {
+            addPreload(tweaks.wallpaperPosterUrl, "high");
+            addPreload(tweaks.wallpaperUrl, "auto");
           }
         } catch (_e) {
           /* ignore — preload is purely a perf hint */

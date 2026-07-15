@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
   normalizeShuffleInterval,
-  randomWallpaperPreset,
   type WallpaperPreset,
 } from "../constants/wallpapers";
 import { Tweaks, RemoteWallpaperItem } from "../types";
 import { api } from "../api";
+import { parseCachedWallpaperPreset } from "../utils/wallpaperUrl";
+
+const POOL_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
 
 /**
  * 随机壁纸轮播。
@@ -16,10 +18,14 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
   const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(
     () => {
       try {
-        const cached = window.localStorage.getItem("navhub_last_wallpaper");
-        if (cached) return JSON.parse(cached);
-      } catch {}
-      return randomWallpaperPreset(null);
+        const cached = parseCachedWallpaperPreset(
+          window.localStorage.getItem("navhub_last_wallpaper"),
+        );
+        if (!cached) window.localStorage.removeItem("navhub_last_wallpaper");
+        return cached;
+      } catch {
+        return null;
+      }
     },
   );
 
@@ -50,29 +56,40 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
   useEffect(() => {
     if (!shuffleEnabled) return;
     let alive = true;
-    api
-      .wallpapers({
-        limit: 100,
-        mediaType: mediaType || undefined,
-        sourceId: sourceId || undefined,
-      })
-      .then((resp) => {
-        if (!alive) return;
-        const pool = resp.items.map(remoteToPreset);
-        poolRef.current = pool;
-        if (pool.length > 0) {
+    let retryTimer: number | undefined;
+    let retryIndex = 0;
+
+    const loadPool = () => {
+      api
+        .wallpapers({
+          limit: 100,
+          mediaType: mediaType || undefined,
+          sourceId: sourceId || undefined,
+        })
+        .then((resp) => {
+          if (!alive) return;
+          const pool = resp.items.map(remoteToPreset);
+          poolRef.current = pool;
           const next = pickRandom(pool, lastIdRef.current);
-          lastIdRef.current = next.id;
-          warmWallpaper(next);
-          setShufflePreset(next);
-        }
-      })
-      .catch(() => {
-        if (!alive) return;
-        poolRef.current = [];
-      });
+          if (next) {
+            lastIdRef.current = next.id;
+            warmWallpaper(next);
+            setShufflePreset(next);
+          }
+        })
+        .catch(() => {
+          if (!alive) return;
+          poolRef.current = [];
+          const delay = POOL_RETRY_DELAYS_MS[retryIndex++];
+          if (delay !== undefined)
+            retryTimer = window.setTimeout(loadPool, delay);
+        });
+    };
+
+    loadPool();
     return () => {
       alive = false;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
   }, [shuffleEnabled, mediaType, sourceId]);
 
@@ -82,6 +99,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     }
     const pick = () => {
       const next = pickRandom(poolRef.current, lastIdRef.current);
+      if (!next) return;
       lastIdRef.current = next.id;
       warmWallpaper(next);
       setShufflePreset(next);
@@ -96,12 +114,13 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
 
     const timer = window.setInterval(pick, shuffleIntervalSec * 1000);
     return () => window.clearInterval(timer);
-  }, [shuffleEnabled, shuffleIntervalSec]);
+  }, [shuffleEnabled, shuffleIntervalSec, shufflePreset]);
 
   const shuffleActive = shuffleEnabled && !!shufflePreset;
 
   const nextPreset = () => {
     const next = pickRandom(poolRef.current, lastIdRef.current);
+    if (!next) return;
     lastIdRef.current = next.id;
     warmWallpaper(next);
     setShufflePreset(next);
@@ -113,8 +132,8 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
 function pickRandom(
   pool: WallpaperPreset[],
   excludeId: string | null,
-): WallpaperPreset {
-  if (!pool.length) return randomWallpaperPreset(excludeId);
+): WallpaperPreset | null {
+  if (!pool.length) return null;
   const filtered =
     pool.length > 1 ? pool.filter((p) => p.id !== excludeId) : pool;
   return filtered[Math.floor(Math.random() * filtered.length)] || pool[0];

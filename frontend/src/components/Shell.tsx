@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { useWallpaperShuffle } from "../hooks/useWallpaperShuffle";
+import { usePinnedWallpaper } from "../hooks/usePinnedWallpaper";
 import { useColorMode } from "../hooks/useColorMode";
 import { DndContext } from "@dnd-kit/core";
 import { Background } from "./Background";
@@ -13,6 +14,7 @@ import { Icon } from "./Icon";
 import { GroupView, IconView, WidgetView } from "../types";
 import { WIDGET_REGISTRY } from "../widgets";
 import { safeHttpUrl } from "../utils/iconSources";
+import { isTemporaryWallpaperUrl } from "../utils/wallpaperUrl";
 import { confirmDialog } from "./Dialogs";
 import { useI18n } from "../i18n";
 import { toast } from "sonner";
@@ -129,6 +131,7 @@ export const Shell = ({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { shufflePreset, shuffleEnabled, shuffleActive, nextPreset } =
     useWallpaperShuffle(tweaks);
+  const resolvedPinnedWallpaper = usePinnedWallpaper(tweaks);
   useColorMode(tweaks.mode);
 
   useEffect(() => {
@@ -144,20 +147,46 @@ export const Shell = ({
   }, []);
 
   const theme = tweaks.theme || "dawn";
+  const configuredWallpaperUrl = tweaks.wallpaperUrl as string | undefined;
+  const configuredWallpaperPosterUrl = tweaks.wallpaperPosterUrl as
+    string | undefined;
+
+  useEffect(() => {
+    if (!resolvedPinnedWallpaper) return;
+    // One-time compatibility migration for preferences written by versions
+    // that persisted expiring S3 URLs. updateTweaks handles both guest local
+    // storage and authenticated server preferences.
+    void updateTweaks({
+      wallpaperUrl: resolvedPinnedWallpaper.url,
+      wallpaperThumb:
+        resolvedPinnedWallpaper.thumbnailUrl ?? resolvedPinnedWallpaper.url,
+      wallpaperPosterUrl:
+        resolvedPinnedWallpaper.thumbnailUrl ?? resolvedPinnedWallpaper.url,
+      wallpaperMediaType: resolvedPinnedWallpaper.mediaType,
+    });
+  }, [resolvedPinnedWallpaper, updateTweaks]);
+
   const wallpaperUrl = shuffleActive
     ? shufflePreset!.assetUrl
     : tweaks.backgroundMode === "wallpaper"
-      ? (tweaks.wallpaperUrl as string | undefined)
+      ? resolvedPinnedWallpaper?.url ||
+        (isTemporaryWallpaperUrl(configuredWallpaperUrl)
+          ? undefined
+          : configuredWallpaperUrl)
       : undefined;
   const wallpaperMediaType = shuffleActive
     ? shufflePreset!.mediaType
     : tweaks.backgroundMode === "wallpaper"
-      ? (tweaks.wallpaperMediaType as "image" | "video" | undefined)
+      ? (resolvedPinnedWallpaper?.mediaType ??
+        (tweaks.wallpaperMediaType as "image" | "video" | undefined))
       : undefined;
   const wallpaperPosterUrl = shuffleActive
     ? shufflePreset!.posterUrl || shufflePreset!.thumbUrl
     : tweaks.backgroundMode === "wallpaper"
-      ? (tweaks.wallpaperPosterUrl as string | undefined)
+      ? resolvedPinnedWallpaper?.thumbnailUrl ||
+        (isTemporaryWallpaperUrl(configuredWallpaperPosterUrl)
+          ? undefined
+          : configuredWallpaperPosterUrl)
       : undefined;
   const sidebarMode =
     (tweaks.sidebar as "pinned" | "autohide" | "hidden") || "pinned";

@@ -6,8 +6,8 @@ use crate::{
 };
 use axum::{
     extract::{Multipart, Path, Query, State},
-    http::StatusCode,
-    response::Redirect,
+    http::{header, HeaderValue, StatusCode},
+    response::{IntoResponse, Redirect, Response},
     Extension, Json,
 };
 use serde::{Deserialize, Serialize};
@@ -177,7 +177,14 @@ pub async fn upload(
 pub async fn serve(
     State(state): State<Arc<AppState>>,
     Path(path): Path<String>,
-) -> AppResult<Redirect> {
+) -> AppResult<Response> {
     let url = state.storage.presign_get_url(&path).await?;
-    Ok(Redirect::temporary(&url))
+    let mut response = Redirect::temporary(&url).into_response();
+    // The target is intentionally short-lived. Caching this redirect could
+    // resurrect an expired signature even though `/uploads/...` itself is a
+    // stable URL.
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(response)
 }

@@ -19,6 +19,7 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
     let api_guest = Router::new()
         .route("/workspace", get(handlers::workspace::get_workspace))
         .route("/wallpapers", get(handlers::wallpapers::list_wallpapers))
+        .route("/wallpapers/:id", get(handlers::wallpapers::get_wallpaper))
         .route(
             "/wallpaper-sources",
             get(handlers::wallpapers::list_sources),

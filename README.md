@@ -2,6 +2,12 @@
 
 NavHub 是一款开源、自托管的个人导航主页，适合部署在家庭实验室、内网或 VPS 上。
 
+<p align="center">
+  <img src="./docs/assets/navhub-home.png" alt="NavHub 导航主页效果" width="100%" />
+</p>
+
+<p align="center">可自定义壁纸、分类、图标、文件夹与小组件的导航工作台</p>
+
 ## 一、功能特性
 
 - **多种图标样式**：方形、长条、大格、圆形，支持自定义颜色、字体、对齐
