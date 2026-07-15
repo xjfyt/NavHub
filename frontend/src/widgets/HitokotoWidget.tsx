@@ -3,18 +3,7 @@ import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import type { WidgetProps } from "./types";
 
 export type HitokotoType =
-  | "a"
-  | "b"
-  | "c"
-  | "d"
-  | "e"
-  | "f"
-  | "g"
-  | "h"
-  | "i"
-  | "j"
-  | "k"
-  | "l";
+  "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l";
 
 interface HitokotoConfig {
   type?: HitokotoType | "";

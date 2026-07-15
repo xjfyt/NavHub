@@ -2462,7 +2462,7 @@ dependencies = [
 
 [[package]]
 name = "navhub"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "argon2",

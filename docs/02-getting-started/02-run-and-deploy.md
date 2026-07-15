@@ -146,7 +146,7 @@ docker run -d \
   --restart unless-stopped \
   -p 8088:8088 \
   -v $(pwd)/config.toml:/app/config.toml:ro \
-  ghcr.io/xjfyt/navhub:v0.1.1
+  ghcr.io/xjfyt/navhub:v0.2.1
 ```
 
 **(3) 配置您的外部 Nginx**

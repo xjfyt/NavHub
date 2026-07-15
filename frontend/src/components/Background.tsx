@@ -45,7 +45,6 @@ export function Background({
     // 定时器 id 并在 effect 清理中清除。
     let fadeTimer: number | undefined;
     let retryTimer: number | undefined;
-    let loadTimer: number | undefined;
     let decodeTimer: number | undefined;
     let animationFrame: number | undefined;
 
@@ -110,7 +109,7 @@ export function Background({
       });
     };
     img.onerror = retry;
-    loadTimer = window.setTimeout(() => {
+    const loadTimer = window.setTimeout(() => {
       // A stalled request may never emit `error`. Abort this attempt so the
       // next stable `/uploads/...` request gets a fresh S3 redirect.
       img.onload = null;
