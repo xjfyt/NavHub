@@ -60,6 +60,12 @@ describe("holidayName (固定公历节日)", () => {
     expect(holidayName(0, 2)).toBeNull();
     expect(holidayName(5, 15)).toBeNull();
   });
+  it("节日名为非空中文,可供磁贴直接展示", () => {
+    for (const h of HOLIDAYS) {
+      expect(h.name.length).toBeGreaterThan(0);
+      expect(/[\u4e00-\u9fff]/.test(h.name)).toBe(true);
+    }
+  });
   it("HOLIDAYS 仅含固定公历日(不含农历)", () => {
     // 不应混入农历节日(如春节/中秋,日期年年变)。
     expect(HOLIDAYS.length).toBeGreaterThanOrEqual(4);

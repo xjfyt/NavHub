@@ -2328,14 +2328,36 @@ button.tile {
 }
 .w-calendar .cal-day {
   aspect-ratio: 1;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   font-size: 11px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 180ms;
   position: relative;
   min-width: 0;
+  overflow: hidden;
+}
+.w-calendar .cal-num {
+  line-height: 1;
+}
+.w-calendar .cal-hol {
+  max-width: 100%;
+  padding: 0 1px;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.w-calendar .cal-day.today .cal-hol {
+  color: inherit;
+  opacity: 0.75;
 }
 .w-calendar .cal-day:hover {
   background: rgba(255, 255, 255, 0.12);
@@ -2350,15 +2372,7 @@ button.tile {
   font-weight: 700;
 }
 .w-calendar .cal-day.has::after {
-  content: "";
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--accent);
+  content: none;
 }
 
 .w-rss {

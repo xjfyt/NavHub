@@ -186,10 +186,10 @@ export const AdminSSO = () => {
                 alignItems: "center",
               }}
             >
-              <span style={{ color: "var(--text-soft)" }}>Issuer</span>
+              <span style={{ color: "var(--text-soft)" }}>颁发者</span>
               {editMode ? (
                 <input
-                  aria-label="Issuer"
+                  aria-label="颁发者"
                   style={inputStyle}
                   value={formData.issuer}
                   onChange={(e) =>
@@ -219,10 +219,10 @@ export const AdminSSO = () => {
                 alignItems: "center",
               }}
             >
-              <span style={{ color: "var(--text-soft)" }}>Client ID</span>
+              <span style={{ color: "var(--text-soft)" }}>客户端 ID</span>
               {editMode ? (
                 <input
-                  aria-label="Client ID"
+                  aria-label="客户端 ID"
                   style={inputStyle}
                   value={formData.clientId}
                   onChange={(e) =>
@@ -272,18 +272,18 @@ export const AdminSSO = () => {
                 alignItems: "center",
               }}
             >
-              <span style={{ color: "var(--text-soft)" }}>Client Secret</span>
+              <span style={{ color: "var(--text-soft)" }}>客户端密钥</span>
               {editMode ? (
                 <input
                   type="password"
                   autoComplete="new-password"
-                  aria-label="Client Secret"
+                  aria-label="客户端密钥"
                   style={inputStyle}
                   value={formData.clientSecret ?? ""}
                   placeholder={
                     config.clientSecretSet
                       ? "已配置 · 留空则不修改"
-                      : "输入 Client Secret"
+                      : "输入客户端密钥"
                   }
                   onChange={(e) =>
                     setFormData({ ...formData, clientSecret: e.target.value })
@@ -312,10 +312,10 @@ export const AdminSSO = () => {
                 alignItems: "center",
               }}
             >
-              <span style={{ color: "var(--text-soft)" }}>Redirect URI</span>
+              <span style={{ color: "var(--text-soft)" }}>回调地址</span>
               {editMode ? (
                 <input
-                  aria-label="Redirect URI"
+                  aria-label="回调地址"
                   style={inputStyle}
                   value={formData.redirectUri}
                   onChange={(e) =>
@@ -345,10 +345,10 @@ export const AdminSSO = () => {
                 alignItems: "center",
               }}
             >
-              <span style={{ color: "var(--text-soft)" }}>Scope</span>
+              <span style={{ color: "var(--text-soft)" }}>授权范围</span>
               {editMode ? (
                 <input
-                  aria-label="Scope"
+                  aria-label="授权范围"
                   style={inputStyle}
                   value={formData.scopes}
                   onChange={(e) =>

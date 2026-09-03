@@ -83,10 +83,7 @@ export const AdminDashboard = () => {
     load();
   }, []);
 
-  if (!stats)
-    return (
-      <div style={{ color: "var(--text-soft)" }}>Loading dashboard...</div>
-    );
+  if (!stats) return <div style={{ color: "var(--text-soft)" }}>加载中 …</div>;
 
   const topWallpaperMax = Math.max(
     1,

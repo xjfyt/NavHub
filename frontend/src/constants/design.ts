@@ -21,22 +21,22 @@ export const DEFAULT_ICON_COLORS = [
 export const ROLES = [
   {
     id: "superadmin",
-    label: "超级管理员 · Superadmin",
+    label: "超级管理员",
     desc: "全局唯一 · 独占 SSO 接入配置 · 拥有所有管理员权限",
   },
   {
     id: "admin",
-    label: "管理员 · Admin",
+    label: "管理员",
     desc: "管理用户、分类、权限、系统设置 · 可推送分类给所有用户",
   },
   {
     id: "user",
-    label: "普通用户 · User",
+    label: "普通用户",
     desc: "可自建分类、编辑自有图标/壁纸；推送分类仅可改壁纸与侧边栏顺序",
   },
   {
     id: "guest",
-    label: "访客 · Guest",
+    label: "访客",
     desc: "未登录 · 只读预览 · 禁用所有编辑操作",
   },
 ];

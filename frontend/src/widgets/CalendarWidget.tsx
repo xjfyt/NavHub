@@ -3,6 +3,7 @@ import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import {
   addMonths,
   buildMonthGrid,
+  holidayName,
   MONTH_NAMES_CN,
   WEEKDAY_NAMES_CN,
   type TodayRef,
@@ -47,6 +48,7 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
   const td = todayRef();
   const { year, month } = resolveView(config, td);
   const cells = buildMonthGrid(year, month, td);
+  const todayHoliday = holidayName(td.month, td.day);
   // WIDGET-7: 小尺寸隐藏「星期」副标题,让出垂直空间给月历网格,避免裁切。
   const tier = widgetTier(w?.wSpan, w?.wRow);
 
@@ -77,6 +79,7 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
               {new Date(td.year, td.month, td.day).toLocaleDateString("zh-CN", {
                 weekday: "long",
               })}
+              {todayHoliday ? ` · ${todayHoliday}` : ""}
             </div>
           )}
         </div>
@@ -133,8 +136,16 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
               (c.holiday ? " has" : "")
             }
             title={c.holiday ?? undefined}
+            aria-label={
+              c.holiday
+                ? `${c.d}日 ${c.holiday}${c.today ? " 今天" : ""}`
+                : undefined
+            }
           >
-            {c.d}
+            <span className="cal-num">{c.d}</span>
+            {!c.out && c.holiday ? (
+              <span className="cal-hol">{c.holiday}</span>
+            ) : null}
           </div>
         ))}
       </div>
@@ -147,6 +158,7 @@ export const CalendarDetail = ({ w }: WidgetProps<CalendarConfig> = {}) => {
   const td = todayRef();
   const { year, month } = resolveView(config, td);
   const cells = buildMonthGrid(year, month, td);
+  const todayHoliday = holidayName(td.month, td.day);
 
   const go = (delta: number) => {
     const next = addMonths(year, month, delta);
@@ -180,6 +192,7 @@ export const CalendarDetail = ({ w }: WidgetProps<CalendarConfig> = {}) => {
               day: "numeric",
               weekday: "long",
             })}
+            {todayHoliday ? ` · ${todayHoliday}` : ""}
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
@@ -226,10 +239,15 @@ export const CalendarDetail = ({ w }: WidgetProps<CalendarConfig> = {}) => {
           <div
             key={i}
             title={c.holiday ?? undefined}
+            aria-label={
+              c.holiday
+                ? `${c.d}日 ${c.holiday}${c.today ? " 今天" : ""}`
+                : undefined
+            }
             style={{
               position: "relative",
               textAlign: "center",
-              padding: "12px 0",
+              padding: "10px 0 8px",
               fontSize: 14,
               borderRadius: 8,
               opacity: c.out ? 0.3 : 1,
@@ -239,21 +257,23 @@ export const CalendarDetail = ({ w }: WidgetProps<CalendarConfig> = {}) => {
             }}
           >
             {c.d}
-            {!c.out && c.holiday && (
-              <span
-                aria-hidden
+            {!c.out && c.holiday ? (
+              <div
                 style={{
-                  position: "absolute",
-                  bottom: 4,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: 4,
-                  height: 4,
-                  borderRadius: "50%",
-                  background: c.today ? "#000" : "var(--accent)",
+                  marginTop: 4,
+                  fontSize: 10,
+                  fontWeight: 500,
+                  lineHeight: 1.2,
+                  color: c.today ? "#000" : "var(--accent)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  padding: "0 2px",
                 }}
-              />
-            )}
+              >
+                {c.holiday}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
