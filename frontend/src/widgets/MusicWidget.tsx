@@ -11,6 +11,7 @@ import {
 } from "./musicMath";
 import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
+import { WidgetEmpty } from "./WidgetEmpty";
 
 interface NeteaseSong {
   id: number;
@@ -180,9 +181,12 @@ export const MusicWidget = ({ w }: WidgetProps<MusicConfig> = {}) => {
             空
           </span>
         </div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-          通过右键菜单的"编辑"搜索并添加歌曲。
-        </div>
+        <WidgetEmpty
+          title="播放列表是空的"
+          hint="添加歌曲后即可播放"
+          cta="添加歌曲"
+          widgetId={w?.id}
+        />
       </div>
     );
   }

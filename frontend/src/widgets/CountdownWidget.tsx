@@ -3,6 +3,7 @@ import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { countdownDays, countdownParts } from "./countdownMath";
 import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
+import { WidgetEmpty } from "./WidgetEmpty";
 
 interface CountdownConfig {
   title?: string;
@@ -48,9 +49,12 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
             未设置
           </span>
         </div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-          点击右键菜单的"编辑"设置事件名称和日期。
-        </div>
+        <WidgetEmpty
+          title="还没有事件"
+          hint="设置名称和日期后开始倒数"
+          cta="设置事件"
+          widgetId={w?.id}
+        />
       </div>
     );
   }
@@ -64,7 +68,7 @@ export const CountdownWidget = ({ w }: WidgetProps<CountdownConfig> = {}) => {
       <div className="widget-header">
         <span className="widget-title">{title}</span>
         <span className="muted mono" style={{ fontSize: 10 }}>
-          {mode === "up" ? "SINCE" : "UNTIL"}
+          {mode === "up" ? "起" : "至"}
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -90,7 +94,7 @@ export const CountdownDetail = ({ w }: WidgetProps<CountdownConfig> = {}) => {
   if (!parts) {
     return (
       <div className="muted" style={{ fontSize: 13 }}>
-        请先通过右键菜单的"编辑"设置目标日期。
+        请先设置目标日期。
       </div>
     );
   }

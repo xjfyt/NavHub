@@ -88,6 +88,18 @@ const MarkdownWidget = lazy(() =>
 const MarkdownDetail = lazy(() =>
   import("./MarkdownWidget").then((m) => ({ default: m.MarkdownDetail })),
 );
+const HealthWidget = lazy(() =>
+  import("./HealthWidget").then((m) => ({ default: m.HealthWidget })),
+);
+const HealthDetail = lazy(() =>
+  import("./HealthWidget").then((m) => ({ default: m.HealthDetail })),
+);
+const DailyLinksWidget = lazy(() =>
+  import("./DailyLinksWidget").then((m) => ({ default: m.DailyLinksWidget })),
+);
+const DailyLinksDetail = lazy(() =>
+  import("./DailyLinksWidget").then((m) => ({ default: m.DailyLinksDetail })),
+);
 
 /** Wraps a widget tile so its chunk can stream in without crashing the dashboard. */
 function tile(node: React.ReactNode) {
@@ -333,6 +345,24 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     editable: true,
     floatingBar: true,
     render: (w) => <SearchWidget w={w} />,
+  },
+  health: {
+    id: "health",
+    icon: "activity",
+    name: "系统状态",
+    description: "本实例存活与就绪探测，一眼看到服务是否正常。",
+    defaultSize: "small",
+    render: (w) => tile(<HealthWidget w={w} />),
+    renderDetail: (w) => detail(<HealthDetail w={w} />),
+  },
+  "daily-links": {
+    id: "daily-links",
+    icon: "sparkle",
+    name: "今日站点",
+    description: "每天从你的导航里抽几个站点，当书签日报。",
+    defaultSize: "medium",
+    render: (w) => tile(<DailyLinksWidget w={w} />),
+    renderDetail: (w) => detail(<DailyLinksDetail w={w} />),
   },
   markdown: {
     id: "markdown",

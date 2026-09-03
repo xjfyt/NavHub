@@ -129,3 +129,24 @@ describe("shouldAttemptSilentReauth", () => {
     expect(SSO_INTERACTIVE_PARAM).toBe("nh_sso");
   });
 });
+
+import { consumeSsoCallback, shouldSkipSilentReauthForPath } from "./ssoSilent";
+
+describe("shouldSkipSilentReauthForPath", () => {
+  it("跳过管理后台", () => {
+    expect(shouldSkipSilentReauthForPath("/api/admin/sso")).toBe(true);
+    expect(shouldSkipSilentReauthForPath("/api/admin/users?x=1")).toBe(true);
+  });
+  it("其它接口不跳过", () => {
+    expect(shouldSkipSilentReauthForPath("/api/me")).toBe(false);
+    expect(shouldSkipSilentReauthForPath("/api/widgets/weather")).toBe(false);
+  });
+});
+
+describe("consumeSsoCallback", () => {
+  it("error 落地", () => {
+    const r = consumeSsoCallback("http://localhost:8088/?nh_sso=error&code=SECRET");
+    expect(r.flag).toBe("error");
+    expect(r.strippedOauth).toBe(true);
+  });
+});

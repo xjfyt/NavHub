@@ -283,28 +283,43 @@ export function AddIconModal({
     !!groupId &&
     !uploading &&
     (sourceMode !== "upload" || !!uploadedImageUrl) &&
-    (sourceMode !== "url" || !!selectedAutoImageUrl) &&
     (sourceMode !== "library" || !!librarySelectedUrl);
 
-  const submit = (e?: FormEvent) => {
-    // UX-29: 既作为表单 onSubmit(Enter),也作为主按钮 onClick。
+  const [saving, setSaving] = useState(false);
+  const submit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!canSave) return;
-    onSave({
-      groupId,
-      name: effectiveName.trim(),
-      url: normalizedUrl || url.trim() || null,
-      sub: sub.trim() || null,
-      size,
-      letter: effectiveImageUrl ? null : letter.trim() || null,
-      color,
-      iframePreview,
-      imageUrl: effectiveImageUrl,
-      imageStyle,
-      imageRadius,
-      fontSize,
-      textAlign,
-    });
+    if (!canSave) {
+      if (!effectiveName.trim()) toast.error("请填写名称");
+      else if (!groupId) toast.error("请选择分类");
+      else if (uploading) toast.error("图标还在上传，请稍候");
+      else if (sourceMode === "upload" && !uploadedImageUrl) toast.error("请先上传图片");
+      else if (sourceMode === "library" && !librarySelectedUrl) toast.error("请从图标库选择一张图");
+      else toast.error("还不能保存，请检查必填项");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        groupId,
+        name: effectiveName.trim(),
+        url: normalizedUrl || url.trim() || null,
+        sub: sub.trim() || null,
+        size,
+        letter: effectiveImageUrl ? null : letter.trim() || null,
+        color,
+        iframePreview,
+        imageUrl: effectiveImageUrl,
+        imageStyle,
+        imageRadius,
+        fontSize,
+        textAlign,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "保存失败";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const uploadFile = async (file?: File | null) => {
@@ -551,9 +566,10 @@ export function AddIconModal({
           </button>
           <button
             type="submit"
-            className={"wcc-btn-add" + (canSave ? "" : " disabled")}
+            className={"wcc-btn-add" + (canSave && !saving ? "" : " disabled")}
+            style={{ minWidth: 96, minHeight: 36 }}
           >
-            保存图标
+            {saving ? "保存中…" : "保存图标"}
           </button>
         </div>
       </form>

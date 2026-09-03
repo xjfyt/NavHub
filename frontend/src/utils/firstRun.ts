@@ -20,6 +20,8 @@ export interface DefaultCredsHintInput {
   attemptCount: number;
   /** 用户是否已手动关闭过该提示（持久化在 localStorage）。 */
   dismissed: boolean;
+  /** 后端确认默认超管仍须改密才提示。 */
+  defaultCredsHint?: boolean;
 }
 
 export function shouldShowDefaultCredsHint(
@@ -27,6 +29,7 @@ export function shouldShowDefaultCredsHint(
 ): boolean {
   if (!input.passwordEnabled) return false;
   if (input.dismissed) return false;
+  if (input.defaultCredsHint !== true) return false;
   // 仅在「零次尝试」时展示；负数 / NaN 等异常值一律按非首次处理（保守不泄露）。
   return input.attemptCount === 0;
 }

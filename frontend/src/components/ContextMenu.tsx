@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { DEFAULT_ICON_COLORS } from "../constants/design";
 import { Icon } from "./Icon";
 import { rovingIndex } from "../utils/focusTrap";
+import { contextMenuPosition } from "../utils/contextMenuPos";
 
 export interface CtxItem {
   divider?: boolean;
@@ -97,10 +98,13 @@ export function ContextMenu({
     focusables[next]?.focus();
   };
 
-  const pos = {
-    left: Math.min(x, window.innerWidth - 240),
-    top: Math.min(y, window.innerHeight - items.length * 42 - 16),
-  };
+  const pos = contextMenuPosition(
+    x,
+    y,
+    items.length,
+    window.innerWidth,
+    window.innerHeight,
+  );
 
   return (
     <div

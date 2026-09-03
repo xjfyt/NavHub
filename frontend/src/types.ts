@@ -240,6 +240,8 @@ export interface AuthStatus {
   mustChangePassword: boolean;
   /** 当前会话是否由 SSO 建立（用于静默续期 hint）。 */
   ssoSession?: boolean;
+  ssoRedirectOrigin?: string | null;
+  defaultCredsHint?: boolean;
 }
 
 // ---------- Icon Library ----------

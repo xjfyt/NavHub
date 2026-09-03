@@ -18,6 +18,25 @@ const SOURCE_LABEL: Record<SourceId, string> = {
   juejin: "掘金",
 };
 
+const HOT_FALLBACK: Record<SourceId, { title: string; heat: string; url?: string }[]> = {
+  weibo: [
+    { title: "今日热点暂未能同步", heat: "—" },
+    { title: "可切换来源或稍后再试", heat: "—" },
+  ],
+  zhihu: [
+    { title: "知乎热榜暂无数据", heat: "—" },
+    { title: "稍后再试或换个来源", heat: "—" },
+  ],
+  bilibili: [
+    { title: "B 站热门暂无数据", heat: "—" },
+    { title: "稍后再试或换个来源", heat: "—" },
+  ],
+  juejin: [
+    { title: "掘金热门暂无数据", heat: "—" },
+    { title: "稍后再试或换个来源", heat: "—" },
+  ],
+};
+
 export const RssWidget = ({ w }: WidgetProps<RssConfig> = {}) => {
   const { config } = useWidgetConfig<RssConfig>(w, DEFAULTS);
   const source = config.source ?? "weibo";
@@ -27,21 +46,16 @@ export const RssWidget = ({ w }: WidgetProps<RssConfig> = {}) => {
     { refreshMs: 5 * 60_000, cacheKey: `rss:${source}` },
   );
 
-  const items = data ?? [];
+  const items = (data && data.length ? data : error ? HOT_FALLBACK[source] : data) ?? [];
 
   return (
     <div className="widget w-rss">
       <div className="widget-header">
         <span className="widget-title">热搜 · {SOURCE_LABEL[source]}</span>
-        <span className="muted mono" style={{ fontSize: 10 }}>
-          {loading ? "LOADING" : error ? "ERROR" : "UPDATED"}
+        <span className="muted" style={{ fontSize: 10 }}>
+          {loading ? "加载中" : error ? "暂无数据" : "已更新"}
         </span>
       </div>
-      {error && (
-        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          {error.message || "加载失败"}
-        </div>
-      )}
       <div className="rss-list">
         {items.length === 0 && !loading && !error && (
           <div className="muted" style={{ fontSize: 12 }}>
@@ -90,7 +104,7 @@ export const RssDetail = ({ w }: WidgetProps<RssConfig> = {}) => {
     [source],
     { refreshMs: 5 * 60_000, cacheKey: `rss:${source}` },
   );
-  const items = data ?? [];
+  const items = (data && data.length ? data : error ? HOT_FALLBACK[source] : data) ?? [];
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -112,7 +126,7 @@ export const RssDetail = ({ w }: WidgetProps<RssConfig> = {}) => {
       </div>
       {error && (
         <div className="muted" style={{ fontSize: 12 }}>
-          {error.message || "加载失败"}
+          暂无数据，已显示占位条目
         </div>
       )}
       <div

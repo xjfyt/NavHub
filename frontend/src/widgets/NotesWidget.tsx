@@ -31,10 +31,10 @@ export const NotesWidget = ({ w }: WidgetProps<NotesConfig> = {}) => {
   const hint = saveError
     ? "保存失败"
     : indicator === "saving"
-      ? "SAVING…"
+      ? "保存中"
       : indicator === "saved"
-        ? "SAVED"
-        : "AUTOSAVE";
+        ? "已保存"
+        : "自动保存";
   return (
     <div className="widget w-notes">
       <div className="widget-header">

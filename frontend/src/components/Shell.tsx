@@ -13,6 +13,7 @@ import { ContextMenu, CtxItem, CtxMenuState } from "./ContextMenu";
 import { Icon } from "./Icon";
 import { GroupView, IconView, WidgetView } from "../types";
 import { WIDGET_REGISTRY } from "../widgets";
+import { WidgetSetupProvider } from "../widgets/widgetSetup";
 import { safeHttpUrl } from "../utils/iconSources";
 import { isTemporaryWallpaperUrl } from "../utils/wallpaperUrl";
 import { confirmDialog } from "./Dialogs";
@@ -287,11 +288,16 @@ export const Shell = ({
 
   const onAvatarClick = () => {
     if (isGuest) onRequestLogin();
-    else setUserMenuOpen(true);
+    else {
+      setCtxMenu(null);
+      setUserMenuOpen(true);
+    }
   };
 
-  const openCtx = (x: number, y: number, items: CtxItem[]) =>
+  const openCtx = (x: number, y: number, items: CtxItem[]) => {
+    setUserMenuOpen(false);
     setCtxMenu({ x, y, items });
+  };
 
   const randomWallpaper = async () => {
     if (isChangingWallpaper) return;
@@ -361,7 +367,13 @@ export const Shell = ({
   const sideCtx = (e: React.MouseEvent) => buildSideCtx(menuCtx, e);
 
   return (
-    <>
+    <WidgetSetupProvider
+      openEdit={(id) => {
+        setDetailWidgetId(null);
+        setCtxMenu(null);
+        setEditingWidgetId(id);
+      }}
+    >
       <Background
         theme={theme}
         wallpaperUrl={wallpaperUrl}
@@ -652,7 +664,14 @@ export const Shell = ({
 
       {tweaksOpen && (
         <ModalSuspense>
-          <TweaksPanel onClose={() => setTweaksOpen(false)} />
+          <TweaksPanel
+            onClose={() => setTweaksOpen(false)}
+            onOpenWallpaperLibrary={() => {
+              setTweaksOpen(false);
+              setAdminInitialTab("wallpapers");
+              setAdminOpen(true);
+            }}
+          />
         </ModalSuspense>
       )}
 
@@ -746,17 +765,19 @@ export const Shell = ({
               typeof addIconOpen === "object" ? addIconOpen : undefined
             }
             onSave={async (body) => {
-              setAddIconOpen(false);
               if (typeof addIconOpen === "object" && addIconOpen.id) {
                 await updateIcon(addIconOpen.id, body);
+                setAddIconOpen(false);
               } else {
                 const created = await addIcon(body);
-                if (created) setActiveGroup(created.groupId);
+                if (!created) throw new Error("添加图标失败");
+                setActiveGroup(created.groupId);
+                setAddIconOpen(false);
               }
             }}
           />
         </ModalSuspense>
       )}
-    </>
+    </WidgetSetupProvider>
   );
 };

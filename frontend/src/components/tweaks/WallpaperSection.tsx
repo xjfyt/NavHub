@@ -45,6 +45,8 @@ export const WallpaperSection = ({
   setWallpaperPage,
   detailWallpaper,
   setDetailWallpaper,
+  onOpenWallpaperLibrary,
+  isAdmin,
 }: {
   sub: string | null;
   setSub: (v: string | null) => void;
@@ -69,6 +71,8 @@ export const WallpaperSection = ({
   setDetailWallpaper: React.Dispatch<
     React.SetStateAction<RemoteWallpaperItem | null>
   >;
+  onOpenWallpaperLibrary?: () => void;
+  isAdmin?: boolean;
 }) => {
   const applyRemoteWallpaper = (w: RemoteWallpaperItem) => {
     updateTweaks({
@@ -202,6 +206,8 @@ export const WallpaperSection = ({
   const shuffleOn =
     s.wallpaperShuffle !== false && s.backgroundMode !== "theme";
   const shuffleInterval = normalizeShuffleInterval(s.wallpaperShuffleInterval);
+  const poolEmpty =
+    shuffleOn && !remoteWallpapersLoading && remoteWallpaperTotal === 0;
   const wallpaperActive =
     s.backgroundMode === "wallpaper" && !!wallpaperUrl && !shuffleOn;
   const active = shuffleOn || wallpaperActive;
@@ -256,14 +262,18 @@ export const WallpaperSection = ({
             <div className="tw-wallpaper-head">
               <div>
                 <div className="tw-wallpaper-name">
-                  {shuffleOn
+                  {poolEmpty
+                    ? "壁纸库为空"
+                    : shuffleOn
                     ? "随机壁纸轮换中"
                     : wallpaperActive
                       ? (s.wallpaperName as string) || "壁纸"
                       : `默认背景`}
                 </div>
                 <div className="tw-wallpaper-meta">
-                  {shuffleOn
+                  {poolEmpty
+                    ? "库里还没有壁纸，开启轮换也不会切换。"
+                    : shuffleOn
                     ? `每 ${formatShuffleInterval(shuffleInterval)}从壁纸库随机切换，选中具体壁纸后自动关闭。`
                     : wallpaperActive
                       ? [
@@ -283,10 +293,15 @@ export const WallpaperSection = ({
                   "tw-wallpaper-state" + (active || themeActive ? " on" : "")
                 }
               >
-                {shuffleOn ? "轮换中" : wallpaperActive ? "壁纸中" : "默认"}
+                {poolEmpty ? "未轮换" : shuffleOn ? "轮换中" : wallpaperActive ? "壁纸中" : "默认"}
               </span>
             </div>
             <div className="tw-wallpaper-actions">
+              {poolEmpty && isAdmin && onOpenWallpaperLibrary ? (
+                <button className="tw-action-btn primary" onClick={onOpenWallpaperLibrary}>
+                  打开壁纸库
+                </button>
+              ) : null}
               <button className="tw-action-btn primary" onClick={enableShuffle}>
                 {shuffleOn ? "已开启随机" : "随机壁纸"}
               </button>

@@ -8,6 +8,7 @@ import {
 } from "./utils/firstRun";
 import { useI18n } from "./i18n";
 import { markSsoHint } from "./utils/ssoSilent";
+import { canonicalOidcOrigin } from "./utils/ssoOrigin";
 
 export function LoginScreen(props: {
   status: AuthStatus;
@@ -32,9 +33,14 @@ export function LoginScreen(props: {
 
   const onSsoLogin = () => {
     markSsoHint();
-    window.location.href = api.loginUrl({
+    const loginPath = api.loginUrl({
       returnTo: window.location.pathname + window.location.search + window.location.hash,
     });
+    const canon = canonicalOidcOrigin(
+      window.location.origin,
+      status.ssoRedirectOrigin,
+    );
+    window.location.href = canon ? `${canon}${loginPath}` : loginPath;
   };
 
   const onPasswordLogin = async () => {
@@ -69,6 +75,7 @@ export function LoginScreen(props: {
       passwordEnabled: status.passwordEnabled,
       attemptCount,
       dismissed: hintDismissed,
+      defaultCredsHint: status.defaultCredsHint === true,
     });
   const onDismissHint = () => {
     persistDefaultCredsHintDismissed();

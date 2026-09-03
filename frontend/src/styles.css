@@ -7086,3 +7086,26 @@ html[data-mode="light"] .tile:focus-visible {
     animation-iteration-count: infinite !important;
   }
 }
+
+.widget-empty-cta {
+  margin-top: 4px;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 32px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text-inv, #1a1a1a);
+  background: var(--accent, #ffd7a5);
+}
+.merge-target-glow {
+  z-index: 3;
+  outline: 3px solid rgba(255, 215, 165, 0.85);
+  outline-offset: 4px;
+  filter: brightness(1.08);
+  box-shadow: 0 0 24px rgba(255, 215, 165, 0.45) !important;
+}
+.merge-target-glow.merge-target-folder {
+  outline-color: rgba(155, 231, 180, 0.9);
+  box-shadow: 0 0 28px rgba(155, 231, 180, 0.5) !important;
+}

@@ -337,7 +337,7 @@ export const NavView = ({
               </span>
               <span className="nav-drag-hint-tip">
                 <Icon name="folder" size={13} />
-                把图标深压到另一张上合并为文件夹
+                拖到另一枚图标上停留即可合并为文件夹
               </span>
               <span className="nav-drag-hint-tip">
                 <Icon name="arrow-right" size={13} />

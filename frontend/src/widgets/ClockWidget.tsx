@@ -11,13 +11,13 @@ interface ClockConfig {
   hour12?: boolean;
 }
 
-const DEFAULTS: ClockConfig = { hour12: false };
+const DEFAULTS: ClockConfig = { hour12: false, timeZone: "Asia/Shanghai" };
 
 /** 可选世界时区(label 用于 detail 多时区面板与编辑器下拉)。 */
 export const CLOCK_ZONES: { tz: string; label: string }[] = [
-  { tz: "", label: "本地" },
-  { tz: "UTC", label: "UTC" },
   { tz: "Asia/Shanghai", label: "北京" },
+  { tz: "", label: "系统时区" },
+  { tz: "UTC", label: "UTC" },
   { tz: "Asia/Tokyo", label: "东京" },
   { tz: "America/New_York", label: "纽约" },
   { tz: "America/Los_Angeles", label: "洛杉矶" },
@@ -64,7 +64,7 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
   })();
 
   const zoneLabel = !timeZone
-    ? "LOCAL"
+    ? "本地"
     : (CLOCK_ZONES.find((z) => z.tz === timeZone)?.label ?? timeZone);
 
   return (

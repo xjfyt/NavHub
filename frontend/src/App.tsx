@@ -3,7 +3,7 @@ import { api, ApiError } from "./api";
 import type { AuthStatus, Me, Workspace } from "./types";
 import { LoginScreen } from "./LoginScreen";
 import { WorkspaceScreen } from "./WorkspaceScreen";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 
 import { ChangePasswordScreen } from "./ChangePasswordScreen";
 import { mergeGuestTweaks } from "./utils/guestTweaks";
@@ -11,10 +11,11 @@ import {
   beginSilentReauth,
   clearSilentLock,
   clearSsoHint,
-  consumeSilentFailure,
+  consumeSsoCallback,
   markSsoHint,
   shouldAttemptSilentReauth,
 } from "./utils/ssoSilent";
+import { safeAppTitle } from "./utils/ssoOrigin";
 import {
   connectivityReducer,
   initialConnectivity,
@@ -150,7 +151,12 @@ export function App() {
 
   const boot = useCallback(async () => {
     try {
-      const silentFailed = consumeSilentFailure();
+      const landing = consumeSsoCallback();
+      const silentFailed = landing.flag === "interactive";
+      const ssoError = landing.flag === "error";
+      if (ssoError) {
+        toast.error("登录未完成，请重试");
+      }
       // Status + workspace always go in parallel. /api/me only fires if we
       // believe the user is logged in:
       //   - If the SWR cache says they were authed, kick it off optimistically
@@ -190,7 +196,7 @@ export function App() {
       if (statusResult.authenticated) {
         clearSilentLock();
         if (statusResult.ssoSession) markSsoHint();
-      } else if (silentFailed) {
+      } else if (silentFailed || ssoError) {
         setWantLogin(true);
       }
 
@@ -219,10 +225,9 @@ export function App() {
         }
       }
 
-      if (statusResult.appName) {
-        document.title = statusResult.appName;
-        window.appName = statusResult.appName;
-      }
+      const title = safeAppTitle(statusResult.appName);
+      document.title = title;
+      window.appName = title;
       setState({ stage: "ready", status: statusResult, me, workspace });
       writeSwr({ status: statusResult, me, workspace });
       dispatchConn({ type: "backend_ok" });

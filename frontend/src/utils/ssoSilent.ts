@@ -1,5 +1,7 @@
 /** SSO 静默续期（Outline 式）：应用会话过期但 IdP 会话仍在时，用 prompt=none 自动重登。 */
 
+import { applyCleanLocation, consumeSsoLanding } from "./ssoOrigin";
+
 export const SSO_HINT_KEY = "navhub_sso_hint";
 export const SSO_SILENT_LOCK_KEY = "navhub_sso_silent_inflight";
 export const SSO_ENABLED_KEY = "navhub_sso_enabled";
@@ -110,21 +112,29 @@ export function isSilentLocked(): boolean {
  * 返回 true 表示本次不得再自动 prompt=none，以免死循环。
  */
 export function consumeSilentFailure(href?: string): boolean {
-  if (typeof window === "undefined" && !href) return false;
+  return consumeSsoCallback(href).flag === "interactive";
+}
+
+export type SsoCallbackFlag = "interactive" | "error" | null;
+
+/** 消费落地 URL 上的 nh_sso 标记，并清掉 code=/state= 等 OAuth leftover。 */
+export function consumeSsoCallback(href?: string): {
+  flag: SsoCallbackFlag;
+  strippedOauth: boolean;
+} {
+  if (typeof window === "undefined" && !href) {
+    return { flag: null, strippedOauth: false };
+  }
   try {
-    const u = new URL(href ?? window.location.href, "http://localhost");
-    if (u.searchParams.get(SSO_INTERACTIVE_PARAM) !== "interactive") {
-      return false;
+    const live = !href;
+    const r = consumeSsoLanding(href ?? window.location.href);
+    if (live && (r.flag || r.strippedOauth)) {
+      applyCleanLocation(r.next);
+      if (r.flag) clearSilentLock();
     }
-    u.searchParams.delete(SSO_INTERACTIVE_PARAM);
-    const next = u.pathname + u.search + u.hash;
-    if (typeof window !== "undefined" && !href) {
-      window.history.replaceState({}, "", next || "/");
-      clearSilentLock();
-    }
-    return true;
+    return { flag: r.flag, strippedOauth: r.strippedOauth };
   } catch {
-    return false;
+    return { flag: null, strippedOauth: false };
   }
 }
 
@@ -159,9 +169,20 @@ export function beginSilentReauth(returnTo?: string): boolean {
   return true;
 }
 
+/** 管理后台 overlay 内的 401 不得整页 prompt=none，否则会拆掉 overlay。 */
+export function shouldSkipSilentReauthForPath(path: string | undefined): boolean {
+  if (!path) return false;
+  const p = path.split("?")[0];
+  return p.startsWith("/api/admin") || p.includes("/api/admin/");
+}
+
 /** API 401：与 shouldAttemptSilentReauth 同一套门槛（含 ssoEnabled），避免关 SSO 时乱跳。 */
-export function maybeSilentReauthOn401(ssoEnabled?: boolean): void {
+export function maybeSilentReauthOn401(
+  ssoEnabled?: boolean,
+  path?: string,
+): void {
   if (typeof window === "undefined") return;
+  if (shouldSkipSilentReauthForPath(path)) return;
   const enabled = ssoEnabled ?? readSsoEnabled();
   if (
     !shouldAttemptSilentReauth({

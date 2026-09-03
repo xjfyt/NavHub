@@ -15,6 +15,7 @@ const POOL_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
  * 若缓存为空再回退到本地内置 WALLPAPER_PRESETS。
  */
 export function useWallpaperShuffle(tweaks: Tweaks) {
+  const [poolEmpty, setPoolEmpty] = useState(false);
   const [shufflePreset, setShufflePreset] = useState<WallpaperPreset | null>(
     () => {
       try {
@@ -70,6 +71,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
           if (!alive) return;
           const pool = resp.items.map(remoteToPreset);
           poolRef.current = pool;
+          setPoolEmpty(pool.length === 0);
           const next = pickRandom(pool, lastIdRef.current);
           if (next) {
             lastIdRef.current = next.id;
@@ -80,6 +82,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
         .catch(() => {
           if (!alive) return;
           poolRef.current = [];
+          setPoolEmpty(true);
           const delay = POOL_RETRY_DELAYS_MS[retryIndex++];
           if (delay !== undefined)
             retryTimer = window.setTimeout(loadPool, delay);
@@ -126,7 +129,7 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     setShufflePreset(next);
   };
 
-  return { shufflePreset, shuffleEnabled, shuffleActive, nextPreset };
+  return { shufflePreset, shuffleEnabled, shuffleActive, nextPreset, poolEmpty };
 }
 
 function pickRandom(

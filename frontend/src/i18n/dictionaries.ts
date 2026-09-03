@@ -22,7 +22,7 @@ export const dictionaries: Dictionaries = {
 
     // 登录页
     "login.bothDisabled": "当前未启用任何登录方式，请联系管理员。",
-    "login.sso": "使用 Casdoor 登录",
+    "login.sso": "使用 SSO 登录",
     "login.switchToPassword": "使用账号密码登录",
     "login.switchToSso": "返回 SSO 登录",
     "login.usernamePlaceholder": "用户名或邮箱",

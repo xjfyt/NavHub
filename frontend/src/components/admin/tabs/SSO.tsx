@@ -22,19 +22,46 @@ export const AdminSSO = () => {
     scopes?: string;
   }>({});
   const [showId, setShowId] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = async () => {
+    setLoading(true);
     try {
       setConfig(await api.admin.sso());
-    } catch (_e) {
-      /* ignore */
+      setLoadError(null);
+    } catch (e: any) {
+      setLoadError(e?.message || "无法加载 SSO 配置");
+    } finally {
+      setLoading(false);
     }
   };
   useEffect(() => {
     load();
   }, []);
 
-  if (!config) return null;
+  if (loading && !config) {
+    return (
+      <div style={{ padding: 40, textAlign: "center", color: "var(--text-soft)" }}>
+        加载中 …
+      </div>
+    );
+  }
+  if (!config) {
+    return (
+      <div style={{ padding: 48, textAlign: "center" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>无法加载 SSO 配置</div>
+        <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+          {loadError === "unauthorized" || loadError === "unauthorized"
+            ? "当前会话没有权限或已过期。管理页仍打开，可返回其它标签或重新登录。"
+            : loadError || "请稍后重试"}
+        </div>
+        <button className="nh-btn-ghost" type="button" onClick={() => void load()}>
+          重试
+        </button>
+      </div>
+    );
+  }
 
   const handleEdit = () => {
     // UX-15: 进入编辑时不把已存的 Client Secret 回填到明文输入框,

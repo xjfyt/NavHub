@@ -9,6 +9,9 @@ import {
 } from "./weatherFormat";
 import { widgetTier } from "./widgetTier";
 import type { WidgetProps } from "./types";
+import { WidgetEmpty } from "./WidgetEmpty";
+import { friendlyWidgetError, isUnauthorizedError } from "./widgetErrors";
+import { useWorkspace } from "../hooks/useWorkspace";
 
 interface WeatherConfig {
   city?: string;
@@ -19,6 +22,7 @@ interface WeatherConfig {
 const DEFAULTS: WeatherConfig = { city: "", unit: "c" };
 
 export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
+  const { isGuest } = useWorkspace();
   const { config, update } = useWidgetConfig<WeatherConfig>(w, DEFAULTS);
   const city = (config.city ?? "").trim();
   const unit: TempUnit = config.unit === "f" ? "f" : "c";
@@ -63,40 +67,29 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
         <div className="widget-header">
           <span className="widget-title">天气</span>
         </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            flex: 1,
-            textAlign: "center",
-            color: "var(--text-soft)",
-            padding: "8px 4px",
-          }}
-        >
-          <div style={{ fontSize: 13 }}>未设置城市</div>
-          <div className="muted" style={{ fontSize: 11 }}>
-            点击右键菜单的“编辑”设置城市
-          </div>
-        </div>
+        <WidgetEmpty
+          title="未设置城市"
+          hint="设置城市后即可查看预报"
+          cta="设置城市"
+          widgetId={w?.id}
+        />
       </div>
     );
   }
 
   if (error) {
+    const guestish = isGuest || isUnauthorizedError(error);
     return (
       <div className="widget w-weather">
         <div className="widget-header">
           <span className="widget-title">{city || "天气"}</span>
-          <span className="muted mono" style={{ fontSize: 10 }}>
-            ERROR
-          </span>
         </div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          {error.message || "加载失败"}
-        </div>
+        <WidgetEmpty
+          title={friendlyWidgetError(error, guestish)}
+          hint={guestish ? undefined : "稍后自动重试，或设置城市"}
+          cta={guestish ? undefined : "设置城市"}
+          widgetId={w?.id}
+        />
       </div>
     );
   }
@@ -106,8 +99,8 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
       <div className="widget w-weather">
         <div className="widget-header">
           <span className="widget-title">{city || "天气"}</span>
-          <span className="muted mono" style={{ fontSize: 10 }}>
-            {loading ? "LOADING" : "—"}
+          <span className="muted" style={{ fontSize: 10 }}>
+            {loading ? "加载中" : "—"}
           </span>
         </div>
         <div className="temp" style={{ opacity: 0.5 }}>
@@ -127,8 +120,8 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
       <div className="widget-header">
         <span className="widget-title">{data.city || city || "天气"}</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span className="muted mono" style={{ fontSize: 10 }}>
-            {loading ? "UPDATING" : "UPDATED"}
+          <span className="muted" style={{ fontSize: 10 }}>
+            {loading ? "更新中" : "已更新"}
           </span>
           {unitToggle}
         </span>
@@ -182,7 +175,7 @@ export const WeatherDetail = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   if (error)
     return (
       <div className="muted" style={{ fontSize: 13 }}>
-        {error.message || "加载失败"}
+        {friendlyWidgetError(error, isUnauthorizedError(error))}
       </div>
     );
   if (!data)

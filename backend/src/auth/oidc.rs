@@ -296,16 +296,101 @@ pub fn is_interaction_required_error(err: &str) -> bool {
 
 /// 静默失败后回到应用并带 nh_sso=interactive，前端展示登录页且不再自动跳。
 pub fn interactive_fallback_url(return_to: &str) -> String {
+    append_sso_flag(return_to, "interactive")
+}
+
+/// 交互式回调失败：回到应用并带 nh_sso=error，前端展示登录 UI，绝不把 IdP 的 code= 留在地址栏/标题。
+pub fn callback_error_url(return_to: &str) -> String {
+    append_sso_flag(return_to, "error")
+}
+
+fn append_sso_flag(return_to: &str, flag: &str) -> String {
     let base = sanitize_return_to(return_to);
-    if base.contains("nh_sso=") {
-        return base;
+    let stripped = strip_oauth_query_params(&base);
+    if stripped.contains("nh_sso=") {
+        return stripped;
     }
-    if base.contains('?') {
-        format!("{base}&nh_sso=interactive")
+    if stripped.contains('?') {
+        format!("{stripped}&nh_sso={flag}")
     } else {
-        format!("{base}?nh_sso=interactive")
+        format!("{stripped}?nh_sso={flag}")
     }
 }
+
+/// 从站内 return_to 去掉 OAuth leftover（code/state/error），避免写进 document.title。
+pub fn strip_oauth_query_params(path_and_query: &str) -> String {
+    let Some((path, query)) = path_and_query.split_once('?') else {
+        return path_and_query.to_string();
+    };
+    let kept: Vec<&str> = query
+        .split('&')
+        .filter(|p| {
+            let key = p.split('=').next().unwrap_or("");
+            !matches!(
+                key,
+                "code" | "state" | "error" | "error_description" | "session_state"
+            )
+        })
+        .filter(|p| !p.is_empty())
+        .collect();
+    if kept.is_empty() {
+        path.to_string()
+    } else {
+        format!("{path}?{}", kept.join("&"))
+    }
+}
+
+pub fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]")
+}
+
+fn split_host_port(host_header: &str) -> (&str, Option<&str>) {
+    let h = host_header.trim();
+    if let Some(rest) = h.strip_prefix('[') {
+        if let Some(end) = rest.find(']') {
+            let host = &rest[..end];
+            let port = rest[end + 1..].strip_prefix(':');
+            return (host, port);
+        }
+    }
+    if let Some((host, port)) = h.rsplit_once(':') {
+        if host.chars().all(|c| c.is_ascii_digit() || c == '.') || host == "localhost" {
+            return (host, Some(port));
+        }
+    }
+    (h, None)
+}
+
+/// SSO redirect_uri 的 origin（scheme://host[:port]），供前端在发起 OIDC 前对齐。
+pub fn origin_from_redirect_uri(redirect_uri: &str) -> Option<String> {
+    let uri = redirect_uri.trim();
+    let rest = uri
+        .strip_prefix("https://")
+        .map(|r| ("https", r))
+        .or_else(|| uri.strip_prefix("http://").map(|r| ("http", r)))?;
+    let (scheme, rest) = rest;
+    let hostport = rest.split('/').next().unwrap_or("");
+    if hostport.is_empty() {
+        return None;
+    }
+    Some(format!("{scheme}://{hostport}"))
+}
+
+/// 若当前 Host 与 redirect_uri 只是 127.0.0.1 ↔ localhost 别名不一致，返回应对齐的 origin。
+pub fn oidc_loopback_canonical_origin(request_host: &str, redirect_uri: &str) -> Option<String> {
+    let origin = origin_from_redirect_uri(redirect_uri)?;
+    let redir_hostport = origin.split("://").nth(1)?;
+    let (redir_host, _) = split_host_port(redir_hostport);
+    let (req_host, _) = split_host_port(request_host);
+    if req_host.eq_ignore_ascii_case(redir_host) {
+        return None;
+    }
+    if !is_loopback_host(req_host) || !is_loopback_host(redir_host) {
+        return None;
+    }
+    Some(origin)
+}
+
 
 /// OIDC discovery document (subset). Cached so Authentik / standard IdPs work
 /// without hard-coding Casdoor path conventions.
@@ -814,6 +899,46 @@ mod tests {
             "/?nh_sso=interactive"
         );
     }
+
+    #[test]
+    fn callback_error_url_strips_oauth_code() {
+        assert_eq!(callback_error_url("/"), "/?nh_sso=error");
+        assert_eq!(
+            callback_error_url("/?code=SECRET&state=abc"),
+            "/?nh_sso=error"
+        );
+        assert_eq!(
+            callback_error_url("/dash?tab=1&code=x"),
+            "/dash?tab=1&nh_sso=error"
+        );
+    }
+
+    #[test]
+    fn loopback_canonical_origin_rewrites_127_to_localhost() {
+        assert_eq!(
+            oidc_loopback_canonical_origin(
+                "127.0.0.1:8088",
+                "http://localhost:8088/auth/callback"
+            )
+            .as_deref(),
+            Some("http://localhost:8088")
+        );
+        assert_eq!(
+            oidc_loopback_canonical_origin(
+                "localhost:8088",
+                "http://localhost:8088/auth/callback"
+            ),
+            None
+        );
+        assert_eq!(
+            oidc_loopback_canonical_origin(
+                "navhub.example:8088",
+                "http://localhost:8088/auth/callback"
+            ),
+            None
+        );
+    }
+
 
     #[test]
     fn interaction_required_errors_are_recognized() {

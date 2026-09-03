@@ -33,12 +33,30 @@ pub struct LoginQuery {
 
 pub async fn login(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Query(q): Query<LoginQuery>,
 ) -> AppResult<Response> {
     // OPS-11: 经 TTL 缓存读取 SSO 配置;陈旧时自动从 app_settings 重载。
     let sso = state.current_sso().await;
     if !sso.enabled {
         return Err(AppError::Forbidden("sso_disabled"));
+    }
+    // 127.0.0.1 vs localhost 会令 nh_oauth cookie 无法随 redirect_uri 回传。
+    if let Some(host) = headers
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+    {
+        if let Some(origin) = oidc::oidc_loopback_canonical_origin(host, &sso.redirect_uri) {
+            let mut params = vec![format!(
+                "return_to={}",
+                urlencoding::encode(q.return_to.as_deref().unwrap_or("/"))
+            )];
+            if q.prompt.as_deref() == Some("none") {
+                params.insert(0, "prompt=none".into());
+            }
+            let dest = format!("{origin}/auth/login?{}", params.join("&"));
+            return Ok(Redirect::temporary(&dest).into_response());
+        }
     }
     // AUTH-7 + AUTH-1: mint a per-login secret (state + nonce + PKCE verifier)
     // and bind it to THIS browser via an HttpOnly, SameSite=Lax cookie instead
@@ -84,7 +102,12 @@ pub async fn callback(
             resp
         }
         Err(e) => {
-            let mut resp = e.into_response();
+            tracing::warn!(error = ?e, "sso callback failed");
+            let dest = oidc::extract_flow_cookie(&headers)
+                .and_then(|raw| oidc::OauthFlow::decode_cookie_value(&raw))
+                .map(|f| oidc::callback_error_url(&f.return_to))
+                .unwrap_or_else(|| "/?nh_sso=error".to_string());
+            let mut resp = Redirect::temporary(&dest).into_response();
             append_set_cookie(&mut resp, &oidc::clear_flow_cookie(secure));
             resp
         }
@@ -341,6 +364,11 @@ pub struct StatusResp {
     pub app_name: String,
     pub must_change_password: bool,
     pub sso_session: bool,
+    /// SSO redirect_uri 的 origin，前端发起 OIDC 前用来对齐 127.0.0.1/localhost。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sso_redirect_origin: Option<String>,
+    /// 仅当默认超管仍须改密时提示默认凭据（避免向已配置实例泄露）。
+    pub default_creds_hint: bool,
 }
 
 pub async fn status(
@@ -359,6 +387,16 @@ pub async fn status(
         },
         None => (false, false, false),
     };
+    let default_creds_hint = if authed || !state.cfg.superadmin.password_login_enabled {
+        false
+    } else {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT must_change_password FROM users WHERE username = 'superadmin' LIMIT 1",
+        )
+        .fetch_optional(&state.pg)
+        .await?
+        .unwrap_or(false)
+    };
     let mut resp = Json(StatusResp {
         authenticated: authed,
         sso_enabled: sso.enabled,
@@ -366,6 +404,8 @@ pub async fn status(
         app_name: state.cfg.app.site_name.clone(),
         must_change_password: must_change,
         sso_session,
+        sso_redirect_origin: oidc::origin_from_redirect_uri(&sso.redirect_uri),
+        default_creds_hint,
     })
     .into_response();
     if stale_cookie {

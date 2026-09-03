@@ -5,6 +5,7 @@ import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { safeHttpUrl } from "../utils/iconSources";
 import { isUrlAllowed } from "./iframeWhitelist";
+import { WidgetEmpty } from "./WidgetEmpty";
 
 interface IframeConfig {
   url?: string;
@@ -113,7 +114,7 @@ export const IframeWidget = ({ w }: WidgetProps<IframeConfig> = {}) => {
             renderFallback("shield", "该域名未在 Iframe 白名单中，已拦截。")
           )
         ) : (
-          <span>点击齿轮按钮设置网址</span>
+          <WidgetEmpty title="未设置网址" hint="嵌入一个允许的网页" cta="设置网址" widgetId={w?.id} />
         )}
       </div>
     </div>

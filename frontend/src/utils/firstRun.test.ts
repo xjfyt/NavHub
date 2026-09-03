@@ -8,6 +8,7 @@ describe("shouldShowDefaultCredsHint", () => {
         passwordEnabled: true,
         attemptCount: 0,
         dismissed: false,
+        defaultCredsHint: true,
       }),
     ).toBe(true);
   });
@@ -54,6 +55,16 @@ describe("shouldShowDefaultCredsHint", () => {
       shouldShowDefaultCredsHint({
         passwordEnabled: true,
         attemptCount: -1,
+        dismissed: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("后端未确认 defaultCredsHint 时不显示默认凭据", () => {
+    expect(
+      shouldShowDefaultCredsHint({
+        passwordEnabled: true,
+        attemptCount: 0,
         dismissed: false,
       }),
     ).toBe(false);

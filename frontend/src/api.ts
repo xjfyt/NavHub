@@ -108,7 +108,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     cleanup();
   }
   if (res.status === 401) {
-    maybeSilentReauthOn401();
+    maybeSilentReauthOn401(undefined, path);
     throw new ApiError(401, "unauthorized", "unauthorized");
   }
   if (!res.ok) {
@@ -148,7 +148,7 @@ function uploadFormWithProgress<T>(
     };
     xhr.onload = () => {
       if (xhr.status === 401) {
-        maybeSilentReauthOn401();
+        maybeSilentReauthOn401(undefined, path);
         reject(new ApiError(401, "unauthorized", "unauthorized"));
         return;
       }

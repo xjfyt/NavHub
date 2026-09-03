@@ -15,7 +15,7 @@ import { NotifySection } from "./tweaks/NotifySection";
 import { AboutSection } from "./tweaks/AboutSection";
 import { SearchSection } from "./tweaks/SearchSection";
 
-export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
+export const TweaksPanel = ({ onClose, onOpenWallpaperLibrary }: { onClose: () => void; onOpenWallpaperLibrary?: () => void }) => {
   const {
     me,
     workspace,
@@ -180,6 +180,8 @@ export const TweaksPanel = ({ onClose }: { onClose: () => void }) => {
         setWallpaperPage={setWallpaperPage}
         detailWallpaper={detailWallpaper}
         setDetailWallpaper={setDetailWallpaper}
+        onOpenWallpaperLibrary={onOpenWallpaperLibrary}
+        isAdmin={me?.role === "admin" || me?.role === "superadmin"}
       />
     );
   else if (activeNav === "notify")
