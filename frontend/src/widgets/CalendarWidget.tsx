@@ -82,6 +82,8 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
         </div>
         <div className="cal-nav">
           <button
+            type="button"
+            aria-label="上个月"
             onClick={(e) => {
               e.stopPropagation();
               go(-1);
@@ -91,15 +93,20 @@ export const CalendarWidget = ({ w }: WidgetProps<CalendarConfig> = {}) => {
             <Icon name="chevron-left" size={12} />
           </button>
           <button
+            type="button"
+            className="cal-today"
+            aria-label="回到今天"
             onClick={(e) => {
               e.stopPropagation();
               goToday();
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <Icon name="star" size={12} />
+            今
           </button>
           <button
+            type="button"
+            aria-label="下个月"
             onClick={(e) => {
               e.stopPropagation();
               go(1);

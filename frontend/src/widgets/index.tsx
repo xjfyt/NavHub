@@ -382,6 +382,7 @@ export const WIDGET_KINDS = Object.values(WIDGET_REGISTRY);
 
 /** 目录预览用的示例 config，让 preview 看起来真实 */
 export const DEMO_CONFIG: Record<string, Record<string, unknown>> = {
+  clock: { timeZone: "Asia/Shanghai", hour12: false },
   weather: { city: "北京" },
   countdown: {
     title: "与 Tina 相识",

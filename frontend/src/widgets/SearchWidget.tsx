@@ -42,18 +42,31 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
   const engineKey = tweaks.searchEngine || "google";
   const cur = allEngines[engineKey] || BUILTIN_ENGINES.google;
 
+  const runSearch = () => {
+    const q = val.trim();
+    if (!q) {
+      toast.error("请输入搜索内容");
+      return;
+    }
+    const targetUrl = cur.url.includes("{q}")
+      ? cur.url.replace("{q}", encodeURIComponent(q))
+      : cur.url + encodeURIComponent(q);
+    const safe = safeHttpUrl(targetUrl);
+    if (!safe) {
+      toast.error("无效的搜索引擎地址");
+      return;
+    }
+    window.open(safe, "_blank", "noopener");
+  };
+
   const onSearch = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && val.trim()) {
-      const targetUrl = cur.url.includes("{q}")
-        ? cur.url.replace("{q}", encodeURIComponent(val))
-        : cur.url + encodeURIComponent(val);
-      // SEC(自 XSS 防御纵深): 仅放行 http/https,拦截 javascript:/data: 等伪协议引擎 URL。
-      const safe = safeHttpUrl(targetUrl);
-      if (!safe) {
-        toast.error("无效的搜索引擎地址");
-        return;
-      }
-      window.open(safe, "_blank", "noopener");
+    if (e.key === "Escape") {
+      setPickerOpen(false);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runSearch();
     }
   };
 
@@ -61,7 +74,10 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
     <div className="w-search-float">
       <div className="search w-search-inner" data-nobubble>
         <button
+          type="button"
           className="search-engine wt"
+          aria-label={`搜索引擎：${cur.name}`}
+          aria-expanded={pickerOpen}
           onClick={(e) => {
             e.stopPropagation();
             setPickerOpen((p) => !p);
@@ -85,7 +101,8 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
             >
               <div className="engine-grid">
                 {Object.values(allEngines).map((v) => (
-                  <div
+                  <button
+                    type="button"
                     key={v.id}
                     className={
                       "engine-tile " + (v.id === engineKey ? "active" : "")
@@ -99,7 +116,7 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
                       <EngineLogo engine={v} size={30} />
                     </div>
                     <div className="engine-name">{v.name}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -112,7 +129,20 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={onSearch}
           placeholder={config.placeholder || "输入搜索内容"}
+          aria-label="搜索"
         />
+        <button
+          type="button"
+          className="search-go"
+          aria-label="搜索"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            runSearch();
+          }}
+        >
+          <Icon name="search" size={16} />
+        </button>
       </div>
     </div>
   );

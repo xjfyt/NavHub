@@ -188,7 +188,7 @@ function ClockEdit({
   value: ClockDraft;
   onChange: (p: Record<string, unknown>) => void;
 }) {
-  const tz = value.timeZone ?? "";
+  const tz = value.timeZone === undefined ? "Asia/Shanghai" : value.timeZone;
   const hour12 = value.hour12 ?? false;
   return (
     <div className="wcc-form">

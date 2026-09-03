@@ -88,6 +88,9 @@ export const UserMenu = ({
         onClick: () => onOpenSettings(false),
       },
       { icon: "shield", label: "管理后台", onClick: onOpenAdmin },
+      ...(role === "superadmin"
+        ? [{ icon: "key", label: "SSO 接入", onClick: onOpenSSO }]
+        : []),
       { divider: true },
       { icon: "logout", label: "退出登录", danger: true, onClick: onLogout },
     ];

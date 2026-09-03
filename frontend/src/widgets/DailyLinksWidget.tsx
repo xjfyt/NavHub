@@ -49,20 +49,12 @@ export const DailyLinksWidget = ({ w: _w }: WidgetProps = {}) => {
         {picks.map((ic) => (
           <a
             key={ic.id}
+            className="daily-row"
             href={ic.url || "#"}
             target="_blank"
             rel="noopener noreferrer"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              textDecoration: "none",
-              color: "inherit",
-              fontSize: 12,
-              minWidth: 0,
-            }}
           >
             <span
               style={{

@@ -4,7 +4,11 @@ import type { WidgetProps } from "./types";
 
 async function probe(path: string, signal?: AbortSignal): Promise<boolean> {
   try {
-    const res = await fetch(path, { signal, credentials: "include", cache: "no-store" });
+    const res = await fetch(path, {
+      signal,
+      credentials: "include",
+      cache: "no-store",
+    });
     return res.ok;
   } catch {
     return false;
@@ -27,26 +31,32 @@ export const HealthWidget = ({ w }: WidgetProps = {}) => {
   const live = data?.live;
   const ready = data?.ready;
   const ok = live && ready;
+  const word = loading && !data ? "检测中" : ok ? "在线" : "降级";
   return (
     <div className="widget w-health">
       <div className="widget-header">
         <span className="widget-title">系统状态</span>
         <span className="muted" style={{ fontSize: 10 }}>
-          {loading && !data ? "检测中" : ok ? "正常" : "异常"}
+          {loading && !data ? "检测中" : ok ? "正常" : "需关注"}
         </span>
       </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-        <span style={{ fontSize: 22, fontWeight: 650 }}>
-          {ok ? "在线" : loading ? "…" : "降级"}
-        </span>
+      <div className="health-status">
+        <span
+          className={
+            "health-dot" + (loading && !data ? "" : ok ? " ok" : " bad")
+          }
+        />
+        <span className="health-word">{word}</span>
       </div>
       {tier !== "sm" && (
-        <div className="meta" style={{ marginTop: 8 }}>
-          <div>
-            存活<span>{live ? "正常" : "失败"}</span>
+        <div className="health-rows">
+          <div className="health-row">
+            <span>存活</span>
+            <span>{live ? "正常" : loading ? "…" : "失败"}</span>
           </div>
-          <div>
-            就绪<span>{ready ? "正常" : "失败"}</span>
+          <div className="health-row">
+            <span>就绪</span>
+            <span>{ready ? "正常" : loading ? "…" : "失败"}</span>
           </div>
         </div>
       )}
@@ -87,7 +97,9 @@ export const HealthDetail = ({ w }: WidgetProps = {}) => {
           }}
         >
           <span>{row.k}</span>
-          <span>{loading && row.v === undefined ? "…" : row.v ? "正常" : "失败"}</span>
+          <span>
+            {loading && row.v === undefined ? "…" : row.v ? "正常" : "失败"}
+          </span>
         </div>
       ))}
       <button type="button" className="wcc-btn-add" onClick={() => refresh()}>
