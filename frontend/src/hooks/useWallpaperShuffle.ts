@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   normalizeShuffleInterval,
   type WallpaperPreset,
@@ -6,13 +6,18 @@ import {
 import { Tweaks, RemoteWallpaperItem } from "../types";
 import { api } from "../api";
 import { parseCachedWallpaperPreset } from "../utils/wallpaperUrl";
+import {
+  pickRandomFromPool,
+  shouldPickOnPoolLoad,
+} from "../utils/wallpaperDisplay";
+import { isAbortError, loadWallpaperAsset } from "../utils/wallpaperLoad";
 
 const POOL_RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
 
 /**
  * 随机壁纸轮播。
- * 优先从缓存的远程壁纸库（/api/wallpapers）中抽取，
- * 若缓存为空再回退到本地内置 WALLPAPER_PRESETS。
+ * 从 /api/wallpapers 抽池；下一张解码完成前不替换当前画面。
+ * 池为空时保持已显示的壁纸，不宣称仍在轮换。
  */
 export function useWallpaperShuffle(tweaks: Tweaks) {
   const [poolEmpty, setPoolEmpty] = useState(false);
@@ -37,11 +42,14 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
           "navhub_last_wallpaper",
           JSON.stringify(shufflePreset),
         );
-      } catch {}
+      } catch {
+        /* quota */
+      }
     }
   }, [shufflePreset]);
   const poolRef = useRef<WallpaperPreset[]>([]);
   const lastIdRef = useRef<string | null>(shufflePreset?.id ?? null);
+  const commitGenRef = useRef(0);
 
   const shuffleEnabled =
     tweaks.wallpaperShuffle !== false && tweaks.backgroundMode !== "theme";
@@ -53,7 +61,21 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
     (tweaks.wallpaperShuffleMediaType as "" | "image" | "video") || "";
   const sourceId = tweaks.wallpaperShuffleSource || "";
 
-  // 拉取一次远程壁纸池（最多 100 张），缓存到 ref。
+  const commitWhenReady = useCallback(async (next: WallpaperPreset | null) => {
+    if (!next) return false;
+    const gen = ++commitGenRef.current;
+    try {
+      await loadWallpaperAsset(next.assetUrl, next.mediaType);
+      if (gen !== commitGenRef.current) return false;
+      lastIdRef.current = next.id;
+      setShufflePreset(next);
+      return true;
+    } catch (e) {
+      if (isAbortError(e)) return false;
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     if (!shuffleEnabled) return;
     let alive = true;
@@ -72,11 +94,8 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
           const pool = resp.items.map(remoteToPreset);
           poolRef.current = pool;
           setPoolEmpty(pool.length === 0);
-          const next = pickRandom(pool, lastIdRef.current);
-          if (next) {
-            lastIdRef.current = next.id;
-            warmWallpaper(next);
-            setShufflePreset(next);
+          if (shouldPickOnPoolLoad(!!lastIdRef.current, pool.length)) {
+            void commitWhenReady(pickRandomFromPool(pool, lastIdRef.current));
           }
         })
         .catch(() => {
@@ -94,52 +113,43 @@ export function useWallpaperShuffle(tweaks: Tweaks) {
       alive = false;
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [shuffleEnabled, mediaType, sourceId]);
+  }, [shuffleEnabled, mediaType, sourceId, commitWhenReady]);
 
   useEffect(() => {
-    if (!shuffleEnabled) {
-      return;
-    }
-    const pick = () => {
-      const next = pickRandom(poolRef.current, lastIdRef.current);
+    if (!shuffleEnabled) return;
+    let alive = true;
+    let inFlight = false;
+    const tick = () => {
+      if (!alive || inFlight) return;
+      const next = pickRandomFromPool(poolRef.current, lastIdRef.current);
       if (!next) return;
-      lastIdRef.current = next.id;
-      warmWallpaper(next);
-      setShufflePreset(next);
+      inFlight = true;
+      void commitWhenReady(next).finally(() => {
+        inFlight = false;
+      });
     };
-
-    if (!shufflePreset) {
-      pick();
-    } else {
-      lastIdRef.current = shufflePreset.id;
-      warmWallpaper(shufflePreset);
-    }
-
-    const timer = window.setInterval(pick, shuffleIntervalSec * 1000);
-    return () => window.clearInterval(timer);
-  }, [shuffleEnabled, shuffleIntervalSec, shufflePreset]);
+    const timer = window.setInterval(tick, shuffleIntervalSec * 1000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [shuffleEnabled, shuffleIntervalSec, commitWhenReady]);
 
   const shuffleActive = shuffleEnabled && !!shufflePreset;
 
-  const nextPreset = () => {
-    const next = pickRandom(poolRef.current, lastIdRef.current);
-    if (!next) return;
-    lastIdRef.current = next.id;
-    warmWallpaper(next);
-    setShufflePreset(next);
+  const nextPreset = useCallback(async () => {
+    const next = pickRandomFromPool(poolRef.current, lastIdRef.current);
+    if (!next) return false;
+    return commitWhenReady(next);
+  }, [commitWhenReady]);
+
+  return {
+    shufflePreset,
+    shuffleEnabled,
+    shuffleActive,
+    nextPreset,
+    poolEmpty,
   };
-
-  return { shufflePreset, shuffleEnabled, shuffleActive, nextPreset, poolEmpty };
-}
-
-function pickRandom(
-  pool: WallpaperPreset[],
-  excludeId: string | null,
-): WallpaperPreset | null {
-  if (!pool.length) return null;
-  const filtered =
-    pool.length > 1 ? pool.filter((p) => p.id !== excludeId) : pool;
-  return filtered[Math.floor(Math.random() * filtered.length)] || pool[0];
 }
 
 function remoteToPreset(w: RemoteWallpaperItem): WallpaperPreset {
@@ -156,20 +166,4 @@ function remoteToPreset(w: RemoteWallpaperItem): WallpaperPreset {
     thumbUrl: w.thumbnailUrl ?? w.url,
     posterUrl: w.thumbnailUrl ?? undefined,
   };
-}
-
-function warmWallpaper(preset: WallpaperPreset) {
-  if (typeof window === "undefined") return;
-  const urls = [preset.posterUrl, preset.thumbUrl].filter(Boolean) as string[];
-  for (const url of urls) {
-    const img = new window.Image();
-    img.decoding = "async";
-    img.src = url;
-  }
-  if (preset.mediaType === "image") {
-    const img = new window.Image();
-    img.decoding = "async";
-    img.src = preset.assetUrl;
-    if (img.decode) void img.decode().catch(() => undefined);
-  }
 }

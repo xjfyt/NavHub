@@ -150,7 +150,8 @@ export const Shell = ({
   const theme = tweaks.theme || "dawn";
   const configuredWallpaperUrl = tweaks.wallpaperUrl as string | undefined;
   const configuredWallpaperPosterUrl = tweaks.wallpaperPosterUrl as
-    string | undefined;
+    | string
+    | undefined;
 
   useEffect(() => {
     if (!resolvedPinnedWallpaper) return;
@@ -304,8 +305,9 @@ export const Shell = ({
     setIsChangingWallpaper(true);
     try {
       if (shuffleEnabled) {
-        nextPreset();
-        toast.success("已切换到新壁纸", { id: "wallpaper-switch" });
+        const ok = await nextPreset();
+        if (ok) toast.success("已切换到新壁纸", { id: "wallpaper-switch" });
+        else toast.error("下一张壁纸还没准备好", { id: "wallpaper-switch" });
       } else {
         await updateTweaks({
           wallpaperShuffle: true,

@@ -28,7 +28,6 @@ export function usePinnedWallpaper(tweaks: Tweaks) {
   const [resolved, setResolved] = useState<RemoteWallpaperItem | null>(null);
 
   useEffect(() => {
-    setResolved(null);
     if (!needsResolution || !wallpaperId) return;
 
     let alive = true;
@@ -56,5 +55,6 @@ export function usePinnedWallpaper(tweaks: Tweaks) {
     };
   }, [needsResolution, wallpaperId]);
 
+  if (!wallpaperId || resolved?.id !== wallpaperId) return null;
   return resolved;
 }
