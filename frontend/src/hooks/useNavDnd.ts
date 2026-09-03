@@ -200,6 +200,22 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
   const mergeCandidateSinceRef = useRef<number>(0);
   const mergeDwellTimerRef = useRef<number | null>(null);
 
+  const MERGE_HL = [
+    "merge-target-glow",
+    "merge-target-folder",
+    "merge-target-pending",
+  ] as const;
+
+  const mergeHost = (el: HTMLElement) =>
+    (el.closest(".nav-cell") as HTMLElement | null) ?? el;
+
+  const stripMergeHl = (el: HTMLElement | null) => {
+    if (!el) return;
+    el.classList.remove(...MERGE_HL);
+    el.style.transform = "";
+    el.style.boxShadow = "";
+  };
+
   const clearMergeDwellTimer = () => {
     if (mergeDwellTimerRef.current !== null) {
       window.clearTimeout(mergeDwellTimerRef.current);
@@ -208,41 +224,44 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
   };
 
   const clearMergeTarget = () => {
-    if (mergeTargetElRef.current) {
-      mergeTargetElRef.current.classList.remove(
-        "merge-target-glow",
-        "merge-target-folder",
-      );
-      mergeTargetElRef.current.style.transform = "";
-      mergeTargetElRef.current.style.boxShadow = "";
-      mergeTargetElRef.current = null;
-    }
+    stripMergeHl(mergeTargetElRef.current);
+    mergeTargetElRef.current = null;
     mergeTargetRef.current = null;
     mergeCandidateRef.current = null;
     mergeCandidateSinceRef.current = 0;
     clearMergeDwellTimer();
   };
 
+  const markMergePending = (el: HTMLElement, isFolder: boolean) => {
+    const host = mergeHost(el);
+    if (mergeTargetElRef.current && mergeTargetElRef.current !== host) {
+      stripMergeHl(mergeTargetElRef.current);
+    }
+    mergeTargetElRef.current = host;
+    host.classList.add("merge-target-pending");
+    if (isFolder) host.classList.add("merge-target-folder");
+  };
+
   const confirmMergeHighlight = (el: HTMLElement, isFolder: boolean) => {
     const id = el.dataset.navItemId ?? null;
-    if (!id || mergeTargetRef.current === id) return;
-    if (mergeTargetElRef.current && mergeTargetElRef.current !== el) {
-      mergeTargetElRef.current.classList.remove(
-        "merge-target-glow",
-        "merge-target-folder",
-      );
-      mergeTargetElRef.current.style.transform = "";
-      mergeTargetElRef.current.style.boxShadow = "";
+    if (!id) return;
+    const host = mergeHost(el);
+    if (mergeTargetRef.current === id && mergeTargetElRef.current === host) {
+      host.classList.remove("merge-target-pending");
+      host.classList.add("merge-target-glow");
+      if (isFolder) host.classList.add("merge-target-folder");
+      return;
+    }
+    if (mergeTargetElRef.current && mergeTargetElRef.current !== host) {
+      stripMergeHl(mergeTargetElRef.current);
     }
     mergeTargetRef.current = id;
-    mergeTargetElRef.current = el;
-    el.classList.add("merge-target-glow");
-    if (isFolder) el.classList.add("merge-target-folder");
-    el.style.transition = "transform .18s var(--spring), box-shadow .18s";
-    el.style.transform = isFolder ? "scale(1.10)" : "scale(1.06)";
-    el.style.boxShadow = isFolder
-      ? "0 0 0 4px rgba(155,231,180,0.85), 0 0 28px rgba(155,231,180,0.45)"
-      : "0 0 0 3px rgba(255,215,165,0.75), 0 0 20px rgba(255,215,165,0.35)";
+    mergeTargetElRef.current = host;
+    host.classList.remove("merge-target-pending");
+    host.classList.add("merge-target-glow");
+    if (isFolder) host.classList.add("merge-target-folder");
+    host.style.transition = "transform .18s var(--spring), box-shadow .18s";
+    host.style.transform = isFolder ? "scale(1.08)" : "scale(1.05)";
   };
 
   const onDragStart = (e: DragStartEvent) => {
@@ -329,17 +348,11 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
     }
 
     if (mergeTargetRef.current && mergeTargetRef.current !== candidateId) {
-      if (mergeTargetElRef.current) {
-        mergeTargetElRef.current.classList.remove(
-          "merge-target-glow",
-          "merge-target-folder",
-        );
-        mergeTargetElRef.current.style.transform = "";
-        mergeTargetElRef.current.style.boxShadow = "";
-        mergeTargetElRef.current = null;
-      }
+      stripMergeHl(mergeTargetElRef.current);
+      mergeTargetElRef.current = null;
       mergeTargetRef.current = null;
     }
+    markMergePending(foundEl, foundIsFolder);
     if (mergeDwellTimerRef.current === null) {
       const elToConfirm = foundEl;
       const isFolderToConfirm = foundIsFolder;
@@ -409,12 +422,7 @@ export function useNavDnd(args: UseNavDndArgs): UseNavDndResult {
       mergeCandidateSinceRef.current = 0;
       clearMergeDwellTimer();
       if (mergeTargetEl) {
-        mergeTargetEl.classList.remove(
-          "merge-target-glow",
-          "merge-target-folder",
-        );
-        mergeTargetEl.style.transform = "";
-        mergeTargetEl.style.boxShadow = "";
+        stripMergeHl(mergeTargetEl);
         mergeTargetEl.classList.add("merge-absorb");
       }
       const targetId = action.targetId;

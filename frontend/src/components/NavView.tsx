@@ -454,7 +454,7 @@ export const NavView = ({
         <DragOverlay>
           {activeItem ? (
             <div
-              className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview`}
+              className={`nav-cell w-${activeItem.span.w} h-${activeItem.span.h} nav-drag-preview nav-drag-ghost`}
             >
               {renderItemContent(activeItem)}
             </div>
