@@ -390,7 +390,7 @@ export const DEMO_CONFIG: Record<string, Record<string, unknown>> = {
   },
   todo: {
     items: [
-      { id: "d1", t: "Review PR #482", done: false },
+      { id: "d1", t: "审阅合并请求 #482", done: false },
       { id: "d2", t: "写周报", done: true },
       { id: "d3", t: "准备下午的 demo", done: false },
       { id: "d4", t: "预约牙医", done: false },

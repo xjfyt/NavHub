@@ -225,7 +225,7 @@ export const ProfileModal = ({ onClose }: { onClose: () => void }) => {
           >
             <span style={{ color: "var(--text-mute)" }}>认证方式</span>
             <span style={{ color: "var(--text)", fontWeight: 600 }}>
-              {me.id === "guest" ? "无" : "Casdoor SSO"}
+              {me.id === "guest" ? "无" : "Casdoor"}
             </span>
           </div>
           <div

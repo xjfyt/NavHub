@@ -54,7 +54,7 @@ export const dictionaries: Dictionaries = {
 
     "admin.chip": "管理",
     "user.authLocal": "本地",
-    "user.authSso": "SSO",
+    "user.authSso": "单点登录",
     "audit.actorSystem": "系统",
 
     // 设置面板:语言
