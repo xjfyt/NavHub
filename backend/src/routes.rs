@@ -239,7 +239,7 @@ pub fn build(state: &Arc<AppState>) -> Router<Arc<AppState>> {
     // and brute-forces the same auth surface. Same per-IP limiter as password.
     let sso_login = get(handlers::auth::login).layer(axum::middleware::from_fn_with_state(
         state.clone(),
-        auth::rate_limit::password_login_limit,
+        auth::rate_limit::sso_login_limit,
     ));
 
     let public = Router::new()

@@ -49,6 +49,14 @@ pub struct SsoCache {
     /// predate this field) deserializable.
     #[serde(default)]
     pub jwks_uri: String,
+    #[serde(default)]
+    pub discovery_url: String,
+    #[serde(default)]
+    pub authorize_url: String,
+    #[serde(default)]
+    pub token_url: String,
+    #[serde(default)]
+    pub userinfo_url: String,
 }
 
 impl SsoCache {
@@ -74,13 +82,55 @@ impl SsoCache {
             redirect_uri: default.redirect_uri.clone(),
             scopes: default.scopes.clone(),
             jwks_uri: default.jwks_uri.clone(),
+            discovery_url: default.discovery_url.clone(),
+            authorize_url: default.authorize_url.clone(),
+            token_url: default.token_url.clone(),
+            userinfo_url: default.userinfo_url.clone(),
         }
+    }
+
+    fn iss(&self) -> &str {
+        self.issuer.trim_end_matches('/')
     }
 
     /// AUTH-1: the effective JWKS endpoint — explicit config when set, otherwise
     /// derived from the issuer (`<issuer>/.well-known/jwks` for Casdoor).
     pub fn jwks_uri(&self) -> String {
         crate::auth::oidc::derive_jwks_uri(&self.issuer, &self.jwks_uri)
+    }
+
+    pub fn discovery_endpoint(&self) -> String {
+        let d = self.discovery_url.trim();
+        if !d.is_empty() {
+            return d.to_string();
+        }
+        format!("{}/.well-known/openid-configuration", self.iss())
+    }
+
+    /// Authorization endpoint: explicit override, else Casdoor default.
+    /// Discovery may fill `authorize_url` before this is called.
+    pub fn authorize_endpoint(&self) -> String {
+        let u = self.authorize_url.trim();
+        if !u.is_empty() {
+            return u.to_string();
+        }
+        format!("{}/login/oauth/authorize", self.iss())
+    }
+
+    pub fn token_endpoint(&self) -> String {
+        let u = self.token_url.trim();
+        if !u.is_empty() {
+            return u.to_string();
+        }
+        format!("{}/api/login/oauth/access_token", self.iss())
+    }
+
+    pub fn userinfo_endpoint(&self) -> String {
+        let u = self.userinfo_url.trim();
+        if !u.is_empty() {
+            return u.to_string();
+        }
+        format!("{}/api/userinfo", self.iss())
     }
 
     pub async fn save(&self, pg: &PgPool) -> anyhow::Result<()> {
@@ -140,6 +190,10 @@ mod tests {
             redirect_uri: String::new(),
             scopes: vec![],
             jwks_uri: String::new(),
+            discovery_url: String::new(),
+            authorize_url: String::new(),
+            token_url: String::new(),
+            userinfo_url: String::new(),
         });
         assert!(!c.is_stale_at(c.loaded_at, SSO_CACHE_TTL));
         assert!(c.is_stale_at(c.loaded_at + SSO_CACHE_TTL, SSO_CACHE_TTL));

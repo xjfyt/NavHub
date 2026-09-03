@@ -44,14 +44,16 @@ pub async fn create_session(state: &Arc<AppState>, data: &SessionData) -> AppRes
     Ok(sid)
 }
 
-/// 滑动会话：每次认证请求刷新 Redis TTL。Cookie Max-Age 最多每 60s 重写一次。
-/// 返回 true 时调用方应在响应上重放 Set-Cookie。
-pub async fn slide_session(state: &Arc<AppState>, sid: &str) -> bool {
+/// 滑动会话：每次认证请求刷新 Redis TTL（会话键 + user_sessions 集合）。
+/// Cookie Max-Age 最多每 60s 重写一次。返回 true 时调用方应在响应上重放 Set-Cookie。
+pub async fn slide_session(state: &Arc<AppState>, sid: &str, user_id: Uuid) -> bool {
     let ttl = session_ttl_secs(state.cfg.app.session_ttl_days);
     let Ok(mut conn) = state.redis.get().await else {
         return false;
     };
     let _: redis::RedisResult<()> = conn.expire(session_key(sid), ttl).await;
+    let set_key = format!("user_sessions:{user_id}");
+    let _: redis::RedisResult<()> = conn.expire(&set_key, ttl).await;
     let slide_key = format!("session:slide:{}", sid);
     let res: redis::RedisResult<Option<String>> = redis::cmd("SET")
         .arg(&slide_key)
@@ -75,6 +77,13 @@ pub async fn get_session(state: &Arc<AppState>, sid: &str) -> AppResult<Option<S
 
 pub async fn destroy_session(state: &Arc<AppState>, sid: &str) -> AppResult<()> {
     let mut conn = state.redis.get().await?;
+    let raw: Option<String> = conn.get(session_key(sid)).await?;
+    if let Some(s) = raw {
+        if let Ok(data) = serde_json::from_str::<SessionData>(&s) {
+            let set_key = format!("user_sessions:{}", data.user_id);
+            let _: redis::RedisResult<()> = conn.srem(&set_key, sid).await;
+        }
+    }
     let _: () = conn.del(session_key(sid)).await?;
     Ok(())
 }

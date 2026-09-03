@@ -8,7 +8,7 @@ use axum::{
     extract::{Request, State},
     http::{header, HeaderValue},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use std::sync::Arc;
 use uuid::Uuid;
@@ -54,17 +54,44 @@ fn bump_last_seen(state: Arc<AppState>, uid: Uuid) {
     });
 }
 
+
+fn unauthorized_cleared(state: &Arc<AppState>) -> Response {
+    let mut resp = AppError::Unauthorized.into_response();
+    append_session_cookie(&mut resp, &session::clear_cookie(session::is_https_public(state)));
+    resp
+}
+
+async fn db_user_role(
+    state: &Arc<AppState>,
+    uid: Uuid,
+) -> AppResult<Option<(String, bool)>> {
+    let row: Option<(String, bool)> = sqlx::query_as(
+        "SELECT role, must_change_password FROM users WHERE id = $1",
+    )
+    .bind(uid)
+    .fetch_optional(&state.pg)
+    .await?;
+    Ok(row)
+}
+
 pub async fn require_login(
     State(state): State<Arc<AppState>>,
     mut req: Request,
     next: Next,
 ) -> AppResult<Response> {
     let sid = session::extract_sid(req.headers()).ok_or(AppError::Unauthorized)?;
-    let data = session::get_session(&state, &sid)
-        .await?
-        .ok_or(AppError::Unauthorized)?;
-    let role = Role::from_str(&data.role).unwrap_or(Role::Guest);
-    if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
+    let data = match session::get_session(&state, &sid).await? {
+        Some(d) => d,
+        None => return Ok(unauthorized_cleared(&state)),
+    };
+    let db = db_user_role(&state, data.user_id).await?;
+    let Some((db_role, db_must_change)) = db else {
+        let _ = session::destroy_session(&state, &sid).await;
+        return Ok(unauthorized_cleared(&state));
+    };
+    let role = Role::from_str(&db_role).unwrap_or(Role::Guest);
+    let must_change = db_must_change;
+    if must_change && !is_must_change_password_allowed(req.uri().path()) {
         return Err(AppError::Forbidden("must_change_password"));
     }
     let user = SessionUser {
@@ -77,7 +104,7 @@ pub async fn require_login(
     req.extensions_mut().insert(user);
 
     bump_last_seen(state.clone(), uid);
-    let refresh_cookie = session::slide_session(&state, &sid).await;
+    let refresh_cookie = session::slide_session(&state, &sid, uid).await;
 
     let mut resp = next.run(req).await;
     if refresh_cookie {
@@ -98,32 +125,50 @@ pub async fn optional_login(
     next: Next,
 ) -> AppResult<Response> {
     let sid_opt = session::extract_sid(req.headers());
+    let mut stale_cookie = false;
     let maybe_user: Option<SessionUser> = match sid_opt.as_deref() {
         Some(sid) => match session::get_session(&state, sid).await? {
             Some(data) => {
-                if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
-                    return Err(AppError::Forbidden("must_change_password"));
+                match db_user_role(&state, data.user_id).await? {
+                    None => {
+                        let _ = session::destroy_session(&state, sid).await;
+                        stale_cookie = true;
+                        None
+                    }
+                    Some((db_role, db_must_change)) => {
+                        if db_must_change && !is_must_change_password_allowed(req.uri().path()) {
+                            return Err(AppError::Forbidden("must_change_password"));
+                        }
+                        let user = SessionUser {
+                            id: data.user_id,
+                            role: Role::from_str(&db_role).unwrap_or(Role::Guest),
+                            username: data.username,
+                            email: data.email,
+                        };
+                        bump_last_seen(state.clone(), user.id);
+                        Some(user)
+                    }
                 }
-                let user = SessionUser {
-                    id: data.user_id,
-                    role: Role::from_str(&data.role).unwrap_or(Role::Guest),
-                    username: data.username,
-                    email: data.email,
-                };
-                bump_last_seen(state.clone(), user.id);
-                Some(user)
             }
-            None => None,
+            None => {
+                stale_cookie = true;
+                None
+            }
         },
         None => None,
     };
     let refresh_cookie = match (sid_opt.as_deref(), maybe_user.as_ref()) {
-        (Some(sid), Some(_)) => session::slide_session(&state, sid).await,
+        (Some(sid), Some(u)) => session::slide_session(&state, sid, u.id).await,
         _ => false,
     };
     req.extensions_mut().insert(maybe_user);
     let mut resp = next.run(req).await;
-    if refresh_cookie {
+    if stale_cookie {
+        append_session_cookie(
+            &mut resp,
+            &session::clear_cookie(session::is_https_public(&state)),
+        );
+    } else if refresh_cookie {
         if let Some(sid) = sid_opt {
             let cookie = session::build_cookie(
                 &sid,

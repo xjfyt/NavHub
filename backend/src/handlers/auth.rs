@@ -14,6 +14,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     Extension, Json,
 };
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -50,6 +51,7 @@ pub async fn login(
     flow.silent = silent;
     flow.return_to = oidc::sanitize_return_to(q.return_to.as_deref().unwrap_or("/"));
     let prompt = if silent { Some("none") } else { None };
+    let sso = oidc::apply_discovery(&state.oidc_client, &state.discovery_cache, sso).await;
     let url = casdoor::build_authorize_url(
         &sso,
         &flow.state,
@@ -71,7 +73,7 @@ pub async fn callback(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Query(q): Query<CallbackQuery>,
-) -> AppResult<Response> {
+) -> Response {
     // Run the verified flow; on ANY outcome clear the single-use flow cookie so
     // a bound secret can never be replayed (success consumes it; failure burns it).
     let secure = session::is_https_public(&state);
@@ -79,9 +81,13 @@ pub async fn callback(
     match result {
         Ok(mut resp) => {
             append_set_cookie(&mut resp, &oidc::clear_flow_cookie(secure));
-            Ok(resp)
+            resp
         }
-        Err(e) => Err(e),
+        Err(e) => {
+            let mut resp = e.into_response();
+            append_set_cookie(&mut resp, &oidc::clear_flow_cookie(secure));
+            resp
+        }
     }
 }
 
@@ -136,7 +142,12 @@ async fn callback_inner(
     }
 
     // OPS-11: 经 TTL 缓存读取 SSO 配置;陈旧时自动从 app_settings 重载。
-    let sso = state.current_sso().await;
+    let sso = oidc::apply_discovery(
+        &state.oidc_client,
+        &state.discovery_cache,
+        state.current_sso().await,
+    )
+    .await;
     // AUTH-1: the OIDC security path uses a TLS-VALIDATING client (never the
     // lenient one) for token exchange, JWKS fetch and userinfo. Accepting an
     // invalid cert here would let a MITM forge tokens/keys and defeat the whole
@@ -265,14 +276,16 @@ pub async fn password(
     .bind(&body.username)
     .fetch_optional(&state.pg)
     .await?;
-    let user = row.ok_or_else(|| AppError::BadRequest("invalid credentials".into()))?;
-    if user.role != "superadmin" {
-        return Err(AppError::Forbidden("sso_required"));
-    }
-    let hash = user.password_hash.as_ref().ok_or(AppError::Unauthorized)?;
-    if !password::verify_password(&body.password, hash) {
-        return Err(AppError::BadRequest("invalid credentials".into()));
-    }
+    let dummy = password::dummy_password_hash();
+    let hash = row
+        .as_ref()
+        .and_then(|u| u.password_hash.as_deref())
+        .unwrap_or(dummy);
+    let verified = password::verify_password(&body.password, hash);
+    let user = match row {
+        Some(u) if u.role == "superadmin" && u.password_hash.is_some() && verified => u,
+        _ => return Err(AppError::BadRequest("invalid credentials".into())),
+    };
     sqlx::query("UPDATE users SET last_seen_at = now() WHERE id = $1")
         .bind(user.id)
         .execute(&state.pg)
@@ -333,23 +346,35 @@ pub struct StatusResp {
 pub async fn status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> AppResult<Json<StatusResp>> {
+) -> AppResult<Response> {
     let sso = state.current_sso().await;
+    let mut stale_cookie = false;
     let (authed, must_change, sso_session) = match session::extract_sid(&headers) {
         Some(sid) => match session::get_session(&state, &sid).await? {
             Some(data) => (true, data.must_change_password, data.auth_via == "sso"),
-            None => (false, false, false),
+            None => {
+                stale_cookie = true;
+                (false, false, false)
+            }
         },
         None => (false, false, false),
     };
-    Ok(Json(StatusResp {
+    let mut resp = Json(StatusResp {
         authenticated: authed,
         sso_enabled: sso.enabled,
         password_enabled: state.cfg.superadmin.password_login_enabled,
         app_name: state.cfg.app.site_name.clone(),
         must_change_password: must_change,
         sso_session,
-    }))
+    })
+    .into_response();
+    if stale_cookie {
+        append_set_cookie(
+            &mut resp,
+            &session::clear_cookie(session::is_https_public(&state)),
+        );
+    }
+    Ok(resp)
 }
 
 #[derive(Debug, Serialize)]
@@ -486,18 +511,15 @@ async fn upsert_sso_user(
     } else {
         "user"
     };
-    let id: (uuid::Uuid,) = sqlx::query_as(
-        "INSERT INTO users (id, username, email, display_name, avatar_url, role, casdoor_id, last_seen_at) \
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, now()) \
-         ON CONFLICT (username) DO UPDATE SET email=EXCLUDED.email, casdoor_id=EXCLUDED.casdoor_id RETURNING id",
+    let id = insert_sso_user_unique(
+        state,
+        username,
+        email,
+        display_name,
+        avatar,
+        initial_role,
+        sub,
     )
-    .bind(username)
-    .bind(email)
-    .bind(display_name)
-    .bind(avatar)
-    .bind(initial_role)
-    .bind(sub)
-    .fetch_one(&state.pg)
     .await?;
     if initial_role == "superadmin" {
         tracing::info!(
@@ -515,7 +537,95 @@ async fn upsert_sso_user(
         )
         .await;
     }
-    fetch_user(state, id.0).await
+    fetch_user(state, id).await
+}
+
+
+fn sanitize_sso_username(raw: &str) -> String {
+    let t = raw.trim();
+    let mut out = String::new();
+    for c in t.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.' {
+            out.push(c);
+        } else if c.is_whitespace() && !out.ends_with('-') {
+            out.push('-');
+        }
+        if out.len() >= 48 {
+            break;
+        }
+    }
+    let out = out.trim_matches('-').to_string();
+    if out.is_empty() {
+        "user".into()
+    } else {
+        out
+    }
+}
+
+fn pg_unique_constraint(err: &sqlx::Error) -> Option<&str> {
+    match err {
+        sqlx::Error::Database(db) if db.code().as_deref() == Some("23505") => db.constraint(),
+        _ => None,
+    }
+}
+
+/// Insert a new SSO user. Never `ON CONFLICT (username) DO UPDATE` (that would
+/// steal email/casdoor_id from an unrelated account). Username collisions get a
+/// suffix; `casdoor_id` unique races re-load the existing row.
+async fn insert_sso_user_unique(
+    state: &Arc<AppState>,
+    username: &str,
+    email: &str,
+    display_name: Option<&str>,
+    avatar: Option<&str>,
+    initial_role: &str,
+    sub: &str,
+) -> AppResult<uuid::Uuid> {
+    let base = sanitize_sso_username(username);
+    for attempt in 0..8u32 {
+        let uname = if attempt == 0 {
+            base.clone()
+        } else {
+            format!("{base}-{:04x}", rand::thread_rng().gen::<u16>())
+        };
+        let result = sqlx::query_as::<_, (uuid::Uuid,)>(
+            "INSERT INTO users (id, username, email, display_name, avatar_url, role, casdoor_id, last_seen_at) \
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, now()) RETURNING id",
+        )
+        .bind(&uname)
+        .bind(email)
+        .bind(display_name)
+        .bind(avatar)
+        .bind(initial_role)
+        .bind(sub)
+        .fetch_one(&state.pg)
+        .await;
+        match result {
+            Ok(id) => return Ok(id.0),
+            Err(e) => {
+                if let Some(c) = pg_unique_constraint(&e) {
+                    if c.contains("casdoor_id") {
+                        let existing: Option<(uuid::Uuid,)> =
+                            sqlx::query_as("SELECT id FROM users WHERE casdoor_id = $1")
+                                .bind(sub)
+                                .fetch_optional(&state.pg)
+                                .await?;
+                        if let Some((id,)) = existing {
+                            return Ok(id);
+                        }
+                    }
+                    if c.contains("email") {
+                        return Err(AppError::Conflict("sso_email_conflict".into()));
+                    }
+                    if c.contains("username") {
+                        continue;
+                    }
+                }
+                return Err(e.into());
+            }
+        }
+    }
+    Err(AppError::Conflict("sso_username_conflict".into()))
 }
 
 async fn any_superadmin(pg: &sqlx::PgPool) -> AppResult<bool> {
@@ -588,6 +698,13 @@ mod tests {
     use super::*;
 
     // AUTH-2: email-bind decision.
+    #[test]
+    fn sanitize_username_strips_and_falls_back() {
+        assert_eq!(sanitize_sso_username("Alice"), "Alice");
+        assert_eq!(sanitize_sso_username("  bob smith  "), "bob-smith");
+        assert_eq!(sanitize_sso_username("!!!"), "user");
+    }
+
     #[test]
     fn bind_allowed_only_when_email_verified() {
         assert!(sso_email_bind_allowed(Some(true)));

@@ -213,17 +213,25 @@ pub fn verify_id_token(
     let jwk: &Jwk = jwks
         .find(&kid)
         .ok_or(IdTokenError::Malformed("no jwk for kid"))?;
-    // We only accept RSA keys (Casdoor signs ID tokens with RS256).
-    if !matches!(jwk.algorithm, AlgorithmParameters::RSA(_)) {
-        return Err(IdTokenError::Malformed("unsupported jwk type"));
-    }
+    // RS256 (Casdoor default) and ES256 (Authentik / many OIDC IdPs). Other algs
+    // (HS256, PS256, ES384, …) are rejected; jsonwebtoken can do more but we
+    // keep the allow-list tight. See config.example.toml.
+    let alg = match header.alg {
+        Algorithm::RS256 if matches!(jwk.algorithm, AlgorithmParameters::RSA(_)) => {
+            Algorithm::RS256
+        }
+        Algorithm::ES256 if matches!(jwk.algorithm, AlgorithmParameters::EllipticCurve(_)) => {
+            Algorithm::ES256
+        }
+        _ => return Err(IdTokenError::Malformed("unsupported jwk type")),
+    };
     let decoding_key =
         DecodingKey::from_jwk(jwk).map_err(|_| IdTokenError::Malformed("bad jwk"))?;
 
     // Validate signature + iss + aud with jsonwebtoken. We DISABLE its built-in
     // exp check (it uses the process wall clock, which is untestable) and run
     // exp ourselves against `now` below.
-    let mut validation = Validation::new(Algorithm::RS256);
+    let mut validation = Validation::new(alg);
     validation.set_issuer(&[expected_iss]);
     validation.set_audience(&[expected_aud]);
     validation.validate_exp = false;
@@ -296,6 +304,148 @@ pub fn interactive_fallback_url(return_to: &str) -> String {
         format!("{base}&nh_sso=interactive")
     } else {
         format!("{base}?nh_sso=interactive")
+    }
+}
+
+/// OIDC discovery document (subset). Cached so Authentik / standard IdPs work
+/// without hard-coding Casdoor path conventions.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct OidcDiscovery {
+    #[serde(default)]
+    pub authorization_endpoint: String,
+    #[serde(default)]
+    pub token_endpoint: String,
+    #[serde(default)]
+    pub userinfo_endpoint: String,
+    #[serde(default)]
+    pub jwks_uri: String,
+    /// Informational. We accept RS256 and ES256; other advertised algs are ignored.
+    #[serde(default)]
+    pub id_token_signing_alg_values_supported: Vec<String>,
+}
+
+const DISCOVERY_CACHE_TTL: Duration = Duration::from_secs(300);
+
+struct DiscoveryCacheInner {
+    url: String,
+    doc: Option<OidcDiscovery>,
+    fetched_at: Option<Instant>,
+}
+
+impl Default for DiscoveryCacheInner {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            doc: None,
+            fetched_at: None,
+        }
+    }
+}
+
+pub struct DiscoveryCache {
+    inner: Mutex<DiscoveryCacheInner>,
+}
+
+impl Default for DiscoveryCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DiscoveryCache {
+    pub fn new() -> Self {
+        Self {
+            inner: Mutex::new(DiscoveryCacheInner::default()),
+        }
+    }
+
+    pub async fn get(
+        &self,
+        client: &reqwest::Client,
+        discovery_url: &str,
+    ) -> AppResult<OidcDiscovery> {
+        {
+            let guard = self.inner.lock().await;
+            if guard.url == discovery_url
+                && matches!(guard.fetched_at, Some(t) if t.elapsed() < DISCOVERY_CACHE_TTL)
+            {
+                if let Some(doc) = &guard.doc {
+                    return Ok(doc.clone());
+                }
+            }
+        }
+        let mut guard = self.inner.lock().await;
+        if guard.url == discovery_url
+            && matches!(guard.fetched_at, Some(t) if t.elapsed() < DISCOVERY_CACHE_TTL)
+        {
+            if let Some(doc) = &guard.doc {
+                return Ok(doc.clone());
+            }
+        }
+        let resp = client.get(discovery_url).send().await?;
+        let status = resp.status();
+        let text = resp.text().await?;
+        if !status.is_success() {
+            return Err(AppError::Internal(format!(
+                "oidc discovery failed ({status}) from {discovery_url}: {text}"
+            )));
+        }
+        let doc: OidcDiscovery = serde_json::from_str(&text).map_err(|e| {
+            AppError::Internal(format!("parse oidc discovery from {discovery_url}: {e}"))
+        })?;
+        guard.url = discovery_url.to_string();
+        guard.doc = Some(doc.clone());
+        guard.fetched_at = Some(Instant::now());
+        Ok(doc)
+    }
+}
+
+/// Fill blank endpoint overrides from OIDC discovery. Explicit config wins.
+/// On discovery failure, leave blanks so Casdoor path defaults still apply.
+pub async fn apply_discovery(
+    client: &reqwest::Client,
+    cache: &DiscoveryCache,
+    mut sso: crate::auth::sso_cache::SsoCache,
+) -> crate::auth::sso_cache::SsoCache {
+    let needs = sso.authorize_url.trim().is_empty()
+        || sso.token_url.trim().is_empty()
+        || sso.userinfo_url.trim().is_empty()
+        || sso.jwks_uri.trim().is_empty();
+    if !needs {
+        return sso;
+    }
+    let url = sso.discovery_endpoint();
+    match cache.get(client, &url).await {
+        Ok(doc) => {
+            if sso.authorize_url.trim().is_empty() && !doc.authorization_endpoint.trim().is_empty()
+            {
+                sso.authorize_url = doc.authorization_endpoint;
+            }
+            if sso.token_url.trim().is_empty() && !doc.token_endpoint.trim().is_empty() {
+                sso.token_url = doc.token_endpoint;
+            }
+            if sso.userinfo_url.trim().is_empty() && !doc.userinfo_endpoint.trim().is_empty() {
+                sso.userinfo_url = doc.userinfo_endpoint;
+            }
+            if sso.jwks_uri.trim().is_empty() && !doc.jwks_uri.trim().is_empty() {
+                sso.jwks_uri = doc.jwks_uri;
+            }
+            if !doc.id_token_signing_alg_values_supported.is_empty() {
+                let supported = &doc.id_token_signing_alg_values_supported;
+                let we_can = supported.iter().any(|a| a == "RS256" || a == "ES256");
+                if !we_can {
+                    tracing::warn!(
+                        algs = ?supported,
+                        "OIDC discovery advertises no RS256/ES256; ID tokens may fail verification"
+                    );
+                }
+            }
+            sso
+        }
+        Err(e) => {
+            tracing::debug!(error = ?e, "OIDC discovery skipped; using Casdoor path defaults");
+            sso
+        }
     }
 }
 

@@ -28,7 +28,7 @@ import {
   withTimeoutSignal,
   DEFAULT_REQUEST_TIMEOUT_MS,
 } from "./utils/abortTimeout";
-import { buildLoginUrl, maybeSilentReauthOn401 } from "./utils/ssoSilent";
+import { buildLoginUrl, maybeSilentReauthOn401, rememberSsoEnabled } from "./utils/ssoSilent";
 
 export interface WeatherHour {
   h: string;
@@ -186,7 +186,9 @@ export { ApiError };
 // ---------- Auth ----------
 export const api = {
   async status(): Promise<AuthStatus> {
-    return request("/auth/status");
+    const s = await request<AuthStatus>("/auth/status");
+    rememberSsoEnabled(s.ssoEnabled);
+    return s;
   },
   loginUrl(opts?: { silent?: boolean; returnTo?: string }): string {
     return buildLoginUrl(opts);
@@ -602,7 +604,7 @@ export const api = {
       enabled: boolean;
       issuer: string;
       clientId: string;
-      clientSecret: string;
+      clientSecretSet: boolean;
       redirectUri: string;
       scopes: string[];
     }> {

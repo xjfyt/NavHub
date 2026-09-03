@@ -22,3 +22,14 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
 }
+
+/// Timing-equalization hash for unknown / passwordless accounts. Generated once
+/// per process from a constant that is never a valid login secret.
+pub fn dummy_password_hash() -> &'static str {
+    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HASH.get_or_init(|| {
+        hash_password("navhub-timing-dummy-not-a-real-password").unwrap_or_else(|_| {
+            "$argon2id$v=19$m=19456,t=2,p=1$Y2Fubm90bG9naW5kdW1teQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into()
+        })
+    })
+}

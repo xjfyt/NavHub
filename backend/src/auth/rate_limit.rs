@@ -18,6 +18,10 @@ use std::sync::Arc;
 
 const PASSWORD_LIMIT_WINDOW_SECS: u64 = 60;
 const PASSWORD_LIMIT_MAX: u64 = 10;
+const SSO_LIMIT_WINDOW_SECS: u64 = 60;
+const SSO_LIMIT_MAX: u64 = 20;
+const SSO_SILENT_LIMIT_WINDOW_SECS: u64 = 60;
+const SSO_SILENT_LIMIT_MAX: u64 = 60;
 
 /// AUTH-4: per-account (per-username/identity) attempt cap. Independent of the
 /// per-IP cap so an attacker rotating source IPs (or coming through a trusted
@@ -144,6 +148,8 @@ async fn bump_and_check(state: &Arc<AppState>, key: &str, window: u64, max: u64)
     // INCR + EXPIRE in one roundtrip via a pipeline. EXPIRE only takes effect on
     // the first INCR (after the key was missing) but issuing it every call is
     // cheap and survives Redis evictions.
+    // EXPIRE NX: set TTL only when the key has none, so later INCRs do not
+    // slide the lockout window (Redis 7+; compose ships redis:7-alpine).
     let (count, _set): (i64, i64) = redis::pipe()
         .atomic()
         .cmd("INCR")
@@ -151,6 +157,7 @@ async fn bump_and_check(state: &Arc<AppState>, key: &str, window: u64, max: u64)
         .cmd("EXPIRE")
         .arg(key)
         .arg(window)
+        .arg("NX")
         .query_async(&mut *conn)
         .await
         .map_err(AppError::Redis)?;
@@ -186,6 +193,36 @@ pub async fn password_login_limit(
     let ip = client_ip(&req, &state);
     let key = format!("rl:auth_pwd:{ip}");
     bump_and_check(&state, &key, PASSWORD_LIMIT_WINDOW_SECS, PASSWORD_LIMIT_MAX).await?;
+    Ok(next.run(req).await)
+}
+
+/// Separate (higher) cap for SSO authorize, with a still-higher bucket for
+/// `prompt=none` silent reauth so multi-tab refresh does not share the password
+/// lockout counter.
+pub async fn sso_login_limit(
+    State(state): State<Arc<AppState>>,
+    req: Request,
+    next: Next,
+) -> AppResult<Response> {
+    let ip = client_ip(&req, &state);
+    let silent = req
+        .uri()
+        .query()
+        .is_some_and(|q| q.split('&').any(|p| p == "prompt=none"));
+    let (key, window, max) = if silent {
+        (
+            format!("rl:auth_sso_silent:{ip}"),
+            SSO_SILENT_LIMIT_WINDOW_SECS,
+            SSO_SILENT_LIMIT_MAX,
+        )
+    } else {
+        (
+            format!("rl:auth_sso:{ip}"),
+            SSO_LIMIT_WINDOW_SECS,
+            SSO_LIMIT_MAX,
+        )
+    };
+    bump_and_check(&state, &key, window, max).await?;
     Ok(next.run(req).await)
 }
 

@@ -8,7 +8,7 @@ export const AdminSSO = () => {
     enabled: boolean;
     issuer: string;
     clientId: string;
-    clientSecret: string;
+    clientSecretSet: boolean;
     redirectUri: string;
     scopes: string[];
   } | null>(null);
@@ -22,7 +22,6 @@ export const AdminSSO = () => {
     scopes?: string;
   }>({});
   const [showId, setShowId] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
 
   const load = async () => {
     try {
@@ -243,7 +242,7 @@ export const AdminSSO = () => {
                   style={inputStyle}
                   value={formData.clientSecret ?? ""}
                   placeholder={
-                    config.clientSecret
+                    config.clientSecretSet
                       ? "已配置 · 留空则不修改"
                       : "输入 Client Secret"
                   }
@@ -252,36 +251,16 @@ export const AdminSSO = () => {
                   }
                 />
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
-                    className="mono"
-                    style={{
-                      color: "var(--text)",
-                      wordBreak: "break-all",
-                      textAlign: "right",
-                    }}
-                  >
-                    {showSecret
-                      ? config.clientSecret || "—"
-                      : config.clientSecret
-                        ? "••••••••••••••••"
-                        : "—"}
-                  </span>
-                  {config.clientSecret && (
-                    <button
-                      onClick={() => setShowSecret(!showSecret)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--text-soft)",
-                        cursor: "pointer",
-                        padding: 0,
-                      }}
-                    >
-                      <Icon name={showSecret ? "eye-off" : "eye"} size={14} />
-                    </button>
-                  )}
-                </div>
+                <span
+                  className="mono"
+                  style={{
+                    color: "var(--text)",
+                    wordBreak: "break-all",
+                    textAlign: "right",
+                  }}
+                >
+                  {config.clientSecretSet ? "••••••••••••••••" : "—"}
+                </span>
               )}
             </div>
 

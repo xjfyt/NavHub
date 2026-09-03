@@ -54,9 +54,9 @@ pub fn build_authorize_url(
 ) -> String {
     let scopes = sso.scopes.join(" ");
     let mut url = format!(
-        "{}/login/oauth/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&state={}\
+        "{}?client_id={}&response_type=code&redirect_uri={}&scope={}&state={}\
          &nonce={}&code_challenge={}&code_challenge_method=S256",
-        sso.issuer.trim_end_matches('/'),
+        sso.authorize_endpoint(),
         urlencoding::encode(&sso.client_id),
         urlencoding::encode(&sso.redirect_uri),
         urlencoding::encode(&scopes),
@@ -82,10 +82,7 @@ pub async fn exchange_code(
     code: &str,
     code_verifier: &str,
 ) -> AppResult<TokenResponse> {
-    let url = format!(
-        "{}/api/login/oauth/access_token",
-        sso.issuer.trim_end_matches('/')
-    );
+    let url = sso.token_endpoint();
     let resp = client
         .post(&url)
         .form(&[
@@ -116,7 +113,7 @@ pub async fn fetch_userinfo(
     sso: &SsoCache,
     access_token: &str,
 ) -> AppResult<UserInfo> {
-    let url = format!("{}/api/userinfo", sso.issuer.trim_end_matches('/'));
+    let url = sso.userinfo_endpoint();
     let resp = client.get(&url).bearer_auth(access_token).send().await?;
     let status = resp.status();
     let text = resp.text().await?;
@@ -145,6 +142,10 @@ mod tests {
             redirect_uri: "http://localhost:8088/auth/callback".into(),
             scopes: vec!["openid".into(), "profile".into(), "email".into()],
             jwks_uri: String::new(),
+            discovery_url: String::new(),
+            authorize_url: String::new(),
+            token_url: String::new(),
+            userinfo_url: String::new(),
         }
     }
 

@@ -2,7 +2,10 @@
 
 export const SSO_HINT_KEY = "navhub_sso_hint";
 export const SSO_SILENT_LOCK_KEY = "navhub_sso_silent_inflight";
+export const SSO_ENABLED_KEY = "navhub_sso_enabled";
 export const SSO_INTERACTIVE_PARAM = "nh_sso";
+/** Cross-tab lock TTL so several tabs hitting 401 don't stampede prompt=none. */
+export const SSO_SILENT_LOCK_TTL_MS = 15_000;
 
 /** 仅允许站内相对路径，防止 open redirect。 */
 export function sanitizeReturnTo(raw: string | null | undefined): string {
@@ -58,8 +61,25 @@ export function clearSsoHint(): void {
   }
 }
 
+export function rememberSsoEnabled(enabled: boolean): void {
+  try {
+    window.sessionStorage.setItem(SSO_ENABLED_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readSsoEnabled(): boolean {
+  try {
+    return window.sessionStorage.getItem(SSO_ENABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function clearSilentLock(): void {
   try {
+    window.localStorage.removeItem(SSO_SILENT_LOCK_KEY);
     window.sessionStorage.removeItem(SSO_SILENT_LOCK_KEY);
   } catch {
     /* ignore */
@@ -68,7 +88,18 @@ export function clearSilentLock(): void {
 
 export function isSilentLocked(): boolean {
   try {
-    return window.sessionStorage.getItem(SSO_SILENT_LOCK_KEY) === "1";
+    const raw =
+      window.localStorage.getItem(SSO_SILENT_LOCK_KEY) ??
+      window.sessionStorage.getItem(SSO_SILENT_LOCK_KEY);
+    if (!raw) return false;
+    if (raw === "1") return true; // legacy session lock
+    const ts = Number(raw);
+    if (!Number.isFinite(ts)) return true;
+    if (Date.now() - ts > SSO_SILENT_LOCK_TTL_MS) {
+      window.localStorage.removeItem(SSO_SILENT_LOCK_KEY);
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }
@@ -116,18 +147,29 @@ export function beginSilentReauth(returnTo?: string): boolean {
   if (typeof window === "undefined") return false;
   if (isSilentLocked()) return false;
   try {
-    window.sessionStorage.setItem(SSO_SILENT_LOCK_KEY, "1");
+    window.localStorage.setItem(SSO_SILENT_LOCK_KEY, String(Date.now()));
   } catch {
-    /* ignore */
+    try {
+      window.sessionStorage.setItem(SSO_SILENT_LOCK_KEY, String(Date.now()));
+    } catch {
+      /* ignore */
+    }
   }
   window.location.assign(buildLoginUrl({ silent: true, returnTo }));
   return true;
 }
 
-/** API 401：若有 SSO hint 则静默续期（不堆叠重试）。 */
-export function maybeSilentReauthOn401(): void {
+/** API 401：与 shouldAttemptSilentReauth 同一套门槛（含 ssoEnabled），避免关 SSO 时乱跳。 */
+export function maybeSilentReauthOn401(ssoEnabled?: boolean): void {
   if (typeof window === "undefined") return;
-  if (!hasSsoHint()) return;
-  if (isSilentLocked()) return;
+  const enabled = ssoEnabled ?? readSsoEnabled();
+  if (
+    !shouldAttemptSilentReauth({
+      ssoEnabled: enabled,
+      silentFailed: false,
+    })
+  ) {
+    return;
+  }
   beginSilentReauth();
 }

@@ -33,6 +33,9 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("internal: {0}")]
     Internal(String),
+    /// Upstream (S3 / object storage) is down or rejected the write.
+    #[error("upstream unavailable: {0}")]
+    Unavailable(&'static str),
 }
 
 impl From<deadpool_redis::PoolError> for AppError {
@@ -55,6 +58,11 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
             AppError::Conflict(_) => (StatusCode::CONFLICT, "conflict", self.to_string()),
+            AppError::Unavailable(m) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                *m,
+                self.to_string(),
+            ),
             _ => {
                 tracing::error!(error = ?self, "internal error");
                 (

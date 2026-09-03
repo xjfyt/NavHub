@@ -21,8 +21,12 @@ services:
   navhub:
     image: navhub:sso-dev
     extra_hosts:
-      # host-gateway: this box's docker0 path works; inter-container
-      # traffic on the compose bridge is dropped by iptables-legacy FORWARD.
+      # OPTIONAL / DEV-ONLY. `host-gateway` is a Docker Desktop/Linux convenience so
+      # this overlay can reach mock-oidc on the host. It is not portable (Podman,
+      # some CI, rootless) and MUST NOT be copied into production compose files.
+      # Default docker-compose.yaml has no extra_hosts.
+      # This box: docker0 + iptables-legacy FORWARD drops bridge traffic, so
+      # host-gateway is used for localhost/postgres/redis as well.
       - "localhost:host-gateway"
       - "postgres:host-gateway"
       - "redis:host-gateway"

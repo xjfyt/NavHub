@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   SSO_HINT_KEY,
   SSO_INTERACTIVE_PARAM,
   SSO_SILENT_LOCK_KEY,
   buildLoginUrl,
   consumeSilentFailure,
+  maybeSilentReauthOn401,
+  rememberSsoEnabled,
   sanitizeReturnTo,
   shouldAttemptSilentReauth,
 } from "./ssoSilent";
@@ -57,9 +59,26 @@ describe("consumeSilentFailure", () => {
 });
 
 describe("shouldAttemptSilentReauth", () => {
+  const mem: Record<string, string> = {};
+  const storage = {
+    getItem: (k: string) => (k in mem ? mem[k] : null),
+    setItem: (k: string, v: string) => {
+      mem[k] = v;
+    },
+    removeItem: (k: string) => {
+      delete mem[k];
+    },
+  };
+  beforeEach(() => {
+    for (const k of Object.keys(mem)) delete mem[k];
+    (globalThis as unknown as { window: unknown }).window = {
+      localStorage: storage,
+      sessionStorage: storage,
+      location: { assign() {}, href: "http://localhost/" },
+    };
+  });
   afterEach(() => {
-    window.localStorage.removeItem(SSO_HINT_KEY);
-    window.sessionStorage.removeItem(SSO_SILENT_LOCK_KEY);
+    delete (globalThis as unknown as { window?: unknown }).window;
   });
 
   it("无 hint 不静默（访客）", () => {
@@ -91,10 +110,19 @@ describe("shouldAttemptSilentReauth", () => {
 
   it("进行中的静默不堆叠", () => {
     window.localStorage.setItem(SSO_HINT_KEY, "1");
-    window.sessionStorage.setItem(SSO_SILENT_LOCK_KEY, "1");
+    window.localStorage.setItem(SSO_SILENT_LOCK_KEY, String(Date.now()));
     expect(
       shouldAttemptSilentReauth({ ssoEnabled: true, silentFailed: false }),
     ).toBe(false);
+  });
+
+  it("maybeSilentReauthOn401 在 SSO 关闭时不跳转", () => {
+    window.localStorage.setItem(SSO_HINT_KEY, "1");
+    rememberSsoEnabled(false);
+    const orig = window.location;
+    maybeSilentReauthOn401();
+    expect(window.localStorage.getItem(SSO_SILENT_LOCK_KEY)).toBeNull();
+    void orig;
   });
 
   it("consume 参数名保持 nh_sso", () => {

@@ -108,6 +108,9 @@ pub async fn update(
     .fetch_optional(&state.pg)
     .await?
     .ok_or(AppError::NotFound)?;
+    if body.role.is_some() {
+        let _ = crate::auth::session::clear_all_user_sessions(&state, id).await;
+    }
     util::audit(
         &state,
         Some(&user),

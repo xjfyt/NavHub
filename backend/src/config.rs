@@ -129,7 +129,8 @@ fn default_super_display() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SsoConfig {
-    #[serde(default = "default_true")]
+    /// Default false: SSO stays off until config/env/admin explicitly enables it.
+    #[serde(default)]
     pub enabled: bool,
     pub issuer: String,
     pub client_id: String,
@@ -143,6 +144,20 @@ pub struct SsoConfig {
     /// path differs.
     #[serde(default)]
     pub jwks_uri: String,
+    /// Optional OIDC discovery document URL. Empty uses `<issuer>/.well-known/openid-configuration`.
+    /// Used when authorize/token/userinfo/jwks are left blank so Authentik (and other
+    /// standard OIDC providers) work without Casdoor path conventions.
+    #[serde(default)]
+    pub discovery_url: String,
+    /// Optional explicit authorization endpoint. Empty: discovery, then Casdoor `<issuer>/login/oauth/authorize`.
+    #[serde(default)]
+    pub authorize_url: String,
+    /// Optional explicit token endpoint. Empty: discovery, then Casdoor `<issuer>/api/login/oauth/access_token`.
+    #[serde(default)]
+    pub token_url: String,
+    /// Optional explicit userinfo endpoint. Empty: discovery, then Casdoor `<issuer>/api/userinfo`.
+    #[serde(default)]
+    pub userinfo_url: String,
 }
 
 fn default_true() -> bool {

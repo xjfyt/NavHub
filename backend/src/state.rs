@@ -40,6 +40,8 @@ pub struct AppState {
     /// AUTH-1: short-TTL in-memory cache of the provider JWKS, keyed implicitly
     /// by the configured jwks_uri. Refetched on miss / expiry / unknown-kid.
     pub jwks_cache: Arc<JwksCache>,
+    /// Cached OIDC discovery document for non-Casdoor issuers (Authentik, etc.).
+    pub discovery_cache: Arc<crate::auth::oidc::DiscoveryCache>,
     /// INFRA-6: 进程内 favicon 单飞(single-flight)注册表。键为 favicon 缓存键,
     /// 值为该键当前正在进行的上游抓取所对应的 Notify。缓存击穿时(大量并发请求
     /// 同一 host)只让第一个请求真正去抓上游,其余等待其完成后复用缓存结果,
@@ -100,6 +102,7 @@ impl AppState {
             lenient_client,
             oidc_client,
             jwks_cache: Arc::new(JwksCache::new()),
+            discovery_cache: Arc::new(crate::auth::oidc::DiscoveryCache::new()),
             favicon_inflight: Mutex::new(HashMap::new()),
             bg_tasks: TaskTracker::new(),
             admin_fetch_sem,

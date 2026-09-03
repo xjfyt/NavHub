@@ -76,7 +76,10 @@ impl Storage {
         }
         req.send()
             .await
-            .map_err(|e| AppError::Internal(format!("s3 put_object failed: {e}")))?;
+            .map_err(|e| {
+                tracing::warn!(error = %e, "s3 put_object failed");
+                AppError::Unavailable("storage_unavailable")
+            })?;
         Ok(())
     }
 

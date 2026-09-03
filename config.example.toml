@@ -52,8 +52,17 @@ client_id = "CHANGE_ME"
 client_secret = "CHANGE_ME"
 redirect_uri = "http://localhost:8088/auth/callback"
 scopes = ["openid", "profile", "email"]
-# ID Token 签名校验用的 JWKS 端点;留空则按 Casdoor 约定从 issuer 推导(<issuer>/.well-known/jwks)。
+# ID Token 签名校验用的 JWKS 端点;留空则先走 OIDC discovery,再按 Casdoor 约定
+# 从 issuer 推导(<issuer>/.well-known/jwks)。
 # jwks_uri = ""
+# 可选:OIDC discovery 文档。留空则 GET <issuer>/.well-known/openid-configuration。
+# Authentik 等标准 IdP 只需填 issuer;Casdoor 在 discovery 失败时仍使用其默认路径。
+# discovery_url = ""
+# 可选:覆盖 authorize / token / userinfo。留空则 discovery,再 Casdoor 默认。
+# authorize_url = ""
+# token_url = ""
+# userinfo_url = ""
+# ID token 签名算法仅接受 RS256 与 ES256(jsonwebtoken 已支持)。HS256/PS256 等会拒签。
 
 [app]
 audit_retention_days = 90

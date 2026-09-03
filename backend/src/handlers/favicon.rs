@@ -96,6 +96,22 @@ pub(crate) async fn ensure_safe_target(host: &str, allow_private: bool) -> AppRe
     Ok(())
 }
 
+fn is_cgnat_v4(v4: std::net::Ipv4Addr) -> bool {
+    // RFC 6598 100.64.0.0/10
+    v4.octets()[0] == 100 && (v4.octets()[1] & 0xc0) == 0x40
+}
+
+fn is_nat64_v6(v6: std::net::Ipv6Addr) -> bool {
+    // Well-known NAT64 prefix 64:ff9b::/96 (and 64:ff9b:1::/48)
+    let s = v6.segments();
+    s[0] == 0x64 && s[1] == 0xff9b
+}
+
+fn is_documentation_v6(v6: std::net::Ipv6Addr) -> bool {
+    // 2001:db8::/32
+    v6.segments()[0] == 0x2001 && v6.segments()[1] == 0xdb8
+}
+
 fn check_ip(ip: IpAddr, allow_private: bool) -> AppResult<()> {
     if ip.is_loopback() || ip.is_multicast() || ip.is_unspecified() {
         return Err(AppError::BadRequest("invalid host IP".into()));
@@ -109,6 +125,10 @@ fn check_ip(ip: IpAddr, allow_private: bool) -> AppResult<()> {
             // 不受 allow_private 影响——homelab 例外只针对 RFC1918 私网。
             if v4.is_link_local() {
                 return Err(AppError::BadRequest("invalid host IP (link-local)".into()));
+            }
+            // CGNAT is not homelab RFC1918; always deny (SSRF / shared-carrier space).
+            if is_cgnat_v4(v4) {
+                return Err(AppError::BadRequest("invalid host IP (cgnat)".into()));
             }
             if !allow_private && v4.is_private() {
                 return Err(AppError::BadRequest("invalid host IP (private)".into()));
@@ -126,6 +146,9 @@ fn check_ip(ip: IpAddr, allow_private: bool) -> AppResult<()> {
             let unique_local = (segs[0] & 0xfe00) == 0xfc00;
             if link_local {
                 return Err(AppError::BadRequest("invalid host IP (link-local)".into()));
+            }
+            if is_documentation_v6(v6) || is_nat64_v6(v6) {
+                return Err(AppError::BadRequest("invalid host IP".into()));
             }
             if !allow_private && unique_local {
                 return Err(AppError::BadRequest("invalid host IP (private)".into()));
@@ -148,14 +171,12 @@ pub async fn search(
     let mut candidates = Vec::new();
 
     candidates.push(FaviconSearchCandidate {
-        url: format!("/api/favicon?url={}&sz=128", urlencoding::encode(&q.url)),
+        url: format!("/api/favicon?url={}&sz=128", urlencoding::encode(&host)),
         source: "智能抓取/生成".into(),
     });
 
-    let mut url_with_scheme = q.url.clone();
-    if !url_with_scheme.starts_with("http") {
-        url_with_scheme = format!("https://{}", url_with_scheme);
-    }
+    // Only fetch the origin homepage — never the caller-supplied path (SSRF / scanner).
+    let url_with_scheme = format!("https://{host}/");
 
     if let Ok(resp) = state
         .lenient_client
@@ -187,10 +208,12 @@ pub async fn search(
                     } else {
                         format!("{}/{}", url_with_scheme.trim_end_matches('/'), href)
                     };
-                    candidates.push(FaviconSearchCandidate {
-                        url: full_url,
-                        source: "HTML解析".into(),
-                    });
+                    if extract_host(&full_url).as_deref() == Some(host.as_str()) {
+                        candidates.push(FaviconSearchCandidate {
+                            url: full_url,
+                            source: "HTML解析".into(),
+                        });
+                    }
                 }
             }
         }
@@ -358,7 +381,7 @@ async fn fetch_favicon_chain(
     let client = &state.lenient_client;
 
     let direct_url = format!("https://{host}/favicon.ico");
-    if let Some(bytes) = try_fetch(client, &direct_url).await {
+    if let Some(bytes) = try_fetch(client, &direct_url, state.cfg.app.favicon_allow_private_targets).await {
         if is_valid_icon(&bytes) {
             return cache_and_return(state, cache_key, bytes).await;
         }
@@ -375,7 +398,7 @@ async fn try_remaining_strategies(
     sz: u16,
 ) -> AppResult<Response> {
     let ddg_url = format!("https://icons.duckduckgo.com/ip3/{host}.ico");
-    if let Some(bytes) = try_fetch(client, &ddg_url).await {
+    if let Some(bytes) = try_fetch(client, &ddg_url, false).await {
         if is_valid_icon(&bytes) {
             return cache_and_return(state, cache_key, bytes).await;
         }
@@ -384,14 +407,14 @@ async fn try_remaining_strategies(
     let google_url = format!(
         "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://{host}&size={sz}"
     );
-    if let Some(bytes) = try_fetch(client, &google_url).await {
+    if let Some(bytes) = try_fetch(client, &google_url, false).await {
         if is_valid_icon(&bytes) {
             return cache_and_return(state, cache_key, bytes).await;
         }
     }
 
     let http_url = format!("http://{host}/favicon.ico");
-    if let Some(bytes) = try_fetch(client, &http_url).await {
+    if let Some(bytes) = try_fetch(client, &http_url, state.cfg.app.favicon_allow_private_targets).await {
         if is_valid_icon(&bytes) {
             return cache_and_return(state, cache_key, bytes).await;
         }
@@ -423,13 +446,36 @@ async fn read_capped(resp: reqwest::Response, max: usize) -> Option<Vec<u8>> {
     Some(buf)
 }
 
-async fn try_fetch(client: &reqwest::Client, url: &str) -> Option<Vec<u8>> {
-    let resp = client
-        .get(url)
-        .timeout(Duration::from_secs(8))
-        .send()
-        .await
-        .ok()?;
+async fn try_fetch(client: &reqwest::Client, url: &str, allow_private: bool) -> Option<Vec<u8>> {
+    let parsed = url::Url::parse(url).ok()?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return None;
+    }
+    let host = parsed.host_str()?.to_string();
+    // Re-resolve immediately before connect (cheap DNS rebinding mitigation).
+    if ensure_safe_target(&host, allow_private).await.is_err() {
+        return None;
+    }
+    let mut req = client.get(url).timeout(Duration::from_secs(8));
+    // HTTP-only IP pin: rewrite host to a just-resolved safe IP and send Host.
+    // HTTPS skipped — cert SAN would fail without a custom connector.
+    if parsed.scheme() == "http" {
+        let port = parsed.port().unwrap_or(80);
+        let looked_up = tokio::net::lookup_host((host.as_str(), port)).await;
+        if let Ok(mut iter) = looked_up {
+            if let Some(addr) = iter.next() {
+                if check_ip(addr.ip(), allow_private).is_ok() {
+                    let mut pinned = parsed.clone();
+                    let _ = pinned.set_ip_host(addr.ip());
+                    req = client
+                        .get(pinned)
+                        .header(header::HOST, host.as_str())
+                        .timeout(Duration::from_secs(8));
+                }
+            }
+        }
+    }
+    let resp = req.send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
@@ -573,7 +619,10 @@ pub(crate) fn extract_host(input: &str) -> Option<String> {
         format!("https://{s}")
     };
     let parsed = url::Url::parse(&with_scheme).ok()?;
-    parsed.host_str().map(|h| h.to_string())
+    match parsed.scheme() {
+        "http" | "https" => parsed.host_str().map(|h| h.to_string()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -616,6 +665,26 @@ mod tests {
     fn allows_public_ip() {
         assert!(check_ip("1.1.1.1".parse().unwrap(), false).is_ok());
         assert!(check_ip("8.8.8.8".parse().unwrap(), false).is_ok());
+    }
+
+    #[test]
+    fn rejects_cgnat_and_nat64_and_docs() {
+        assert!(check_ip("100.64.0.1".parse().unwrap(), true).is_err());
+        assert!(check_ip("100.127.1.1".parse().unwrap(), false).is_err());
+        assert!(check_ip("203.0.113.9".parse().unwrap(), false).is_err());
+        let nat64: IpAddr = "64:ff9b::1".parse().unwrap();
+        assert!(check_ip(nat64, false).is_err());
+        let docs6: IpAddr = "2001:db8::1".parse().unwrap();
+        assert!(check_ip(docs6, false).is_err());
+    }
+
+    #[test]
+    fn extract_host_http_https_only() {
+        assert_eq!(extract_host("https://example.com/foo"), Some("example.com".into()));
+        assert_eq!(extract_host("example.com/foo"), Some("example.com".into()));
+        assert!(extract_host("file:///etc/passwd").is_none());
+        assert!(extract_host("ftp://example.com/x").is_none());
+        assert!(extract_host("gopher://example.com/").is_none());
     }
 
     // INFRA-5: 尺寸白名单收敛。
