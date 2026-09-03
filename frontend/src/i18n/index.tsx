@@ -5,6 +5,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -40,7 +41,7 @@ function persistLang(lang: Lang) {
   }
 }
 
-/** 初始语言:用户偏好(localStorage) > navigator.language(zh* -> zh,否则 en)。 */
+/** 初始语言:用户偏好(localStorage) > 默认简体中文。 */
 function initialLang(): Lang {
   const nav = typeof navigator !== "undefined" ? navigator.language : undefined;
   return detectLang({ stored: readStoredLang(), navigator: nav });
@@ -68,6 +69,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       translate(dictionaries, lang, key, params),
     [lang],
   );
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  }, [lang]);
 
   const value = useMemo<I18nContextValue>(
     () => ({ lang, setLang, t }),

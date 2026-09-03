@@ -357,8 +357,10 @@ export function AddIconModal({
           </span>
         </div>
         <button
+          type="button"
           className="modal-close"
           onClick={onClose}
+          aria-label="关闭"
           style={{
             background: "transparent",
             border: "none",
@@ -399,9 +401,10 @@ export function AddIconModal({
           >
             <div className="field-row" style={{ marginBottom: 0 }}>
               <div className="field" style={{ width: "100%" }}>
-                <label htmlFor="ai-name">名称 Name</label>
+                <label htmlFor="ai-name">名称</label>
                 <input
                   id="ai-name"
+                  aria-label="名称"
                   autoFocus
                   value={name}
                   onChange={(e) => {
@@ -414,7 +417,7 @@ export function AddIconModal({
             </div>
 
             <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="ai-url">链接 URL</label>
+              <label htmlFor="ai-url">链接</label>
               <input
                 id="ai-url"
                 value={url}
@@ -424,7 +427,7 @@ export function AddIconModal({
             </div>
 
             <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="ai-sub">副标题 Sub</label>
+              <label htmlFor="ai-sub">副标题</label>
               <input
                 id="ai-sub"
                 value={sub}

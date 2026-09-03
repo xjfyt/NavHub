@@ -3,6 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { GroupView, Me } from "../types";
 import { Icon } from "./Icon";
 import { groupDroppableId } from "../utils/dragTarget";
+import { useI18n } from "../i18n";
 
 export const Sidebar = ({
   groups,
@@ -39,6 +40,7 @@ export const Sidebar = ({
    */
   dndActiveItemId?: string | null;
 }) => {
+  const { t } = useI18n();
   const [dragId, setDragId] = useState<string | null>(null);
   const [hoverCategory, setHoverCategory] = useState<string | null>(null);
   const hoverTimerRef = React.useRef<number | null>(null);
@@ -55,7 +57,9 @@ export const Sidebar = ({
     "sidebar glass" + (sidebarMode === "autohide" ? " auto-hide" : "");
 
   const isGuest = user === null;
-  const label = isGuest ? "登录" : user!.displayName || user!.username;
+  const label = isGuest
+    ? t("common.login")
+    : user!.displayName || user!.username;
   const initials = isGuest
     ? "访"
     : (user!.displayName || user!.username).substring(0, 2).toUpperCase();

@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../../Icon";
 import { api } from "../../../api";
+import {
+  humanizeAuditAction,
+  humanizeAuditActor,
+} from "../../../utils/auditQuery";
 import { ROLES } from "../../../constants/design";
 import type { AdminDashboardStats } from "../../../types";
 
@@ -221,9 +225,11 @@ export const AdminDashboard = () => {
                       {new Date(log.ts).toLocaleString()}
                     </td>
                     <td style={{ padding: "8px 0" }}>
-                      {log.actorName || "System"}
+                      {humanizeAuditActor(log.actorName)}
                     </td>
-                    <td style={{ padding: "8px 0" }}>{log.action}</td>
+                    <td style={{ padding: "8px 0" }}>
+                      {humanizeAuditAction(log.action)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

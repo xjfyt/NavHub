@@ -67,9 +67,8 @@ export function translate(
 /**
  * 语言探测纯逻辑:
  *   1. 若存在合法的用户偏好(stored ∈ LANGS),优先采用。
- *   2. 否则看 navigator.language:zh* -> zh,其它 -> en。
- *   3. navigator 缺失 -> en。
- * 大小写不敏感。
+ *   2. 否则默认简体中文(避免只翻了登录/添加切片时与硬编码中文混排)。
+ * 大小写不敏感。显式选择 English 后仍走 stored=en。
  */
 export function detectLang(input: {
   stored: string | null | undefined;
@@ -79,7 +78,6 @@ export function detectLang(input: {
   if (stored && (LANGS as string[]).includes(stored)) {
     return stored as Lang;
   }
-  const nav = (input.navigator || "").toLowerCase();
-  if (nav.startsWith("zh")) return "zh";
-  return "en";
+  void input.navigator;
+  return "zh";
 }

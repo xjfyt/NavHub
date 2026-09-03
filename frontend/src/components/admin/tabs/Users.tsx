@@ -191,7 +191,7 @@ export const AdminUsers = () => {
                     borderRadius: 4,
                   }}
                 >
-                  {u.casdoorBound ? "Casdoor" : "Local"}
+                  {u.casdoorBound ? "SSO" : "本地"}
                 </span>
               </td>
               <td

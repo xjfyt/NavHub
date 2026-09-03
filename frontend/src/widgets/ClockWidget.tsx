@@ -64,7 +64,7 @@ export const ClockWidget = ({ w }: WidgetProps<ClockConfig> = {}) => {
   })();
 
   const zoneLabel = !timeZone
-    ? "本地"
+    ? "系统时区"
     : (CLOCK_ZONES.find((z) => z.tz === timeZone)?.label ?? timeZone);
 
   return (
@@ -126,7 +126,7 @@ export const ClockDetail = ({ w }: WidgetProps<ClockConfig> = {}) => {
   }, []);
 
   const primaryLabel = !primaryTz
-    ? "本地"
+    ? "系统时区"
     : (CLOCK_ZONES.find((z) => z.tz === primaryTz)?.label ?? primaryTz);
 
   return (

@@ -35,9 +35,15 @@ export const WidgetCatalogModal = ({
   const [size, setSize] = useState<WidgetSizeId>("medium");
   const [search, setSearch] = useState("");
 
-  const filtered = WIDGET_KINDS.filter(
-    (k) => k.name.includes(search) || k.description.includes(search),
-  );
+  const filtered = WIDGET_KINDS.filter((k) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      k.name.toLowerCase().includes(q) ||
+      k.description.toLowerCase().includes(q) ||
+      k.id.toLowerCase().includes(q)
+    );
+  });
 
   const selectedWidget =
     WIDGET_REGISTRY[selectedId as keyof typeof WIDGET_REGISTRY];
@@ -94,6 +100,7 @@ export const WidgetCatalogModal = ({
           <Icon name="search" size={14} />
           <input
             placeholder="搜索小组件"
+            aria-label="搜索小组件"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

@@ -171,7 +171,7 @@ interface ClockDraft {
 }
 
 const CLOCK_TZ_OPTIONS: { tz: string; label: string }[] = [
-  { tz: "", label: "本地" },
+  { tz: "", label: "系统时区" },
   { tz: "UTC", label: "UTC" },
   { tz: "Asia/Shanghai", label: "北京" },
   { tz: "Asia/Tokyo", label: "东京" },

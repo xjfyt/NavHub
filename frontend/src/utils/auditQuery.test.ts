@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   AUDIT_KINDS,
   buildAuditParams,
+  humanizeAuditAction,
+  humanizeAuditActor,
   type AuditFilterState,
 } from "./auditQuery";
 
@@ -90,5 +92,28 @@ describe("AUDIT_KINDS", () => {
       "message",
       "settings",
     ]);
+  });
+});
+
+describe("humanizeAuditAction", () => {
+  it("把 password_login 等生词译成中文", () => {
+    expect(humanizeAuditAction("password_login")).toBe("密码登录");
+    expect(humanizeAuditAction("sso_login")).toBe("SSO 登录");
+    expect(humanizeAuditAction("merge_icons")).toBe("合并为文件夹");
+  });
+  it("未知行为去掉下划线", () => {
+    expect(humanizeAuditAction("custom_thing")).toBe("custom thing");
+  });
+  it("空值显示破折号", () => {
+    expect(humanizeAuditAction("")).toBe("—");
+    expect(humanizeAuditAction(null)).toBe("—");
+  });
+});
+
+describe("humanizeAuditActor", () => {
+  it("System 显示为系统", () => {
+    expect(humanizeAuditActor("System")).toBe("系统");
+    expect(humanizeAuditActor("")).toBe("系统");
+    expect(humanizeAuditActor("alice")).toBe("alice");
   });
 });

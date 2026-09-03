@@ -42,7 +42,9 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
   // 单位切换按钮(在标题右侧),点击时不触发磁贴展开/拖拽。
   const unitToggle = (
     <button
+      type="button"
       title="切换温度单位"
+      aria-label="切换温度单位"
       onClick={toggleUnit}
       onMouseDown={(e) => e.stopPropagation()}
       style={{
@@ -145,7 +147,7 @@ export const WeatherWidget = ({ w }: WidgetProps<WeatherConfig> = {}) => {
               风向<span>{data.wind}</span>
             </div>
             <div>
-              AQI<span>{data.aqi}</span>
+              空气质量<span>{data.aqi}</span>
             </div>
           </div>
           <div className="hours">
@@ -246,7 +248,7 @@ export const WeatherDetail = ({ w }: WidgetProps<WeatherConfig> = {}) => {
           }}
         >
           <div className="muted" style={{ fontSize: 11 }}>
-            AQI
+            空气质量
           </div>
           <div style={{ fontSize: 18, marginTop: 4 }}>{data.aqi}</div>
         </div>

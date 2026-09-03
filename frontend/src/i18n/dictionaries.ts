@@ -52,6 +52,11 @@ export const dictionaries: Dictionaries = {
     "nav.empty.addFirstIcon": "添加第一个网站",
     "nav.add": "添加",
 
+    "admin.chip": "管理",
+    "user.authLocal": "本地",
+    "user.authSso": "SSO",
+    "audit.actorSystem": "系统",
+
     // 设置面板:语言
     "settings.language": "界面语言",
     "lang.zh": "简体中文",
@@ -103,6 +108,11 @@ export const dictionaries: Dictionaries = {
     "nav.empty.noItemsDescReadonly": "This category has no content yet.",
     "nav.empty.addFirstIcon": "Add your first site",
     "nav.add": "Add",
+
+    "admin.chip": "Admin",
+    "user.authLocal": "Local",
+    "user.authSso": "SSO",
+    "audit.actorSystem": "System",
 
     // Settings panel: language
     "settings.language": "Language",

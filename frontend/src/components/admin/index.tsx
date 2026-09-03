@@ -86,7 +86,7 @@ export const AdminShell = ({
               marginLeft: 6,
             }}
           >
-            ADMIN
+            管理
           </span>
         </h1>
         {tabs.map((t) => (

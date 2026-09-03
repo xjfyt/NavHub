@@ -60,3 +60,42 @@ export function buildAuditParams(state: AuditFilterState): AuditParams {
 
   return params;
 }
+
+/** 审计行为码 -> 中文。未知码去掉下划线后原样展示,避免 password_login 这类生词。 */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  password_login: "密码登录",
+  sso_login: "SSO 登录",
+  first_sso_bind: "首次绑定 SSO",
+  create_icon: "添加图标",
+  update_icon: "更新图标",
+  delete_icon: "删除图标",
+  merge_icons: "合并为文件夹",
+  extract_folder_item: "移出文件夹",
+  create_group: "创建分类",
+  update_group: "更新分类",
+  delete_group: "删除分类",
+  create_widget: "添加小组件",
+  upload: "上传文件",
+  admin_update_user: "修改用户",
+  admin_delete_user: "删除用户",
+  update_settings: "更新系统设置",
+  update_sso: "更新 SSO 配置",
+  admin_create_message: "发送系统消息",
+  admin_delete_message: "删除系统消息",
+  push_group: "推送分类",
+  unpush_group: "撤回推送",
+  import_group: "导入分类",
+};
+
+export function humanizeAuditAction(action: string | null | undefined): string {
+  const a = (action || "").trim();
+  if (!a) return "—";
+  if (AUDIT_ACTION_LABELS[a]) return AUDIT_ACTION_LABELS[a];
+  return a.replace(/_/g, " ");
+}
+
+export function humanizeAuditActor(name: string | null | undefined): string {
+  const n = (name || "").trim();
+  if (!n || n.toLowerCase() === "system") return "系统";
+  return n;
+}

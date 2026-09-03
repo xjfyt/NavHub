@@ -5,6 +5,8 @@ import {
   AUDIT_KINDS,
   DEFAULT_AUDIT_PAGE_SIZE,
   buildAuditParams,
+  humanizeAuditAction,
+  humanizeAuditActor,
 } from "../../../utils/auditQuery";
 
 const inputStyle: React.CSSProperties = {
@@ -207,9 +209,11 @@ export const AdminAudit = () => {
                   {new Date(l.ts).toLocaleString()}
                 </td>
                 <td style={{ padding: 12, fontSize: 13 }}>
-                  {l.actorName || "System"}
+                  {humanizeAuditActor(l.actorName)}
                 </td>
-                <td style={{ padding: 12, fontSize: 13 }}>{l.action}</td>
+                <td style={{ padding: 12, fontSize: 13 }}>
+                  {humanizeAuditAction(l.action)}
+                </td>
                 <td
                   style={{
                     padding: 12,

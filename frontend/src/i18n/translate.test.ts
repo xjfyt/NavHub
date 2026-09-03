@@ -83,8 +83,8 @@ describe("detectLang", () => {
     expect(detectLang({ stored: "zh", navigator: "en-US" })).toBe("zh");
   });
 
-  it("偏好非法时忽略,落到 navigator 判定", () => {
-    expect(detectLang({ stored: "xx", navigator: "en-US" })).toBe("en");
+  it("偏好非法时忽略,落到默认中文", () => {
+    expect(detectLang({ stored: "xx", navigator: "en-US" })).toBe("zh");
   });
 
   it("无偏好:navigator zh* -> zh", () => {
@@ -93,14 +93,14 @@ describe("detectLang", () => {
     expect(detectLang({ stored: null, navigator: "zh-TW" })).toBe("zh");
   });
 
-  it("无偏好:navigator 非 zh -> en", () => {
-    expect(detectLang({ stored: null, navigator: "en-US" })).toBe("en");
-    expect(detectLang({ stored: null, navigator: "fr-FR" })).toBe("en");
+  it("无偏好:无论 navigator 为何都默认 zh", () => {
+    expect(detectLang({ stored: null, navigator: "en-US" })).toBe("zh");
+    expect(detectLang({ stored: null, navigator: "fr-FR" })).toBe("zh");
   });
 
-  it("navigator 也缺失时退到 en", () => {
-    expect(detectLang({ stored: null, navigator: undefined })).toBe("en");
-    expect(detectLang({ stored: null, navigator: "" })).toBe("en");
+  it("navigator 也缺失时退到 zh", () => {
+    expect(detectLang({ stored: null, navigator: undefined })).toBe("zh");
+    expect(detectLang({ stored: null, navigator: "" })).toBe("zh");
   });
 
   it("大小写不敏感:ZH-cn -> zh", () => {

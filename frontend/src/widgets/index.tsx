@@ -264,7 +264,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "calendar",
     name: "日历",
     description:
-      "月历视图,标记固定公历节日(元旦/劳动节/国庆/圣诞等),磁贴与详情翻月同步。",
+      "月历视图，标记固定公历节日（元旦、劳动节、国庆等），磁贴与详情翻月同步。",
     defaultSize: "medium",
     render: (w) => tile(<CalendarWidget w={w} />),
     renderDetail: (w) => detail(<CalendarDetail w={w} />),
@@ -339,8 +339,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     id: "search",
     icon: "search",
     name: "搜索",
-    description:
-      "直接在磁贴里发起网页搜索，支持多引擎切换。search / google / baidu / bing。",
+    description: "在页面顶部搜索网页，可切换百度、Google、Bing 等引擎。",
     defaultSize: "small",
     editable: true,
     floatingBar: true,
@@ -369,7 +368,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetTypeInfo> = {
     icon: "edit",
     name: "Markdown 笔记",
     description:
-      "多条笔记本，所见即所得编辑；支持颜色标记、搜索、表格、任务列表。笔记 / 文档 / note / Typora。",
+      "多条笔记本，所见即所得编辑；支持颜色标记、搜索、表格和任务列表。",
     defaultSize: "medium",
     detailWidth: "min(1100px, 94vw)",
     detailMaxHeight: "82vh",
