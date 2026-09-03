@@ -24,7 +24,7 @@ function pick<T>(arr: T[], n: number, seed: number): T[] {
 }
 
 export const DailyLinksWidget = ({ w: _w }: WidgetProps = {}) => {
-  const { workspace } = useWorkspace();
+  const { workspace, isGuest } = useWorkspace();
   const icons = workspace.icons.filter((i) => i.url && !i.isFolder);
   const picks = useMemo(() => pick(icons, 4, daySeed()), [icons]);
   if (picks.length === 0) {
@@ -33,7 +33,16 @@ export const DailyLinksWidget = ({ w: _w }: WidgetProps = {}) => {
         <div className="widget-header">
           <span className="widget-title">今日站点</span>
         </div>
-        <WidgetEmpty title="还没有网站" hint="添加图标后，这里会每天推荐几个" />
+        <WidgetEmpty
+          title="还没有网站"
+          hint={
+            isGuest
+              ? "登录后添加几个网站，这里会每天换一批推荐"
+              : "添加几个网站后，这里会每天换一批推荐"
+          }
+          cta={isGuest ? undefined : "添加网站"}
+          action="addIcon"
+        />
       </div>
     );
   }

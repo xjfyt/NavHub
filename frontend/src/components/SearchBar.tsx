@@ -198,6 +198,31 @@ export const SearchBar = () => {
         placeholder="输入搜索内容"
         aria-label="搜索"
       />
+      <button
+        type="button"
+        className="search-go"
+        aria-label="搜索"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          const q = val.trim();
+          if (!q) {
+            toast.error("请输入搜索内容");
+            return;
+          }
+          const targetUrl = cur.url.includes("{q}")
+            ? cur.url.replace("{q}", encodeURIComponent(q))
+            : cur.url + encodeURIComponent(q);
+          const safe = safeHttpUrl(targetUrl);
+          if (!safe) {
+            toast.error("无效的搜索引擎地址");
+            return;
+          }
+          window.open(safe, "_blank", "noopener");
+        }}
+      >
+        <Icon name="search" size={16} />
+      </button>
     </div>
   );
 };

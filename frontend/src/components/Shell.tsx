@@ -443,6 +443,10 @@ export const Shell = ({
         closeOthers("widgetEdit");
         setEditingWidgetId(id);
       }}
+      openAddIcon={() => {
+        closeOthers("addIcon");
+        setAddIconOpen(true);
+      }}
     >
       <Background
         theme={theme}

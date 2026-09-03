@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../components/Icon";
 import { useWorkspace } from "../hooks/useWorkspace";
 import { BUILTIN_ENGINES, EngineLogo } from "../utils/engines";
+import { nextEngineId } from "../utils/engineHelpers";
 import { safeHttpUrl } from "../utils/iconSources";
 import { useWidgetConfig } from "../hooks/useWidgetConfig";
 import { CustomEngine } from "../types";
@@ -20,6 +21,9 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
   const tweaks = workspace.preferences.tweaks || {};
   const [val, setVal] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [switchHint, setSwitchHint] = useState(false);
+  const hintTimer = useRef<number | null>(null);
 
   const customEngines = Array.isArray(workspace.preferences.customEngines)
     ? (workspace.preferences.customEngines as CustomEngine[])
@@ -39,8 +43,22 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
     return map;
   }, [customEngines]);
 
+  const engines = useMemo(() => Object.values(allEngines), [allEngines]);
   const engineKey = tweaks.searchEngine || "google";
   const cur = allEngines[engineKey] || BUILTIN_ENGINES.google;
+  const tabSwitchOn = tweaks.tabSwitchEngine !== false;
+
+  useEffect(() => {
+    return () => {
+      if (hintTimer.current) window.clearTimeout(hintTimer.current);
+    };
+  }, []);
+
+  const flashHint = () => {
+    setSwitchHint(true);
+    if (hintTimer.current) window.clearTimeout(hintTimer.current);
+    hintTimer.current = window.setTimeout(() => setSwitchHint(false), 900);
+  };
 
   const runSearch = () => {
     const q = val.trim();
@@ -64,6 +82,23 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
       setPickerOpen(false);
       return;
     }
+    if (
+      e.key === "Tab" &&
+      tabSwitchOn &&
+      !e.shiftKey &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey
+    ) {
+      e.preventDefault();
+      const ids = engines.map((x) => x.id);
+      const next = nextEngineId(ids, engineKey);
+      if (next !== engineKey) {
+        updateTweaks({ searchEngine: next });
+        flashHint();
+      }
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       runSearch();
@@ -72,12 +107,35 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
 
   return (
     <div className="w-search-float">
+      <div className="w-search-tabs" role="tablist" aria-label="搜索引擎">
+        {engines.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            role="tab"
+            aria-selected={v.id === engineKey}
+            className={"w-search-tab" + (v.id === engineKey ? " active" : "")}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              updateTweaks({ searchEngine: v.id });
+            }}
+          >
+            <EngineLogo engine={v} size={14} />
+            <span>{v.name}</span>
+          </button>
+        ))}
+      </div>
       <div className="search w-search-inner" data-nobubble>
         <button
           type="button"
-          className="search-engine wt"
+          className={
+            "search-engine wt" + (switchHint ? " engine-switched" : "")
+          }
           aria-label={`搜索引擎：${cur.name}`}
+          aria-haspopup="menu"
           aria-expanded={pickerOpen}
+          title={tabSwitchOn ? `当前：${cur.name}（按 Tab 切换）` : cur.name}
           onClick={(e) => {
             e.stopPropagation();
             setPickerOpen((p) => !p);
@@ -89,6 +147,12 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
           <Icon name={pickerOpen ? "chevron-up" : "chevron-down"} size={10} />
         </button>
 
+        {switchHint && (
+          <div className="engine-switch-toast" role="status">
+            {cur.name}
+          </div>
+        )}
+
         {pickerOpen && (
           <>
             <div
@@ -99,11 +163,19 @@ export const SearchWidget = ({ w }: WidgetProps<SearchWidgetConfig> = {}) => {
               className="engine-grid-pop"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="engine-grid">
-                {Object.values(allEngines).map((v) => (
+              <div
+                className="engine-grid"
+                ref={gridRef}
+                role="menu"
+                tabIndex={-1}
+                aria-label="选择搜索引擎"
+              >
+                {engines.map((v) => (
                   <button
                     type="button"
                     key={v.id}
+                    role="menuitemradio"
+                    aria-checked={v.id === engineKey}
                     className={
                       "engine-tile " + (v.id === engineKey ? "active" : "")
                     }

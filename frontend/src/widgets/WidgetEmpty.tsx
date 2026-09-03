@@ -5,17 +5,24 @@ export function WidgetEmpty({
   hint,
   cta,
   widgetId,
+  action = "edit",
 }: {
   title: string;
   hint?: string;
   cta?: string;
   widgetId?: string;
+  /** edit: 打开该组件设置；addIcon: 打开添加网站。 */
+  action?: "edit" | "addIcon";
 }) {
   const setup = useWidgetSetup();
-  const canSetup = !!(cta && widgetId && setup);
+  const canSetup =
+    action === "addIcon"
+      ? !!(cta && setup?.openAddIcon)
+      : !!(cta && widgetId && setup);
   const activate = () => {
-    if (!canSetup) return;
-    setup!.openEdit(widgetId!);
+    if (!canSetup || !setup) return;
+    if (action === "addIcon") setup.openAddIcon?.();
+    else if (widgetId) setup.openEdit(widgetId);
   };
 
   return (
