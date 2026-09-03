@@ -7,6 +7,7 @@ import {
   persistDefaultCredsHintDismissed,
 } from "./utils/firstRun";
 import { useI18n } from "./i18n";
+import { markSsoHint } from "./utils/ssoSilent";
 
 export function LoginScreen(props: {
   status: AuthStatus;
@@ -30,7 +31,10 @@ export function LoginScreen(props: {
   );
 
   const onSsoLogin = () => {
-    window.location.href = api.loginUrl();
+    markSsoHint();
+    window.location.href = api.loginUrl({
+      returnTo: window.location.pathname + window.location.search + window.location.hash,
+    });
   };
 
   const onPasswordLogin = async () => {

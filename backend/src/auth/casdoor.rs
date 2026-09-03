@@ -50,9 +50,10 @@ pub fn build_authorize_url(
     state: &str,
     nonce: &str,
     code_challenge: &str,
+    prompt: Option<&str>,
 ) -> String {
     let scopes = sso.scopes.join(" ");
-    format!(
+    let mut url = format!(
         "{}/login/oauth/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&state={}\
          &nonce={}&code_challenge={}&code_challenge_method=S256",
         sso.issuer.trim_end_matches('/'),
@@ -62,7 +63,12 @@ pub fn build_authorize_url(
         urlencoding::encode(state),
         urlencoding::encode(nonce),
         urlencoding::encode(code_challenge),
-    )
+    );
+    // OIDC 静默认证：仅允许 prompt=none（有 IdP 会话则无感续期，否则 login_required）。
+    if prompt == Some("none") {
+        url.push_str("&prompt=none");
+    }
+    url
 }
 
 /// Exchange the authorization `code` for tokens.
@@ -123,4 +129,37 @@ pub async fn fetch_userinfo(
     let u: UserInfo = serde_json::from_str(&text)
         .map_err(|e| AppError::Internal(format!("parse userinfo: {e} / body: {text}")))?;
     Ok(u)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::auth::sso_cache::SsoCache;
+
+    fn sample_sso() -> SsoCache {
+        SsoCache {
+            enabled: true,
+            issuer: "https://sso.example.com".into(),
+            client_id: "navhub".into(),
+            client_secret: "secret".into(),
+            redirect_uri: "http://localhost:8088/auth/callback".into(),
+            scopes: vec!["openid".into(), "profile".into(), "email".into()],
+            jwks_uri: String::new(),
+        }
+    }
+
+    #[test]
+    fn authorize_url_omits_prompt_by_default() {
+        let url = build_authorize_url(&sample_sso(), "st", "nn", "cc", None);
+        assert!(!url.contains("prompt="));
+        assert!(url.contains("code_challenge_method=S256"));
+    }
+
+    #[test]
+    fn authorize_url_includes_prompt_none_only_when_requested() {
+        let url = build_authorize_url(&sample_sso(), "st", "nn", "cc", Some("none"));
+        assert!(url.contains("&prompt=none"));
+        let url_ignored = build_authorize_url(&sample_sso(), "st", "nn", "cc", Some("consent"));
+        assert!(!url_ignored.contains("prompt="));
+    }
 }

@@ -1,5 +1,5 @@
 use crate::{error::AppResult, state::AppState};
-use deadpool_redis::redis::AsyncCommands;
+use deadpool_redis::redis::{self, AsyncCommands};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -15,6 +15,9 @@ pub struct SessionData {
     pub email: String,
     #[serde(default)]
     pub must_change_password: bool,
+    /// "sso" | "password"；旧会话缺省为空字符串。
+    #[serde(default)]
+    pub auth_via: String,
 }
 
 pub fn gen_session_id() -> String {
@@ -25,16 +28,40 @@ pub fn gen_session_id() -> String {
         .collect()
 }
 
+pub fn session_ttl_secs(ttl_days: i64) -> i64 {
+    (ttl_days * 24 * 3600).max(60)
+}
+
 pub async fn create_session(state: &Arc<AppState>, data: &SessionData) -> AppResult<String> {
     let sid = gen_session_id();
     let mut conn = state.redis.get().await?;
-    let ttl = state.cfg.app.session_ttl_days * 24 * 3600;
+    let ttl = session_ttl_secs(state.cfg.app.session_ttl_days);
     let payload = serde_json::to_string(data)?;
     let _: () = conn.set_ex(session_key(&sid), payload, ttl as u64).await?;
     let set_key = format!("user_sessions:{}", data.user_id);
     let _: () = conn.sadd(&set_key, &sid).await.unwrap_or(());
     let _: () = conn.expire(&set_key, ttl).await.unwrap_or(());
     Ok(sid)
+}
+
+/// 滑动会话：每次认证请求刷新 Redis TTL。Cookie Max-Age 最多每 60s 重写一次。
+/// 返回 true 时调用方应在响应上重放 Set-Cookie。
+pub async fn slide_session(state: &Arc<AppState>, sid: &str) -> bool {
+    let ttl = session_ttl_secs(state.cfg.app.session_ttl_days);
+    let Ok(mut conn) = state.redis.get().await else {
+        return false;
+    };
+    let _: redis::RedisResult<()> = conn.expire(session_key(sid), ttl).await;
+    let slide_key = format!("session:slide:{}", sid);
+    let res: redis::RedisResult<Option<String>> = redis::cmd("SET")
+        .arg(&slide_key)
+        .arg(1)
+        .arg("NX")
+        .arg("EX")
+        .arg(60)
+        .query_async(&mut *conn)
+        .await;
+    matches!(res, Ok(Some(_)))
 }
 
 pub async fn get_session(state: &Arc<AppState>, sid: &str) -> AppResult<Option<SessionData>> {
@@ -195,6 +222,13 @@ fn ip_is_local(ip: &std::net::IpAddr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_ttl_secs_has_floor() {
+        assert_eq!(session_ttl_secs(7), 7 * 24 * 3600);
+        assert_eq!(session_ttl_secs(0), 60);
+        assert_eq!(session_ttl_secs(-1), 60);
+    }
 
     #[test]
     fn https_origin_never_warns() {

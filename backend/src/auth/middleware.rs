@@ -6,11 +6,18 @@ use crate::{
 };
 use axum::{
     extract::{Request, State},
+    http::{header, HeaderValue},
     middleware::Next,
     response::Response,
 };
 use std::sync::Arc;
 use uuid::Uuid;
+
+fn append_session_cookie(resp: &mut Response, cookie: &str) {
+    if let Ok(v) = HeaderValue::from_str(cookie) {
+        resp.headers_mut().append(header::SET_COOKIE, v);
+    }
+}
 
 /// 处于 must_change_password 状态的会话仍被允许访问的改密端点。
 /// 先剥离可选的 `/api` 前缀再比对,兼容 axum nest 是否剥前缀的两种情形。
@@ -70,8 +77,18 @@ pub async fn require_login(
     req.extensions_mut().insert(user);
 
     bump_last_seen(state.clone(), uid);
+    let refresh_cookie = session::slide_session(&state, &sid).await;
 
-    Ok(next.run(req).await)
+    let mut resp = next.run(req).await;
+    if refresh_cookie {
+        let cookie = session::build_cookie(
+            &sid,
+            state.cfg.app.session_ttl_days,
+            session::is_https_public(&state),
+        );
+        append_session_cookie(&mut resp, &cookie);
+    }
+    Ok(resp)
 }
 
 /// 将 `Option<SessionUser>` 作为扩展注入;未登录时为 None,用于游客可见路由。
@@ -80,8 +97,9 @@ pub async fn optional_login(
     mut req: Request,
     next: Next,
 ) -> AppResult<Response> {
-    let maybe_user: Option<SessionUser> = match session::extract_sid(req.headers()) {
-        Some(sid) => match session::get_session(&state, &sid).await? {
+    let sid_opt = session::extract_sid(req.headers());
+    let maybe_user: Option<SessionUser> = match sid_opt.as_deref() {
+        Some(sid) => match session::get_session(&state, sid).await? {
             Some(data) => {
                 if data.must_change_password && !is_must_change_password_allowed(req.uri().path()) {
                     return Err(AppError::Forbidden("must_change_password"));
@@ -99,6 +117,21 @@ pub async fn optional_login(
         },
         None => None,
     };
+    let refresh_cookie = match (sid_opt.as_deref(), maybe_user.as_ref()) {
+        (Some(sid), Some(_)) => session::slide_session(&state, sid).await,
+        _ => false,
+    };
     req.extensions_mut().insert(maybe_user);
-    Ok(next.run(req).await)
+    let mut resp = next.run(req).await;
+    if refresh_cookie {
+        if let Some(sid) = sid_opt {
+            let cookie = session::build_cookie(
+                &sid,
+                state.cfg.app.session_ttl_days,
+                session::is_https_public(&state),
+            );
+            append_session_cookie(&mut resp, &cookie);
+        }
+    }
+    Ok(resp)
 }

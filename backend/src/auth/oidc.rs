@@ -39,11 +39,17 @@ pub const FLOW_COOKIE_TTL_SECS: i64 = 600;
 /// callback. Binds `state` (CSRF / login-fixation defense, AUTH-7), `nonce`
 /// (ID-token replay defense, AUTH-1) and the PKCE `code_verifier` (auth-code
 /// interception defense, AUTH-1) to the same browser.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct OauthFlow {
     pub state: String,
     pub nonce: String,
     pub code_verifier: String,
+    /// prompt=none 静默续期；失败时不得再自动跳 IdP，以免循环。
+    #[serde(default)]
+    pub silent: bool,
+    /// 登录成功后回跳的站内路径（已清洗）。
+    #[serde(default)]
+    pub return_to: String,
 }
 
 impl OauthFlow {
@@ -54,6 +60,8 @@ impl OauthFlow {
             state: rand_token(32),
             nonce: rand_token(32),
             code_verifier: gen_code_verifier(),
+            silent: false,
+            return_to: String::new(),
         }
     }
 
@@ -249,6 +257,48 @@ pub fn verify_id_token(
     Ok(claims)
 }
 
+/// 清洗 SSO 回跳地址：只允许站内相对路径，防止 open redirect。
+pub fn sanitize_return_to(raw: &str) -> String {
+    let t = raw.trim();
+    if t.is_empty() {
+        return "/".to_string();
+    }
+    if !t.starts_with('/') || t.starts_with("//") {
+        return "/".to_string();
+    }
+    if t.contains('\\') || t.contains('\n') || t.contains('\r') || t.contains('\0') {
+        return "/".to_string();
+    }
+    if t.contains("://") {
+        return "/".to_string();
+    }
+    if t.len() > 512 {
+        return "/".to_string();
+    }
+    t.to_string()
+}
+
+/// IdP 在 prompt=none 下表示需要交互的标准错误。
+pub fn is_interaction_required_error(err: &str) -> bool {
+    matches!(
+        err,
+        "login_required" | "interaction_required" | "consent_required" | "access_denied"
+    )
+}
+
+/// 静默失败后回到应用并带 nh_sso=interactive，前端展示登录页且不再自动跳。
+pub fn interactive_fallback_url(return_to: &str) -> String {
+    let base = sanitize_return_to(return_to);
+    if base.contains("nh_sso=") {
+        return base;
+    }
+    if base.contains('?') {
+        format!("{base}&nh_sso=interactive")
+    } else {
+        format!("{base}?nh_sso=interactive")
+    }
+}
+
 /// How long a fetched JWKS is trusted before we refetch. Short enough to pick up
 /// provider key rotation reasonably fast, long enough to avoid hammering the IdP
 /// on every login.
@@ -405,6 +455,7 @@ mod tests {
             state: "the-state".into(),
             nonce: "the-nonce".into(),
             code_verifier: "the-verifier".into(),
+            ..Default::default()
         };
         let cookie = flow.encode_cookie_value();
         let decoded = OauthFlow::decode_cookie_value(&cookie).expect("decodes");
@@ -586,4 +637,53 @@ mod tests {
         let jwt = sign(K1_PEM, KID1, c);
         assert!(verify_id_token(&jwt, &jwks_with_key1(), ISS, AUD, NONCE, NOW).is_ok());
     }
+    #[test]
+    fn sanitize_return_to_allows_relative_paths() {
+        assert_eq!(sanitize_return_to("/"), "/");
+        assert_eq!(sanitize_return_to("/admin?tab=sso"), "/admin?tab=sso");
+        assert_eq!(sanitize_return_to("  /x  "), "/x");
+    }
+
+    #[test]
+    fn sanitize_return_to_blocks_open_redirect() {
+        assert_eq!(sanitize_return_to("https://evil.example"), "/");
+        assert_eq!(sanitize_return_to("//evil.example"), "/");
+        assert_eq!(sanitize_return_to(""), "/");
+        assert_eq!(sanitize_return_to("/foo://bar"), "/");
+    }
+
+    #[test]
+    fn interactive_fallback_appends_flag() {
+        assert_eq!(interactive_fallback_url("/"), "/?nh_sso=interactive");
+        assert_eq!(
+            interactive_fallback_url("/a?b=1"),
+            "/a?b=1&nh_sso=interactive"
+        );
+        assert_eq!(
+            interactive_fallback_url("/?nh_sso=interactive"),
+            "/?nh_sso=interactive"
+        );
+    }
+
+    #[test]
+    fn interaction_required_errors_are_recognized() {
+        assert!(is_interaction_required_error("login_required"));
+        assert!(is_interaction_required_error("interaction_required"));
+        assert!(!is_interaction_required_error("invalid_grant"));
+    }
+
+    #[test]
+    fn flow_cookie_roundtrip_preserves_silent_and_return_to() {
+        let flow = OauthFlow {
+            state: "s".into(),
+            nonce: "n".into(),
+            code_verifier: "v".into(),
+            silent: true,
+            return_to: "/admin".into(),
+        };
+        let decoded = OauthFlow::decode_cookie_value(&flow.encode_cookie_value()).unwrap();
+        assert!(decoded.silent);
+        assert_eq!(decoded.return_to, "/admin");
+    }
+
 }

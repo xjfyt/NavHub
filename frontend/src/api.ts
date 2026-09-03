@@ -28,6 +28,7 @@ import {
   withTimeoutSignal,
   DEFAULT_REQUEST_TIMEOUT_MS,
 } from "./utils/abortTimeout";
+import { buildLoginUrl, maybeSilentReauthOn401 } from "./utils/ssoSilent";
 
 export interface WeatherHour {
   h: string;
@@ -107,6 +108,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     cleanup();
   }
   if (res.status === 401) {
+    maybeSilentReauthOn401();
     throw new ApiError(401, "unauthorized", "unauthorized");
   }
   if (!res.ok) {
@@ -146,6 +148,7 @@ function uploadFormWithProgress<T>(
     };
     xhr.onload = () => {
       if (xhr.status === 401) {
+        maybeSilentReauthOn401();
         reject(new ApiError(401, "unauthorized", "unauthorized"));
         return;
       }
@@ -185,8 +188,8 @@ export const api = {
   async status(): Promise<AuthStatus> {
     return request("/auth/status");
   },
-  loginUrl(): string {
-    return "/auth/login";
+  loginUrl(opts?: { silent?: boolean; returnTo?: string }): string {
+    return buildLoginUrl(opts);
   },
   async passwordLogin(username: string, password: string): Promise<Me> {
     return request("/auth/password", {

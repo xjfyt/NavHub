@@ -8,6 +8,14 @@ import { Toaster } from "sonner";
 import { ChangePasswordScreen } from "./ChangePasswordScreen";
 import { mergeGuestTweaks } from "./utils/guestTweaks";
 import {
+  beginSilentReauth,
+  clearSilentLock,
+  clearSsoHint,
+  consumeSilentFailure,
+  markSsoHint,
+  shouldAttemptSilentReauth,
+} from "./utils/ssoSilent";
+import {
   connectivityReducer,
   initialConnectivity,
   selectBanner,
@@ -142,6 +150,7 @@ export function App() {
 
   const boot = useCallback(async () => {
     try {
+      const silentFailed = consumeSilentFailure();
       // Status + workspace always go in parallel. /api/me only fires if we
       // believe the user is logged in:
       //   - If the SWR cache says they were authed, kick it off optimistically
@@ -165,6 +174,24 @@ export function App() {
         setState({ stage: "must_change_password" });
         clearSwr();
         return;
+      }
+
+      // 应用会话已掉但本浏览器曾用 SSO：prompt=none 静默续期，保留当前路由。
+      if (
+        !statusResult.authenticated &&
+        shouldAttemptSilentReauth({
+          ssoEnabled: statusResult.ssoEnabled,
+          silentFailed,
+        })
+      ) {
+        beginSilentReauth();
+        return;
+      }
+      if (statusResult.authenticated) {
+        clearSilentLock();
+        if (statusResult.ssoSession) markSsoHint();
+      } else if (silentFailed) {
+        setWantLogin(true);
       }
 
       let meSettled: Me | null = null;
@@ -335,6 +362,8 @@ export function App() {
         onRequestLogin={() => setWantLogin(true)}
         onLogout={async () => {
           clearSwr();
+          clearSsoHint();
+          clearSilentLock();
           await api.logout().catch(() => undefined);
           await boot();
         }}

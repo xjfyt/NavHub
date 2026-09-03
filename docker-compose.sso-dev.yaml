@@ -1,0 +1,53 @@
+# Overlay for local SSO / silent-reauth testing.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.sso-dev.yaml up --build
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  mock-oidc:
+    build: ./scripts/mock-oidc
+    ports:
+      - "8089:8089"
+    environment:
+      MOCK_ISSUER: http://localhost:8089
+      MOCK_CLIENT_ID: navhub
+      MOCK_CLIENT_SECRET: navhub-secret
+
+  navhub:
+    image: navhub:sso-dev
+    extra_hosts:
+      # host-gateway: this box's docker0 path works; inter-container
+      # traffic on the compose bridge is dropped by iptables-legacy FORWARD.
+      - "localhost:host-gateway"
+      - "postgres:host-gateway"
+      - "redis:host-gateway"
+    environment:
+      - NAVHUB__DATABASE__HOST=postgres
+      - NAVHUB__DATABASE__USER=${PG_USER:?PG_USER must be set}
+      - NAVHUB__DATABASE__PASSWORD=${PG_PASSWORD:?PG_PASSWORD must be set}
+      - NAVHUB__DATABASE__DATABASE=${PG_DATABASE:?PG_DATABASE must be set}
+      - NAVHUB__REDIS__HOST=redis
+      - NAVHUB__SERVER__PUBLIC_URL=http://localhost:8088
+      - NAVHUB__SSO__ENABLED=true
+      - NAVHUB__SSO__ISSUER=http://localhost:8089
+      - NAVHUB__SSO__CLIENT_ID=navhub
+      - NAVHUB__SSO__CLIENT_SECRET=navhub-secret
+      - NAVHUB__SSO__REDIRECT_URI=http://localhost:8088/auth/callback
+      - NAVHUB__STORAGE__S3__ENDPOINT=http://127.0.0.1:9
+      - NAVHUB__STORAGE__S3__REGION=us-east-1
+      - NAVHUB__STORAGE__S3__BUCKET=navhub
+      - NAVHUB__STORAGE__S3__ACCESS_KEY=test
+      - NAVHUB__STORAGE__S3__SECRET_KEY=test
+      - NAVHUB__STORAGE__S3__PATH_STYLE=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock-oidc:
+        condition: service_started

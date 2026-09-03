@@ -238,6 +238,8 @@ export interface AuthStatus {
   issuer?: string;
   appName: string;
   mustChangePassword: boolean;
+  /** 当前会话是否由 SSO 建立（用于静默续期 hint）。 */
+  ssoSession?: boolean;
 }
 
 // ---------- Icon Library ----------

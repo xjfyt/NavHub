@@ -24,7 +24,16 @@ pub struct CallbackQuery {
     pub error: Option<String>,
 }
 
-pub async fn login(State(state): State<Arc<AppState>>) -> AppResult<Response> {
+#[derive(Debug, Deserialize)]
+pub struct LoginQuery {
+    pub prompt: Option<String>,
+    pub return_to: Option<String>,
+}
+
+pub async fn login(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<LoginQuery>,
+) -> AppResult<Response> {
     // OPS-11: 经 TTL 缓存读取 SSO 配置;陈旧时自动从 app_settings 重载。
     let sso = state.current_sso().await;
     if !sso.enabled {
@@ -36,8 +45,18 @@ pub async fn login(State(state): State<Arc<AppState>>) -> AppResult<Response> {
     // `state` that matches the value carried back in this cookie, defeating
     // login-CSRF / fixation; `nonce` defeats ID-token replay; the PKCE challenge
     // binds the auth code to the verifier this browser holds.
-    let flow = oidc::OauthFlow::generate();
-    let url = casdoor::build_authorize_url(&sso, &flow.state, &flow.nonce, &flow.code_challenge());
+    let mut flow = oidc::OauthFlow::generate();
+    let silent = q.prompt.as_deref() == Some("none");
+    flow.silent = silent;
+    flow.return_to = oidc::sanitize_return_to(q.return_to.as_deref().unwrap_or("/"));
+    let prompt = if silent { Some("none") } else { None };
+    let url = casdoor::build_authorize_url(
+        &sso,
+        &flow.state,
+        &flow.nonce,
+        &flow.code_challenge(),
+        prompt,
+    );
     let cookie = oidc::build_flow_cookie(
         &flow.encode_cookie_value(),
         session::is_https_public(&state),
@@ -74,28 +93,45 @@ fn append_set_cookie(resp: &mut Response, cookie: &str) {
     }
 }
 
+fn silent_or_error(flow: &oidc::OauthFlow, err: &str) -> AppResult<Response> {
+    if flow.silent && oidc::is_interaction_required_error(err) {
+        let dest = oidc::interactive_fallback_url(&flow.return_to);
+        return Ok(Redirect::temporary(&dest).into_response());
+    }
+    Err(AppError::BadRequest(format!("sso error: {err}")))
+}
+
 async fn callback_inner(
     state: &Arc<AppState>,
     headers: &HeaderMap,
     q: CallbackQuery,
 ) -> AppResult<Response> {
-    if let Some(err) = q.error {
-        return Err(AppError::BadRequest(format!("sso error: {}", err)));
-    }
-    let code = q
-        .code
-        .ok_or_else(|| AppError::BadRequest("missing code".into()))?;
-    let st = q
-        .state
-        .ok_or_else(|| AppError::BadRequest("missing state".into()))?;
-
     // AUTH-7: recover the browser-bound flow secret from the HttpOnly cookie and
     // require the query `state` to equal the bound value. Missing cookie /
     // malformed cookie / mismatch all reject (login-CSRF / fixation defense).
     let flow = oidc::extract_flow_cookie(headers)
         .and_then(|raw| oidc::OauthFlow::decode_cookie_value(&raw))
         .ok_or(AppError::Forbidden("oauth_state_missing"))?;
+
+    if let Some(err) = q.error {
+        return silent_or_error(&flow, &err);
+    }
+    let code = match q.code {
+        Some(c) => c,
+        None if flow.silent => {
+            return Ok(Redirect::temporary(&oidc::interactive_fallback_url(&flow.return_to))
+                .into_response());
+        }
+        None => return Err(AppError::BadRequest("missing code".into())),
+    };
+    let st = q
+        .state
+        .ok_or_else(|| AppError::BadRequest("missing state".into()))?;
     if st != flow.state {
+        if flow.silent {
+            return Ok(Redirect::temporary(&oidc::interactive_fallback_url(&flow.return_to))
+                .into_response());
+        }
         return Err(AppError::Forbidden("oauth_state_mismatch"));
     }
 
@@ -179,6 +215,7 @@ async fn callback_inner(
         username: user.username.clone(),
         email: user.email.clone(),
         must_change_password: user.must_change_password,
+        auth_via: "sso".into(),
     };
     let sid = session::create_session(state, &sd).await?;
     util::audit(
@@ -196,7 +233,8 @@ async fn callback_inner(
         state.cfg.app.session_ttl_days,
         session::is_https_public(state),
     );
-    let mut resp = Redirect::temporary("/").into_response();
+    let dest = oidc::sanitize_return_to(&flow.return_to);
+    let mut resp = Redirect::temporary(&dest).into_response();
     resp.headers_mut()
         .insert(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap());
     Ok(resp)
@@ -246,6 +284,7 @@ pub async fn password(
         username: user.username.clone(),
         email: user.email.clone(),
         must_change_password: user.must_change_password,
+        auth_via: "password".into(),
     };
     let sid = session::create_session(&state, &sd).await?;
     util::audit(
@@ -288,6 +327,7 @@ pub struct StatusResp {
     pub password_enabled: bool,
     pub app_name: String,
     pub must_change_password: bool,
+    pub sso_session: bool,
 }
 
 pub async fn status(
@@ -295,12 +335,12 @@ pub async fn status(
     headers: HeaderMap,
 ) -> AppResult<Json<StatusResp>> {
     let sso = state.current_sso().await;
-    let (authed, must_change) = match session::extract_sid(&headers) {
+    let (authed, must_change, sso_session) = match session::extract_sid(&headers) {
         Some(sid) => match session::get_session(&state, &sid).await? {
-            Some(data) => (true, data.must_change_password),
-            None => (false, false),
+            Some(data) => (true, data.must_change_password, data.auth_via == "sso"),
+            None => (false, false, false),
         },
-        None => (false, false),
+        None => (false, false, false),
     };
     Ok(Json(StatusResp {
         authenticated: authed,
@@ -308,6 +348,7 @@ pub async fn status(
         password_enabled: state.cfg.superadmin.password_login_enabled,
         app_name: state.cfg.app.site_name.clone(),
         must_change_password: must_change,
+        sso_session,
     }))
 }
 

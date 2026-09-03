@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### Added 新增
+- SSO 静默续期（Outline 式）：应用会话过期但 IdP 会话仍在时，`prompt=none` 自动重登并回到原路由；IdP 无会话则回退交互登录且不循环。
+- 会话滑动续期：认证请求刷新 Redis TTL，Cookie Max-Age 最多每 60 秒重写一次。
+- 本地 SSO 开发栈：`docker-compose.sso-dev.yaml` + Casdoor 形态 mock IdP（alice/alice）与 `scripts/mock-oidc/e2e_sso.py`。
+
+### Changed 变更
+- Docker 运行时基础镜像由 `debian:bullseye-slim` 改为 `debian:bookworm-slim`（并加重试），避免 bullseye apt 源 502 导致官方镜像构建失败。
+- `docker-compose.yaml` 的 Postgres 健康检查改为 `POSTGRES_USER`/`POSTGRES_DB`，修复原先引用容器内不存在的 `PG_USER` 而一直 unhealthy、阻塞 `depends_on`。
+- SSO 开发 overlay 将 `postgres`/`redis`/`localhost` 解析到 `host-gateway`，以便在 compose 网桥被 iptables-legacy FORWARD 丢弃的宿主上仍能连库与 IdP。
+
+
 ## [0.2.1] - 2026-07-15
 
 本版本重点修复壁纸偶发长期停留在主题底色的问题，并补齐项目展示与壁纸模块文档。升级不涉及数据库迁移。
