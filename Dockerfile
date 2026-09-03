@@ -24,8 +24,8 @@ COPY backend ./backend
 WORKDIR /app/backend
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        apt-get update && \
-        apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
+        apt-get -o Acquire::Retries=5 update && \
+        apt-get -o Acquire::Retries=5 install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross && \
         rustup target add aarch64-unknown-linux-gnu; \
     fi
 
@@ -43,15 +43,30 @@ RUN --mount=type=cache,id=cargo-registry-${TARGETARCH},target=/usr/local/cargo/r
     fi
 
 # ── Final image ─────────────────────────────────────────────────────────────
-# Stay on debian:bullseye-slim rather than distroless so `wget` is available
-# for HEALTHCHECK without bundling a static curl. Run as a non-root UID so a
-# container escape doesn't immediately get root on the host.
-# OPS-6:如需摘要固定 `debian:bullseye-slim@sha256:<digest>`(运行期镜像最值得固定)。
-FROM debian:bullseye-slim
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates wget \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --shell /usr/sbin/nologin navhub
+# Stay on debian slim rather than distroless so `wget` is available for
+# HEALTHCHECK without bundling a static curl. Bookworm (not bullseye):
+# deb.debian.org/security.debian.org for bullseye frequently 502 in CI/dev
+# builders. Run as a non-root UID so a container escape doesn't immediately
+# get root on the host.
+# OPS-6:如需摘要固定 `debian:bookworm-slim@sha256:<digest>`(运行期镜像最值得固定)。
+FROM debian:bookworm-slim
+# Avoid a hard dependency on deb.debian.org (this builder often 502s the
+# bookworm/bullseye InRelease). Rewrite only the main debian URI, keep
+# security.debian.org, and retry apt-get update.
+RUN set -eux; \
+    printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|^URIs: https\?://deb.debian.org/debian$|URIs: http://ftp.debian.org/debian|' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    ok=0; i=1; \
+    while [ "$i" -le 6 ]; do \
+      if apt-get update; then ok=1; break; fi; \
+      i=$((i+1)); sleep $((i)); \
+    done; \
+    test "$ok" = 1; \
+    apt-get install -y --no-install-recommends ca-certificates wget; \
+    rm -rf /var/lib/apt/lists/*; \
+    useradd --system --uid 10001 --shell /usr/sbin/nologin navhub
 WORKDIR /app
 COPY --from=backend-builder /tmp/navhub ./navhub
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
