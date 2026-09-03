@@ -71,7 +71,12 @@ export function AddCategoryModal({
             {isEdit ? "修改名称或图标" : "选择名称与图标"}
           </div>
         </div>
-        <button className="modal-close" onClick={onClose}>
+        <button
+          type="button"
+          className="modal-close"
+          onClick={onClose}
+          aria-label="关闭"
+        >
           <Icon name="close" size={18} />
         </button>
       </div>

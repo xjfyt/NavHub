@@ -33,6 +33,10 @@ export const Toggle = ({
   onChange: (v: boolean) => void;
 }) => (
   <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    aria-label={on ? "已开启" : "已关闭"}
     className={"tw-toggle" + (on ? " on" : "")}
     onClick={(e) => {
       e.stopPropagation();

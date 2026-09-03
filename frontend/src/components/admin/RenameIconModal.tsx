@@ -48,8 +48,10 @@ export function RenameIconModal({
           <span className="active">重命名图标</span>
         </div>
         <button
+          type="button"
           className="modal-close"
           onClick={onClose}
+          aria-label="关闭"
           style={{
             background: "transparent",
             border: "none",
