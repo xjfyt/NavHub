@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { Icon } from "../../Icon";
 import { api } from "../../../api";
 import { toast } from "sonner";
+import {
+  friendlyUiError,
+  isUnauthorizedError,
+} from "../../../widgets/widgetErrors";
 
 export const AdminSSO = () => {
   const [config, setConfig] = useState<{
@@ -42,7 +46,9 @@ export const AdminSSO = () => {
 
   if (loading && !config) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "var(--text-soft)" }}>
+      <div
+        style={{ padding: 40, textAlign: "center", color: "var(--text-soft)" }}
+      >
         加载中 …
       </div>
     );
@@ -50,13 +56,19 @@ export const AdminSSO = () => {
   if (!config) {
     return (
       <div style={{ padding: 48, textAlign: "center" }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>无法加载 SSO 配置</div>
-        <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
-          {loadError === "unauthorized" || loadError === "unauthorized"
-            ? "当前会话没有权限或已过期。管理页仍打开，可返回其它标签或重新登录。"
-            : loadError || "请稍后重试"}
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+          无法加载 SSO 配置
         </div>
-        <button className="nh-btn-ghost" type="button" onClick={() => void load()}>
+        <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>
+          {isUnauthorizedError({ message: loadError || "" })
+            ? "当前会话没有权限或已过期。管理页仍打开，可返回其它标签或重新登录。"
+            : friendlyUiError({ message: loadError || "" }, "请稍后重试")}
+        </div>
+        <button
+          className="nh-btn-ghost"
+          type="button"
+          onClick={() => void load()}
+        >
           重试
         </button>
       </div>
@@ -98,7 +110,7 @@ export const AdminSSO = () => {
       toast.success("SSO 配置已保存");
       load();
     } catch (e: any) {
-      toast.error("保存失败：" + (e?.message || "未知错误"));
+      toast.error(friendlyUiError(e, "保存失败"));
     }
   };
 

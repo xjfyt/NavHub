@@ -20,6 +20,7 @@ import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 import { api } from "../api";
 import { toast } from "sonner";
+import { friendlyUiError } from "../widgets/widgetErrors";
 import {
   buildBuiltinIconUrl,
   inferNameFromUrl,
@@ -292,8 +293,10 @@ export function AddIconModal({
       if (!effectiveName.trim()) toast.error("请填写名称");
       else if (!groupId) toast.error("请选择分类");
       else if (uploading) toast.error("图标还在上传，请稍候");
-      else if (sourceMode === "upload" && !uploadedImageUrl) toast.error("请先上传图片");
-      else if (sourceMode === "library" && !librarySelectedUrl) toast.error("请从图标库选择一张图");
+      else if (sourceMode === "upload" && !uploadedImageUrl)
+        toast.error("请先上传图片");
+      else if (sourceMode === "library" && !librarySelectedUrl)
+        toast.error("请从图标库选择一张图");
       else toast.error("还不能保存，请检查必填项");
       return;
     }
@@ -315,8 +318,7 @@ export function AddIconModal({
         textAlign,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "保存失败";
-      toast.error(message);
+      toast.error(friendlyUiError(err, "保存失败"));
     } finally {
       setSaving(false);
     }
@@ -333,8 +335,7 @@ export function AddIconModal({
         setName(stripExt(file.name));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "上传失败";
-      toast.error(message);
+      toast.error(friendlyUiError(err, "上传失败"));
     } finally {
       setUploading(false);
       setDragOver(false);

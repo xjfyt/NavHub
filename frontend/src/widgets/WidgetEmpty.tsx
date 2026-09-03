@@ -13,19 +13,31 @@ export function WidgetEmpty({
 }) {
   const setup = useWidgetSetup();
   const canSetup = !!(cta && widgetId && setup);
+  const activate = () => {
+    if (!canSetup) return;
+    setup!.openEdit(widgetId!);
+  };
+
   return (
     <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        flex: 1,
-        textAlign: "center",
-        color: "var(--text-soft)",
-        padding: "10px 8px",
-        minHeight: 0,
+      className={"widget-empty" + (canSetup ? " is-setup" : "")}
+      role={canSetup ? "button" : undefined}
+      tabIndex={canSetup ? 0 : undefined}
+      onMouseDown={(e) => {
+        if (canSetup) e.stopPropagation();
+      }}
+      onClick={(e) => {
+        if (!canSetup) return;
+        e.stopPropagation();
+        activate();
+      }}
+      onKeyDown={(e) => {
+        if (!canSetup) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          activate();
+        }
       }}
     >
       <div style={{ fontSize: 13, color: "var(--text)" }}>{title}</div>
@@ -34,19 +46,7 @@ export function WidgetEmpty({
           {hint}
         </div>
       ) : null}
-      {canSetup ? (
-        <button
-          type="button"
-          className="widget-empty-cta"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setup!.openEdit(widgetId!);
-          }}
-        >
-          {cta}
-        </button>
-      ) : null}
+      {canSetup ? <span className="widget-empty-cta">{cta}</span> : null}
     </div>
   );
 }

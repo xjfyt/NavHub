@@ -17,6 +17,10 @@ import { WidgetSetupProvider } from "../widgets/widgetSetup";
 import { safeHttpUrl } from "../utils/iconSources";
 import { isTemporaryWallpaperUrl } from "../utils/wallpaperUrl";
 import { confirmDialog } from "./Dialogs";
+import {
+  otherSurfaces,
+  type WorkspaceSurface,
+} from "../utils/exclusiveSurface";
 import { useI18n } from "../i18n";
 import { toast } from "sonner";
 import {
@@ -130,6 +134,53 @@ export const Shell = ({
   const [isChangingWallpaper, setIsChangingWallpaper] = useState(false);
   // 窄屏(≤768px)下侧边栏收起为抽屉,由汉堡按钮开合。桌面端该状态不影响布局。
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Moved openedFolder state up to prevent hook mismatch when adminOpen is true
+  const [openedFolder, setOpenedFolder] = useState<IconView | null>(null);
+
+  const closeOthers = (keep: WorkspaceSurface) => {
+    for (const s of otherSurfaces(keep)) {
+      switch (s) {
+        case "catalog":
+          setCatalogOpen(false);
+          break;
+        case "addIcon":
+          setAddIconOpen(false);
+          break;
+        case "addCat":
+          setAddCatOpen(false);
+          break;
+        case "profile":
+          setProfileOpen(false);
+          break;
+        case "tweaks":
+          setTweaksOpen(false);
+          break;
+        case "iconSearch":
+          setIconSearchOpen(false);
+          break;
+        case "folder":
+          setOpenedFolder(null);
+          break;
+        case "widgetEdit":
+          setEditingWidgetId(null);
+          break;
+        case "widgetDetail":
+          setDetailWidgetId(null);
+          break;
+        case "iframe":
+          setIframePreviewIcon(null);
+          break;
+        case "ctx":
+          setCtxMenu(null);
+          break;
+        case "userMenu":
+          setUserMenuOpen(false);
+          break;
+      }
+    }
+  };
+
   const { shufflePreset, shuffleEnabled, shuffleActive, nextPreset } =
     useWallpaperShuffle(tweaks);
   const resolvedPinnedWallpaper = usePinnedWallpaper(tweaks);
@@ -141,6 +192,7 @@ export const Shell = ({
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable='true']")) return;
       e.preventDefault();
+      closeOthers("iconSearch");
       setIconSearchOpen(true);
     };
     window.addEventListener("keydown", onKey);
@@ -198,9 +250,6 @@ export const Shell = ({
   );
   const sidebarGap = Math.max(2, Math.min(18, Number(tweaks.sidebarGap) || 6));
   const sidebarBgMode = wallpaperUrl ? "wallpaper" : "theme";
-
-  // Moved openedFolder state up to prevent hook mismatch when adminOpen is true
-  const [openedFolder, setOpenedFolder] = useState<IconView | null>(null);
 
   // UX-27: 跨分类移动元素到目标分类顶部，并把目标分类其余元素的 sortOrder 重排。
   // 抽成具名函数交给 useNavDnd —— 它在松手命中分类 droppable 时调用本函数。
@@ -290,13 +339,13 @@ export const Shell = ({
   const onAvatarClick = () => {
     if (isGuest) onRequestLogin();
     else {
-      setCtxMenu(null);
+      closeOthers("userMenu");
       setUserMenuOpen(true);
     }
   };
 
   const openCtx = (x: number, y: number, items: CtxItem[]) => {
-    setUserMenuOpen(false);
+    closeOthers("ctx");
     setCtxMenu({ x, y, items });
   };
 
@@ -322,10 +371,12 @@ export const Shell = ({
 
   const openIcon = (ic: IconView) => {
     if (ic.isFolder) {
+      closeOthers("folder");
       setOpenedFolder(ic);
       return;
     }
     if (ic.iframePreview && ic.url && ic.url !== "#") {
+      closeOthers("iframe");
       setIframePreviewIcon(ic);
       return;
     }
@@ -347,12 +398,30 @@ export const Shell = ({
     openCtx,
     openIcon,
     randomWallpaper,
-    setAddIconOpen,
-    setCatalogOpen,
-    setTweaksOpen,
-    setIconSearchOpen,
-    setEditingWidgetId,
-    setAddCatOpen,
+    setAddIconOpen: (v) => {
+      if (v) closeOthers("addIcon");
+      setAddIconOpen(v);
+    },
+    setCatalogOpen: (v) => {
+      if (v) closeOthers("catalog");
+      setCatalogOpen(v);
+    },
+    setTweaksOpen: (v) => {
+      if (v) closeOthers("tweaks");
+      setTweaksOpen(v);
+    },
+    setIconSearchOpen: (v) => {
+      if (v) closeOthers("iconSearch");
+      setIconSearchOpen(v);
+    },
+    setEditingWidgetId: (id) => {
+      if (id) closeOthers("widgetEdit");
+      setEditingWidgetId(id);
+    },
+    setAddCatOpen: (v) => {
+      if (v) closeOthers("addCat");
+      setAddCatOpen(v);
+    },
     updateIcon,
     deleteIcon,
     updateWidget,
@@ -371,8 +440,7 @@ export const Shell = ({
   return (
     <WidgetSetupProvider
       openEdit={(id) => {
-        setDetailWidgetId(null);
-        setCtxMenu(null);
+        closeOthers("widgetEdit");
         setEditingWidgetId(id);
       }}
     >
@@ -460,7 +528,10 @@ export const Shell = ({
             sidebarMode={sidebarMode}
             onContext={groupCtx}
             onSideContext={sideCtx}
-            onAddCategory={() => setAddCatOpen(true)}
+            onAddCategory={() => {
+              closeOthers("addCat");
+              setAddCatOpen(true);
+            }}
             onReorderGroup={reorderGroup}
             onDropItemToGroup={(itemType, itemId, groupId) => {
               if (itemType === "icon") {
@@ -508,20 +579,35 @@ export const Shell = ({
                   {
                     icon: "grid",
                     label: "添加小组件...",
-                    onClick: () => setCatalogOpen(true),
+                    onClick: () => {
+                      closeOthers("catalog");
+                      setCatalogOpen(true);
+                    },
                   },
                   {
                     icon: "plus",
                     label: "添加图标",
-                    onClick: () => setAddIconOpen(true),
+                    onClick: () => {
+                      closeOthers("addIcon");
+                      setAddIconOpen(true);
+                    },
                   },
                 ]);
               }}
-              onExpandWidget={(w) => setDetailWidgetId(w.id)}
+              onExpandWidget={(w) => {
+                closeOthers("widgetDetail");
+                setDetailWidgetId(w.id);
+              }}
               onExtractFolderItem={extractFolderItem}
               editable={!isGuest && canEditGroup(activeGroup)}
-              onAddCategory={() => setAddCatOpen(true)}
-              onAddIcon={() => setAddIconOpen(true)}
+              onAddCategory={() => {
+                closeOthers("addCat");
+                setAddCatOpen(true);
+              }}
+              onAddIcon={() => {
+                closeOthers("addIcon");
+                setAddIconOpen(true);
+              }}
               dnd={navDnd}
             />
           </main>
@@ -603,7 +689,7 @@ export const Shell = ({
                   icon: "edit",
                   label: "编辑图标",
                   onClick: () => {
-                    setOpenedFolder(null); // Close the folder overlay when editing
+                    closeOthers("addIcon");
                     setAddIconOpen(item as IconView);
                   },
                 });
@@ -655,7 +741,7 @@ export const Shell = ({
               WIDGET_REGISTRY[detailWidget.widget]?.editable
                 ? () => {
                     // UX-22:从详情直达编辑 —— 关闭详情、打开该组件的编辑弹窗。
-                    setDetailWidgetId(null);
+                    closeOthers("widgetEdit");
                     setEditingWidgetId(detailWidget.id);
                   }
                 : undefined
@@ -720,9 +806,13 @@ export const Shell = ({
             setAdminOpen(true);
           }}
           onOpenSettings={(isProfile) => {
-            setUserMenuOpen(false);
-            if (isProfile) setProfileOpen(true);
-            else setTweaksOpen(true);
+            if (isProfile) {
+              closeOthers("profile");
+              setProfileOpen(true);
+            } else {
+              closeOthers("tweaks");
+              setTweaksOpen(true);
+            }
           }}
           onLogout={() => void onLogout()}
           sidebarPos={tweaks.sidebarPos === "right" ? "right" : "left"}
@@ -772,7 +862,7 @@ export const Shell = ({
                 setAddIconOpen(false);
               } else {
                 const created = await addIcon(body);
-                if (!created) throw new Error("添加图标失败");
+                if (!created) return;
                 setActiveGroup(created.groupId);
                 setAddIconOpen(false);
               }
