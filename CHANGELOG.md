@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-04
+
+本版本在 SSO 静默续登之上加固会话与 SSRF，并系统打磨壁纸切换、弹窗/拖拽、小组件与中文界面。升级不涉及数据库迁移。
+
+### Security 安全
+- SSO 用户名冲突不再 `ON CONFLICT DO UPDATE` 接管已有账号；邮箱冲突返回 409。
+- Favicon 搜索/代理拒绝 CGNAT、文档网段与 NAT64；搜索只拉取站点根路径；HTTP 连接钉住解析 IP。
+- 改角色/删用户立即作废 Redis 会话；滑动续期维护 `user_sessions`；过期 `nh_sid` 会清 Cookie；`require_login` 回读库中角色。
+- OIDC 支持 discovery 与可配置 authorize/token/userinfo/jwks，校验支持 ES256；SSO 默认关闭。
+- 密码登录错误统一为无效凭据；后台 SSO 接口不再回传明文 `client_secret`。
+- SSO 与密码登录限流分离；`prompt=none` 独立配额；限流窗口 `EXPIRE NX`。
+
+### Fixed 修复
+- SSO 回调失败始终清除 `nh_oauth`；`127.0.0.1`/`localhost` 回环归一后再进 OIDC；失败回首页登录态而非裸 JSON。
+- 管理端 `/api/admin/*` 401 不再触发整页静默续登把后台卸掉。
+- 游客天气不再展示 `ERROR`/`unauthorized`。
+- 壁纸切换保留上一张直至新图解码完成再交叉淡入；失败重试不清成纯色；空池不宣称轮换中。
+- 添加图标失败保留弹窗并 toast；S3 不可用返回 503 `storage_unavailable`。
+
+### Added 新增
+- 小组件：系统状态、今日站点；搜索引擎页签与提交；日历格子节日名。
+- 组件空态可点：设置事件 / 添加歌曲 / 设置城市等。
+
+### Changed 变更
+- 默认简体中文；登录/添加/角色/审计/SSO 表单等可见文案统一；浅色壁纸磁贴对比度加强。
+- 同一时刻只保留一块浮层；拖拽幽灵与文件夹合并停留高亮。
+- 时钟默认 Asia/Shanghai；健康组件展示延迟与上次正常。
+
 ## [0.2.2] - 2026-09-03
 
 本版本让 SSO 会话过期后可在 IdP 仍登录时无感续登，并修好官方 Docker 镜像的 bookworm 构建与 Postgres 健康检查。升级不涉及数据库迁移。
