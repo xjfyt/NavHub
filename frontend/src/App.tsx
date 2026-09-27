@@ -153,8 +153,10 @@ export function App() {
     try {
       const landing = consumeSsoCallback();
       const silentFailed = landing.flag === "interactive";
-      const ssoError = landing.flag === "error";
-      if (ssoError) {
+      const ssoError = landing.flag === "error" || landing.flag === "rate";
+      if (landing.flag === "rate") {
+        toast.error("登录尝试过多，请稍后再试");
+      } else if (landing.flag === "error") {
         toast.error("登录未完成，请重试");
       }
       // Status + workspace always go in parallel. /api/me only fires if we
@@ -188,6 +190,7 @@ export function App() {
         shouldAttemptSilentReauth({
           ssoEnabled: statusResult.ssoEnabled,
           silentFailed,
+          ssoError,
         })
       ) {
         beginSilentReauth();

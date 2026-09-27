@@ -15,9 +15,9 @@ export function SourceSelector({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
         gap: "8px",
-        marginBottom: "24px",
+        marginBottom: "16px",
       }}
     >
       {SOURCE_OPTIONS.map((opt) => (
@@ -31,14 +31,26 @@ export function SourceSelector({
             alignItems: "center",
             justifyContent: "center",
             gap: "8px",
-            padding: "14px 0",
+            padding: "10px 4px",
             borderRadius: "12px",
             cursor: "pointer",
             transition: "all 0.2s",
+            minWidth: 0,
           }}
         >
-          <Icon name={opt.icon} size={20} />
-          <span style={{ fontSize: "13px", fontWeight: 500 }}>{opt.name}</span>
+          <Icon name={opt.icon} size={18} />
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: 500,
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {opt.name}
+          </span>
         </div>
       ))}
     </div>

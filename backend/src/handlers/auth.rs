@@ -442,6 +442,24 @@ fn sso_email_bind_allowed(email_verified: Option<bool>) -> bool {
     matches!(email_verified, Some(true))
 }
 
+/// 已验证邮箱可以绑定任何同邮箱的本地账号。
+/// 未验证时只允许绑定「配置文件里的超管邮箱」且该账号还没有 `casdoor_id`。
+/// Casdoor 自建用户经常不发 `email_verified=true`，否则操作者自己的首次 SSO 绑定会被拒绝，
+/// 前端又会立刻静默重试，把登录限流打满。
+fn sso_may_bind_existing(
+    email_verified: Option<bool>,
+    existing_email: &str,
+    existing_casdoor_id: Option<&str>,
+    operator_email: &str,
+) -> bool {
+    if sso_email_bind_allowed(email_verified) {
+        return true;
+    }
+    let unlinked = existing_casdoor_id.map(str::is_empty).unwrap_or(true);
+    let operator = operator_email.trim();
+    unlinked && !operator.is_empty() && existing_email.eq_ignore_ascii_case(operator)
+}
+
 /// AUTH-3: decide whether a freshly-created SSO user may be auto-promoted to
 /// superadmin via the "first SSO login binds the privileged account" convenience.
 ///
@@ -518,7 +536,12 @@ async fn upsert_sso_user(
         // admin's email must not silently inherit that account. We reject rather
         // than fall through to a fresh insert because `email` is UNIQUE — a
         // fall-through would only produce an opaque 500.
-        if !sso_email_bind_allowed(email_verified) {
+        if !sso_may_bind_existing(
+            email_verified,
+            &u.email,
+            u.casdoor_id.as_deref(),
+            &state.cfg.superadmin.email,
+        ) {
             tracing::warn!(
                 email = %email,
                 sub = %sub,
@@ -754,6 +777,38 @@ mod tests {
     fn bind_refused_when_email_unverified_or_missing() {
         assert!(!sso_email_bind_allowed(Some(false)));
         assert!(!sso_email_bind_allowed(None));
+    }
+
+    #[test]
+    fn unverified_email_binds_only_unlinked_operator_account() {
+        assert!(sso_may_bind_existing(
+            None,
+            "Admin@Example.com",
+            None,
+            "admin@example.com"
+        ));
+        assert!(!sso_may_bind_existing(
+            None,
+            "other@example.com",
+            None,
+            "admin@example.com"
+        ));
+        assert!(!sso_may_bind_existing(
+            Some(false),
+            "admin@example.com",
+            Some("already-linked"),
+            "admin@example.com"
+        ));
+        assert!(sso_may_bind_allowed_via_verified());
+    }
+
+    fn sso_may_bind_allowed_via_verified() -> bool {
+        sso_may_bind_existing(
+            Some(true),
+            "other@example.com",
+            Some("linked"),
+            "admin@example.com",
+        )
     }
 
     // AUTH-3: first-SSO-bind promotion gating.

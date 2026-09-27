@@ -101,6 +101,17 @@ describe("shouldAttemptSilentReauth", () => {
     ).toBe(false);
   });
 
+  it("回调失败或限流后不再立刻静默重试", () => {
+    window.localStorage.setItem(SSO_HINT_KEY, "1");
+    expect(
+      shouldAttemptSilentReauth({
+        ssoEnabled: true,
+        silentFailed: false,
+        ssoError: true,
+      }),
+    ).toBe(false);
+  });
+
   it("SSO 关闭不静默", () => {
     window.localStorage.setItem(SSO_HINT_KEY, "1");
     expect(

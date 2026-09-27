@@ -43,7 +43,7 @@ const OAUTH_KEYS = new Set([
   "session_state",
 ]);
 
-export type SsoLanding = "interactive" | "error" | null;
+export type SsoLanding = "interactive" | "error" | "rate" | null;
 
 /** 清洗落地 URL：消费 nh_sso，去掉 code=，返回清洗后的 path+search+hash。 */
 export function consumeSsoLanding(href: string): {
@@ -54,7 +54,13 @@ export function consumeSsoLanding(href: string): {
   const u = new URL(href, "http://localhost");
   const raw = u.searchParams.get("nh_sso");
   const flag: SsoLanding =
-    raw === "error" ? "error" : raw === "interactive" ? "interactive" : null;
+    raw === "error"
+      ? "error"
+      : raw === "interactive"
+        ? "interactive"
+        : raw === "rate"
+          ? "rate"
+          : null;
   if (flag) u.searchParams.delete("nh_sso");
   let strippedOauth = false;
   for (const k of [...u.searchParams.keys()]) {

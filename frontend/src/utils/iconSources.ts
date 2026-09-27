@@ -70,6 +70,36 @@ export function resolveSiteLink(
     : { href };
 }
 
+export interface FaviconCandidate {
+  url: string;
+  source: string;
+}
+
+/**
+ * 只保留服务端确认过的真实图标。
+ * `/api/favicon` 在抓不到图时会返回首字母 SVG，放进候选格会把「已选图标预览」
+ * 和「首字母占位」挤成一团乱字。没有真图时留给左侧的回退字符。
+ */
+export function mergeFaviconCandidates(
+  remote: FaviconCandidate[],
+): FaviconCandidate[] {
+  const seen = new Set<string>();
+  const out: FaviconCandidate[] = [];
+  for (const candidate of remote) {
+    const url = candidate.url?.trim();
+    if (!url || seen.has(url) || url.startsWith("/api/favicon")) continue;
+    seen.add(url);
+    out.push({ url, source: candidate.source || "站点图标" });
+  }
+  return out;
+}
+
+export function pickPreferredFavicon(
+  candidates: FaviconCandidate[],
+): string | null {
+  return candidates[0]?.url ?? null;
+}
+
 export function inferNameFromUrl(value: string): string {
   const normalized = normalizeSiteUrl(value);
   if (!normalized) return "";

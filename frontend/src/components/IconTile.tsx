@@ -157,8 +157,8 @@ const IconTileImpl = ({
         />
       );
     }
-    if (fallback) return fallback;
-    return icon.letter || icon.name[0] || "?";
+    const text = (fallback || icon.letter || icon.name[0] || "?").slice(0, 3);
+    return <span className="tile-letter">{text}</span>;
   };
 
   if (icon.isFolder) {

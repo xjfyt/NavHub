@@ -34,6 +34,11 @@ describe("consumeSsoLanding", () => {
     expect(r.strippedOauth).toBe(true);
     expect(r.next).not.toContain("code=");
   });
+  it("识别 rate", () => {
+    expect(consumeSsoLanding("http://localhost:8088/?nh_sso=rate").flag).toBe(
+      "rate",
+    );
+  });
   it("识别 interactive", () => {
     expect(consumeSsoLanding("http://localhost:8088/?nh_sso=interactive").flag).toBe(
       "interactive",

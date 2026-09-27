@@ -11,7 +11,7 @@ use crate::{
 use axum::{
     extract::{ConnectInfo, Request, State},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Redirect, Response},
 };
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
@@ -222,8 +222,15 @@ pub async fn sso_login_limit(
             SSO_LIMIT_MAX,
         )
     };
-    bump_and_check(&state, &key, window, max).await?;
-    Ok(next.run(req).await)
+    // 浏览器是整页打开 /auth/login。限流若返回 JSON，用户会停在一页报错文本上。
+    // 回到首页，由前端提示稍后再试。Redis 故障仍按原错误返回，避免被误当成限流。
+    match bump_and_check(&state, &key, window, max).await {
+        Ok(()) => Ok(next.run(req).await),
+        Err(AppError::BadRequest(_)) => {
+            Ok(Redirect::temporary("/?nh_sso=rate").into_response())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 #[cfg(test)]

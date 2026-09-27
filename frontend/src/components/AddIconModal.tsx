@@ -24,8 +24,10 @@ import { friendlyUiError } from "../widgets/widgetErrors";
 import {
   buildBuiltinIconUrl,
   inferNameFromUrl,
+  mergeFaviconCandidates,
   normalizeSiteUrl,
   parseBuiltinIconUrl,
+  pickPreferredFavicon,
 } from "../utils/iconSources";
 import { stripExt, toBuiltinIconName } from "./add-icon-modal/helpers";
 import { PreviewPanel } from "./add-icon-modal/PreviewPanel";
@@ -131,6 +133,7 @@ export function AddIconModal({
     string | null
   >(null);
   const [isSearchingUrl, setIsSearchingUrl] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -219,17 +222,34 @@ export function AddIconModal({
   useEffect(() => {
     if (!normalizedUrl || sourceMode !== "url") return;
     setIsSearchingUrl(true);
+    setSearchNote(null);
     let isCancelled = false;
     api
       .faviconSearch(normalizedUrl)
       .then((res) => {
         if (isCancelled) return;
-        setAutoImageUrls(res);
+        const merged = mergeFaviconCandidates(res);
+        setAutoImageUrls(merged);
         setFailedImageUrls(new Set());
-        if (res.length > 0) setSelectedAutoImageUrl(res[0].url);
-        else setSelectedAutoImageUrl(null);
+        setSelectedAutoImageUrl(pickPreferredFavicon(merged));
+        setSearchNote(
+          merged.length > 0
+            ? `找到 ${merged.length} 个站点图标，点击选择。`
+            : "没有找到站点图标。可以改用上传、内置库，或在左侧填写回退字符。",
+        );
       })
-      .catch(console.error)
+      .catch((e: unknown) => {
+        if (isCancelled) return;
+        setAutoImageUrls([]);
+        setFailedImageUrls(new Set());
+        setSelectedAutoImageUrl(null);
+        const msg = e instanceof Error ? e.message : "";
+        setSearchNote(
+          /private/i.test(msg)
+            ? "服务器拒绝抓取内网地址。请在配置中允许内网图标，或改用上传。"
+            : "站点图标检索失败。可以改用上传、内置库，或在左侧填写回退字符。",
+        );
+      })
       .finally(() => {
         if (!isCancelled) setIsSearchingUrl(false);
       });
@@ -397,7 +417,12 @@ export function AddIconModal({
 
           {/* RIGHT: Form Data */}
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px",
+              minWidth: 0,
+            }}
           >
             <div className="field-row" style={{ marginBottom: 0 }}>
               <div className="field" style={{ width: "100%" }}>
@@ -452,6 +477,7 @@ export function AddIconModal({
                 <UrlSourcePanel
                   normalizedUrl={normalizedUrl}
                   isSearchingUrl={isSearchingUrl}
+                  searchNote={searchNote}
                   autoImageUrls={autoImageUrls}
                   failedImageUrls={failedImageUrls}
                   selectedAutoImageUrl={selectedAutoImageUrl}

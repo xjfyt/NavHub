@@ -170,53 +170,14 @@ pub async fn search(
 
     let mut candidates = Vec::new();
 
-    candidates.push(FaviconSearchCandidate {
-        url: format!("/api/favicon?url={}&sz=128", urlencoding::encode(&host)),
-        source: "智能抓取/生成".into(),
-    });
-
-    // Only fetch the origin homepage — never the caller-supplied path (SSRF / scanner).
-    let url_with_scheme = format!("https://{host}/");
-
-    if let Ok(resp) = state
-        .lenient_client
-        .get(&url_with_scheme)
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-    {
-        if let Ok(html) = resp.text().await {
-            let document = scraper::Html::parse_document(&html);
-            let selector = scraper::Selector::parse(
-                "link[rel='apple-touch-icon'], link[rel='icon'], link[rel='shortcut icon']",
-            )
-            .unwrap();
-            for element in document.select(&selector) {
-                if let Some(href) = element.value().attr("href") {
-                    let full_url = if href.starts_with("http") {
-                        href.to_string()
-                    } else if href.starts_with("//") {
-                        format!("https:{}", href)
-                    } else if href.starts_with('/') {
-                        let parsed = url::Url::parse(&url_with_scheme).ok();
-                        if let Some(mut parsed) = parsed {
-                            parsed.set_path(href);
-                            parsed.to_string()
-                        } else {
-                            format!("https://{}{}", host, href)
-                        }
-                    } else {
-                        format!("{}/{}", url_with_scheme.trim_end_matches('/'), href)
-                    };
-                    if extract_host(&full_url).as_deref() == Some(host.as_str()) {
-                        candidates.push(FaviconSearchCandidate {
-                            url: full_url,
-                            source: "HTML解析".into(),
-                        });
-                    }
-                }
-            }
-        }
+    // 只抓站点根页。图标可以在 CDN（例如 Casdoor 的 cdn.casbin.org），
+    // 不能再要求与页面同主机，否则自动获取只会剩首字母占位。
+    // 每个候选在下面的探测里会再做一次 SSRF 校验。
+    for icon_url in html_icon_urls(&state.lenient_client, &host, allow_private).await {
+        candidates.push(FaviconSearchCandidate {
+            url: icon_url,
+            source: "HTML解析".into(),
+        });
     }
 
     candidates.push(FaviconSearchCandidate {
@@ -280,6 +241,16 @@ pub async fn search(
         if let Ok(Some(c)) = task.await {
             valid_candidates.push(c);
         }
+    }
+
+    // 代理在抓不到真图时仍返回 200 的首字母 SVG。若把它放进候选并排在最前，
+    // 添加图标会默认选中这个占位图，磁贴上就只剩一个被圆角裁切的字母。
+    // 只有没有任何真实图标时才把它当作兜底。
+    if valid_candidates.is_empty() {
+        valid_candidates.push(FaviconSearchCandidate {
+            url: format!("/api/favicon?url={}&sz=128", urlencoding::encode(&host)),
+            source: "首字母占位".into(),
+        });
     }
 
     Ok(axum::Json(valid_candidates))
@@ -380,14 +351,101 @@ async fn fetch_favicon_chain(
 ) -> AppResult<Response> {
     let client = &state.lenient_client;
 
+    let allow_private = state.cfg.app.favicon_allow_private_targets;
     let direct_url = format!("https://{host}/favicon.ico");
-    if let Some(bytes) = try_fetch(client, &direct_url, state.cfg.app.favicon_allow_private_targets).await {
+    if let Some(bytes) = try_fetch(client, &direct_url, allow_private).await {
         if is_valid_icon(&bytes) {
             return cache_and_return(state, cache_key, bytes).await;
         }
     }
 
+    // 很多站点的 /favicon.ico 实际是 SPA 的 index.html。真正的图标在 <link rel=icon>，
+    // 而且经常放在别的域名。先试这些，再退到搜索引擎和首字母占位。
+    for icon_url in html_icon_urls(client, host, allow_private).await {
+        if let Some(bytes) = try_fetch(client, &icon_url, allow_private).await {
+            if is_valid_icon(&bytes) {
+                return cache_and_return(state, cache_key, bytes).await;
+            }
+        }
+    }
+
     try_remaining_strategies(client, state, cache_key, host, sz).await
+}
+
+/// 把首页 `<link rel=icon>` 解析成绝对 http(s) 地址。
+/// `javascript:` / `data:` 直接丢掉。协议相对地址沿用页面的 scheme。
+fn resolve_icon_href(page: &str, href: &str) -> Option<String> {
+    let href = href.trim();
+    if href.is_empty() || href.starts_with('#') {
+        return None;
+    }
+    let base = url::Url::parse(page).ok()?;
+    let abs = if let Some(rest) = href.strip_prefix("//") {
+        url::Url::parse(&format!("{}://{rest}", base.scheme())).ok()?
+    } else {
+        base.join(href).ok()?
+    };
+    match abs.scheme() {
+        "http" | "https" => Some(abs.to_string()),
+        _ => None,
+    }
+}
+
+/// 同步解析，避免把 `scraper::Html`（非 Send）留在 async 函数里。
+fn parse_icon_hrefs(html: &str, page: &str) -> Vec<String> {
+    let document = scraper::Html::parse_document(html);
+    let Ok(selector) = scraper::Selector::parse(
+        "link[rel~='icon'], link[rel~='apple-touch-icon'], link[rel~='apple-touch-icon-precomposed']",
+    ) else {
+        return Vec::new();
+    };
+    document
+        .select(&selector)
+        .filter_map(|el| el.value().attr("href"))
+        .filter_map(|href| resolve_icon_href(page, href))
+        .take(8)
+        .collect()
+}
+
+/// 读取站点根页，抽出图标 URL。跨域 CDN 允许，但每个主机都过 SSRF 校验。
+async fn html_icon_urls(client: &reqwest::Client, host: &str, allow_private: bool) -> Vec<String> {
+    let page = format!("https://{host}/");
+    let Ok(resp) = client
+        .get(&page)
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+    else {
+        return Vec::new();
+    };
+    if !resp.status().is_success() {
+        return Vec::new();
+    }
+    let Ok(html) = resp.text().await else {
+        return Vec::new();
+    };
+    let html = if html.len() > 1_000_000 {
+        &html[..1_000_000]
+    } else {
+        html.as_str()
+    };
+    // scraper::Html 不是 Send，不能留在这个 async 函数里跨 await。
+    let hrefs = parse_icon_hrefs(html, &page);
+
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for full in hrefs {
+        let Some(icon_host) = extract_host(&full) else {
+            continue;
+        };
+        if ensure_safe_target(&icon_host, allow_private).await.is_err() {
+            continue;
+        }
+        if seen.insert(full.clone()) {
+            out.push(full);
+        }
+    }
+    out
 }
 
 async fn try_remaining_strategies(
@@ -414,7 +472,13 @@ async fn try_remaining_strategies(
     }
 
     let http_url = format!("http://{host}/favicon.ico");
-    if let Some(bytes) = try_fetch(client, &http_url, state.cfg.app.favicon_allow_private_targets).await {
+    if let Some(bytes) = try_fetch(
+        client,
+        &http_url,
+        state.cfg.app.favicon_allow_private_targets,
+    )
+    .await
+    {
         if is_valid_icon(&bytes) {
             return cache_and_return(state, cache_key, bytes).await;
         }
@@ -591,8 +655,9 @@ fn placeholder_response(host: &str) -> Response {
     ];
     let color = colors[(hash as usize) % colors.len()];
 
+    // font-size 过大会被 viewBox 裁掉字冠/字脚，看起来像文字被截断。
     let svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="{}"/><text x="50%" y="50%" font-family="sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle" dominant-baseline="central">{}</text></svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="{}"/><text x="64" y="68" font-family="sans-serif" font-size="56" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">{}</text></svg>"##,
         color, letter
     );
 
@@ -628,6 +693,25 @@ pub(crate) fn extract_host(input: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolve_icon_href_keeps_cdn_and_relative_icons() {
+        let page = "https://auth.example/";
+        assert_eq!(
+            resolve_icon_href(page, "https://cdn.casbin.org/img/favicon.png").as_deref(),
+            Some("https://cdn.casbin.org/img/favicon.png")
+        );
+        assert_eq!(
+            resolve_icon_href(page, "//cdn.casbin.org/img/favicon.png").as_deref(),
+            Some("https://cdn.casbin.org/img/favicon.png")
+        );
+        assert_eq!(
+            resolve_icon_href(page, "/icon.svg").as_deref(),
+            Some("https://auth.example/icon.svg")
+        );
+        assert!(resolve_icon_href(page, "javascript:alert(1)").is_none());
+        assert!(resolve_icon_href(page, "data:image/svg+xml,xxx").is_none());
+    }
 
     #[test]
     fn rejects_loopback_even_when_private_allowed() {
@@ -680,7 +764,10 @@ mod tests {
 
     #[test]
     fn extract_host_http_https_only() {
-        assert_eq!(extract_host("https://example.com/foo"), Some("example.com".into()));
+        assert_eq!(
+            extract_host("https://example.com/foo"),
+            Some("example.com".into())
+        );
         assert_eq!(extract_host("example.com/foo"), Some("example.com".into()));
         assert!(extract_host("file:///etc/passwd").is_none());
         assert!(extract_host("ftp://example.com/x").is_none());

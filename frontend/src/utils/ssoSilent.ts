@@ -115,7 +115,7 @@ export function consumeSilentFailure(href?: string): boolean {
   return consumeSsoCallback(href).flag === "interactive";
 }
 
-export type SsoCallbackFlag = "interactive" | "error" | null;
+export type SsoCallbackFlag = "interactive" | "error" | "rate" | null;
 
 /** 消费落地 URL 上的 nh_sso 标记，并清掉 code=/state= 等 OAuth leftover。 */
 export function consumeSsoCallback(href?: string): {
@@ -144,9 +144,11 @@ export function consumeSsoCallback(href?: string): {
 export function shouldAttemptSilentReauth(input: {
   ssoEnabled: boolean;
   silentFailed: boolean;
+  /** 回调已失败或被限流。此时再 prompt=none 会立刻打回同一错误并耗尽限额。 */
+  ssoError?: boolean;
 }): boolean {
   if (!input.ssoEnabled) return false;
-  if (input.silentFailed) return false;
+  if (input.silentFailed || input.ssoError) return false;
   if (!hasSsoHint()) return false;
   if (isSilentLocked()) return false;
   return true;

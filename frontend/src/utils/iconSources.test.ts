@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { safeHttpUrl, resolveSiteLink } from "./iconSources";
+import {
+  mergeFaviconCandidates,
+  pickPreferredFavicon,
+  safeHttpUrl,
+  resolveSiteLink,
+} from "./iconSources";
 
 describe("safeHttpUrl", () => {
   it("接受 http/https 绝对地址", () => {
@@ -80,5 +85,29 @@ describe("resolveSiteLink (A11Y-1: 站点磁贴 → 真实 <a> 链接属性)", (
     expect(resolveSiteLink(null)).toBeNull();
     expect(resolveSiteLink(undefined)).toBeNull();
     expect(resolveSiteLink("#")).toBeNull();
+  });
+});
+
+describe("mergeFaviconCandidates", () => {
+  it("丢掉首字母占位，只保留真实图标", () => {
+    const merged = mergeFaviconCandidates([
+      { url: "/api/favicon?url=auth.example&sz=128", source: "首字母占位" },
+      { url: "https://cdn.example/favicon.png", source: "HTML解析" },
+      { url: "https://cdn.example/favicon.png", source: "重复" },
+    ]);
+    expect(merged).toEqual([
+      { url: "https://cdn.example/favicon.png", source: "HTML解析" },
+    ]);
+    expect(pickPreferredFavicon(merged)).toBe(
+      "https://cdn.example/favicon.png",
+    );
+  });
+
+  it("没有真实图标时不选占位", () => {
+    const merged = mergeFaviconCandidates([
+      { url: "/api/favicon?url=auth.example&sz=128", source: "首字母占位" },
+    ]);
+    expect(merged).toEqual([]);
+    expect(pickPreferredFavicon(merged)).toBeNull();
   });
 });

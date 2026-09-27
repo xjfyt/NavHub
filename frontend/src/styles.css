@@ -1348,8 +1348,18 @@ button.tile {
     box-shadow 220ms var(--smooth, cubic-bezier(0.25, 0.46, 0.45, 0.94)),
     transform 220ms var(--smooth);
   letter-spacing: -0.02em;
+  line-height: 1;
   position: relative;
   overflow: hidden;
+}
+/* 字标要压在顶部高光之上，并用 1 倍行高，避免圆角 overflow 切掉字冠/字脚。 */
+.tile-letter {
+  position: relative;
+  z-index: 1;
+  line-height: 1;
+  display: block;
+  max-width: 88%;
+  text-align: center;
 }
 /* Top-light shimmer for depth */
 .tile-icon::after {
@@ -1366,6 +1376,7 @@ button.tile {
   );
   border-radius: inherit;
   pointer-events: none;
+  z-index: 0;
 }
 .tile-icon.has-plain-image {
   box-shadow: none;
@@ -1378,6 +1389,8 @@ button.tile {
 }
 .tile-image,
 .tile-image-glyph {
+  position: relative;
+  z-index: 1;
   display: grid;
   place-items: center;
 }
