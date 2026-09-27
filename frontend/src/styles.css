@@ -1430,14 +1430,12 @@ button.tile {
   color: var(--text);
   text-align: center;
   line-height: 1.25;
-  /* 浅色壁纸上白字会发飘： scrim + 双边阴影 */
+  /* 紧贴字形的硬阴影 + 极细描边。不要再加底色胶囊或白色光晕：
+     v0.2.3 的 scrim 会在壁纸上留下一圈白/灰底。 */
   text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.92),
-    0 0 10px rgba(0, 0, 0, 0.55),
-    0 0 1px rgba(255, 255, 255, 0.45);
-  background: rgba(0, 0, 0, 0.32);
-  border-radius: 6px;
-  padding: 2px 6px;
+    0 1px 1px rgba(0, 0, 0, 0.85),
+    0 0 1px rgba(0, 0, 0, 0.7);
+  padding: 0 2px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -5726,11 +5724,9 @@ html[data-mode="light"] .widget-title {
   color: rgba(28, 26, 23, 0.48);
 }
 html[data-mode="light"] .tile-label {
-  background: rgba(255, 255, 255, 0.55);
-  color: #1a1c22;
   text-shadow:
-    0 1px 2px rgba(255, 255, 255, 0.95),
-    0 0 8px rgba(255, 255, 255, 0.7);
+    0 1px 1px rgba(255, 255, 255, 0.85),
+    0 0 1px rgba(255, 255, 255, 0.7);
 }
 html[data-mode="light"] .modal {
   background: rgba(255, 255, 255, 0.85);
