@@ -39,6 +39,10 @@ pub struct DatabaseConfig {
     pub database: String,
     #[serde(default = "default_pg_max")]
     pub max_connections: u32,
+    #[serde(default)]
+    pub ssl_mode: Option<String>,
+    #[serde(default)]
+    pub ssl_root_cert: Option<PathBuf>,
 }
 
 fn default_pg_max() -> u32 {
@@ -46,26 +50,37 @@ fn default_pg_max() -> u32 {
 }
 
 impl DatabaseConfig {
-    pub fn dsn(&self) -> String {
-        format!(
+    fn connection_url(&self, database: &str) -> String {
+        let mut url = format!(
             "postgres://{}:{}@{}:{}/{}",
             urlencoding::encode(&self.user),
             urlencoding::encode(&self.password),
             self.host,
             self.port,
-            urlencoding::encode(&self.database),
-        )
+            urlencoding::encode(database),
+        );
+        let mut options = url::form_urlencoded::Serializer::new(String::new());
+        if let Some(mode) = &self.ssl_mode {
+            options.append_pair("sslmode", mode);
+        }
+        if let Some(cert) = &self.ssl_root_cert {
+            options.append_pair("sslrootcert", &cert.to_string_lossy());
+        }
+        let options = options.finish();
+        if !options.is_empty() {
+            url.push('?');
+            url.push_str(&options);
+        }
+        url
     }
 
-    /// DSN targeting the default "postgres" DB so we can CREATE DATABASE if needed
+    pub fn dsn(&self) -> String {
+        self.connection_url(&self.database)
+    }
+
+    /// DSN targeting the default database when bootstrapping a missing database.
     pub fn admin_dsn(&self) -> String {
-        format!(
-            "postgres://{}:{}@{}:{}/postgres",
-            urlencoding::encode(&self.user),
-            urlencoding::encode(&self.password),
-            self.host,
-            self.port,
-        )
+        self.connection_url("postgres")
     }
 }
 
@@ -77,15 +92,18 @@ pub struct RedisConfig {
     pub password: String,
     #[serde(default)]
     pub db: u8,
+    #[serde(default)]
+    pub tls: bool,
 }
 
 impl RedisConfig {
     pub fn url(&self) -> String {
+        let scheme = if self.tls { "rediss" } else { "redis" };
         if self.password.is_empty() {
-            format!("redis://{}:{}/{}", self.host, self.port, self.db)
+            format!("{scheme}://{}:{}/{}", self.host, self.port, self.db)
         } else {
             format!(
-                "redis://:{}@{}:{}/{}",
+                "{scheme}://:{}@{}:{}/{}",
                 urlencoding::encode(&self.password),
                 self.host,
                 self.port,

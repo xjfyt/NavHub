@@ -19,6 +19,8 @@ user = "navhub"
 password = "CHANGE_ME"
 database = "navhub"
 max_connections = 10
+# ssl_mode = "verify-full"
+# ssl_root_cert = "/etc/ssl/certs/pg-ca.crt"
 
 [redis]
 host = "127.0.0.1"
@@ -26,6 +28,7 @@ port = 6379
 # 无密码留空即可
 password = ""
 db = 0
+# tls = true # Redis TLS using trusted system CA certificates.
 
 [superadmin]
 # 首次启动(DB 中无 superadmin 角色用户)时自动创建,首次登录强制改密
